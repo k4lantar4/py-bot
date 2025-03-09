@@ -540,29 +540,35 @@ def initialize_database() -> bool:
     
     pg_user, pg_password, pg_host, pg_db = match.groups()
     
-    # Check if database exists, create if not
-    print_info(f"Checking if database '{pg_db}' exists...")
-    
-    # Prepare PostgreSQL command environment
-    pg_env = os.environ.copy()
-    pg_env["PGPASSWORD"] = pg_password
-    
-    success, stdout, stderr = run_command(
-        ["sudo", "-u", "postgres", "psql", "-lqt"],
-        "Failed to list PostgreSQL databases",
-        env=pg_env
+    # First create the PostgreSQL user if it doesn't exist
+    print_info(f"Ensuring PostgreSQL user '{pg_user}' exists...")
+    create_user_cmd = f"sudo -u postgres psql -c \"SELECT 1 FROM pg_roles WHERE rolname='{pg_user}'\" | grep -q 1 || sudo -u postgres psql -c \"CREATE USER {pg_user} WITH PASSWORD '{pg_password}' CREATEDB;\""
+    success, _, _ = run_command(
+        create_user_cmd,
+        f"Failed to create PostgreSQL user '{pg_user}'",
+        f"PostgreSQL user '{pg_user}' is ready",
+        shell=True
     )
     
     if not success:
         return False
     
-    if pg_db not in stdout:
+    # Check if database exists, create if not
+    print_info(f"Checking if database '{pg_db}' exists...")
+    
+    # Use a simpler, more reliable approach to check and create database
+    check_db_cmd = f"sudo -u postgres psql -lqt | cut -d \\| -f 1 | grep -qw {pg_db}"
+    db_exists, _, _ = run_command(check_db_cmd, "Failed to check database", shell=True)
+    
+    if not db_exists:
         print_info(f"Creating database '{pg_db}'...")
+        # Create database directly as postgres user, avoiding directory permission issues
+        create_db_cmd = f"sudo -u postgres psql -c \"CREATE DATABASE {pg_db} OWNER {pg_user};\""
         success, _, _ = run_command(
-            ["sudo", "-u", "postgres", "createdb", "-O", pg_user, pg_db],
+            create_db_cmd,
             f"Failed to create database '{pg_db}'",
             f"Database '{pg_db}' created successfully!",
-            env=pg_env
+            shell=True
         )
         
         if not success:
