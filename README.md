@@ -1,112 +1,165 @@
 # 3X-UI Management System
 
-A comprehensive management system for 3X-UI panels with user management, role-based access control, and API integration.
+سیستم مدیریتی جامع برای پنل‌های 3X-UI با امکان مدیریت کاربران، کنترل دسترسی بر اساس نقش، و یکپارچه‌سازی API.
 
-## Features
+## ویژگی‌ها
 
-- **User Management**: Create, update, and delete users with role-based access control
-- **Authentication**: JWT-based authentication with refresh tokens
-- **Role Management**: Assign roles to users with different permissions
-- **API Integration**: RESTful API for integration with other systems
-- **Redis Caching**: Efficient caching for improved performance
-- **Logging**: Comprehensive logging for monitoring and debugging
+- **مدیریت کاربران**: ایجاد، به‌روزرسانی و حذف کاربران با کنترل دسترسی مبتنی بر نقش
+- **احراز هویت**: احراز هویت مبتنی بر JWT با توکن‌های بازنشانی
+- **مدیریت نقش**: تخصیص نقش‌ها به کاربران با دسترسی‌های متفاوت
+- **یکپارچه‌سازی API**: API مبتنی بر REST برای یکپارچه‌سازی با سایر سیستم‌ها
+- **کش Redis**: کشینگ کارآمد برای بهبود عملکرد
+- **ثبت وقایع**: ثبت وقایع جامع برای نظارت و اشکال‌زدایی
 
-## Backend Technology Stack
+## قابلیت‌های نصب محلی جدید
 
-- **Framework**: FastAPI
-- **Database**: PostgreSQL with SQLAlchemy ORM
-- **Authentication**: JWT tokens with refresh capability
-- **Caching**: Redis
-- **Task Queue**: Celery (for background tasks)
+- **نصب بدون نیاز به دامنه و SSL**: نصب با استفاده از IP سرور بدون نیاز به دامنه
+- **پیگیری پیشرفت نصب**: هر بار اجرای اسکریپت، وضعیت مراحل نصب را بررسی و فقط مراحل ناتمام را انجام می‌دهد
+- **نصب خودکار پیش‌نیازها**: تمام پیش‌نیازهای نصب بصورت خودکار بررسی و نصب می‌شوند
+- **ایجاد محیط مجازی پایتون**: بصورت خودکار محیط مجازی پایتون ایجاد می‌شود
+- **ایجاد خودکار فایل .env**: فایل تنظیمات محیطی به صورت خودکار با مقادیر ورودی کاربر یا مقادیر پیش‌فرض ایجاد می‌شود
+- **پیکربندی خودکار سرویس‌ها**: سرویس‌های systemd و Nginx بطور خودکار پیکربندی می‌شوند
+- **انعطاف‌پذیری در نصب**: امکان نصب بدون نیاز به ربات تلگرام یا فرانت‌اند
 
-## Frontend Technology Stack
+## فناوری‌های استفاده شده در بک‌اند
 
-- **Framework**: React
-- **UI Library**: Material-UI (MUI)
-- **State Management**: Redux
-- **Routing**: React Router
-- **Internationalization**: i18next
-- **Charts**: Chart.js
+- **فریم‌ورک**: FastAPI
+- **پایگاه داده**: PostgreSQL با SQLAlchemy ORM
+- **احراز هویت**: توکن‌های JWT با قابلیت بازنشانی
+- **کشینگ**: Redis
+- **صف کار**: Celery (برای کارهای پس‌زمینه)
 
-## Getting Started
+## فناوری‌های استفاده شده در فرانت‌اند
 
-### Prerequisites
+- **فریم‌ورک**: React
+- **کتابخانه UI**: Material-UI (MUI)
+- **مدیریت وضعیت**: Redux
+- **مسیریابی**: React Router
+- **بین‌المللی‌سازی**: i18next
+- **نمودارها**: Chart.js
 
-- Python 3.9+
-- PostgreSQL
-- Redis
-- Node.js 16+
+## شروع به کار
 
-### Installation
+### پیش‌نیازها
 
-1. Clone the repository:
+- Ubuntu 22.04+
+- دسترسی root یا sudo
+
+### نصب آسان با یک دستور
+
+فقط کافیست مخزن را کلون کرده و اسکریپت نصب را اجرا کنید:
+
+```bash
+git clone https://github.com/k4lantar4/py_bot.git
+cd py_bot
+python3 install.py
+```
+
+این اسکریپت بطور خودکار:
+1. محیط مجازی پایتون را ایجاد می‌کند
+2. تمام پیش‌نیازها مانند Python، PostgreSQL، Redis و Nginx را نصب می‌کند
+3. فایل‌های محیطی `.env` را با دریافت اطلاعات از کاربر یا استفاده از مقادیر پیش‌فرض ایجاد می‌کند
+4. پایگاه داده را راه‌اندازی می‌کند
+5. سرویس‌های سیستمی را پیکربندی می‌کند
+6. وضعیت نصب را گزارش می‌دهد
+
+هر بار که اسکریپت را اجرا می‌کنید، فقط مراحلی که هنوز کامل نشده‌اند اجرا می‌شوند.
+
+### نصب دستی (برای توسعه‌دهندگان)
+
+1. کلون کردن مخزن:
    ```bash
-   git clone https://github.com/yourusername/3x-ui-management.git
-   cd 3x-ui-management
+   git clone https://github.com/k4lantar4/py_bot.git
+   cd py_bot
    ```
 
-2. Set up the backend:
+2. راه‌اندازی بک‌اند:
    ```bash
    cd backend
    python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   source venv/bin/activate
    pip install -r requirements.txt
    ```
 
-3. Create a `.env` file in the backend directory with the following content:
+3. فایل `.env` به صورت خودکار توسط اسکریپت نصب ایجاد می‌شود، اما برای توسعه می‌توانید آن را به صورت دستی ایجاد کنید:
    ```
-   # API settings
+   # تنظیمات API
    SECRET_KEY=your-secret-key
    
-   # Database settings
-   POSTGRES_SERVER=localhost
-   POSTGRES_USER=postgres
-   POSTGRES_PASSWORD=password
-   POSTGRES_DB=3xui_management
+   # تنظیمات پایگاه داده
+   DATABASE_URL=postgresql://postgres:postgres@localhost/threexui
    
-   # Redis settings
-   REDIS_HOST=localhost
-   REDIS_PORT=6379
-   REDIS_DB=0
+   # تنظیمات Redis
+   REDIS_URL=redis://localhost:6379/0
    
-   # First superuser
-   FIRST_SUPERUSER_USERNAME=admin
-   FIRST_SUPERUSER_EMAIL=admin@example.com
-   FIRST_SUPERUSER_PASSWORD=admin
+   # تنظیمات دسترسی
+   ACCESS_TOKEN_EXPIRE_MINUTES=30
+   REFRESH_TOKEN_EXPIRE_DAYS=7
+   ALGORITHM=HS256
    
-   # Environment
+   # تنظیمات CORS
+   BACKEND_CORS_ORIGINS=["http://localhost:3000", "http://localhost:8080"]
+   
+   # محیط
    ENVIRONMENT=development
+   SERVER_IP=localhost
+   USE_SSL=false
+   ENABLE_BOT=false
+   ENABLE_FRONTEND=false
    ```
 
-4. Set up the frontend:
+4. راه‌اندازی فرانت‌اند (اختیاری):
    ```bash
    cd ../frontend
    npm install
    ```
 
-### Running the Application
+### اجرای برنامه
 
-1. Start the backend:
+#### اجرای نسخه نصب شده با اسکریپت نصب
+
+پس از نصب با اسکریپت، سرویس‌ها به صورت خودکار راه‌اندازی می‌شوند و می‌توانید با مراجعه به آدرس‌های زیر به برنامه دسترسی داشته باشید:
+- API بک‌اند: http://YOUR_SERVER_IP/api
+- مستندات API: http://YOUR_SERVER_IP/api/docs
+
+برای مدیریت سرویس بک‌اند:
+```bash
+# مشاهده وضعیت سرویس
+sudo systemctl status 3xui-backend.service
+
+# راه‌اندازی مجدد سرویس
+sudo systemctl restart 3xui-backend.service
+
+# توقف سرویس
+sudo systemctl stop 3xui-backend.service
+
+# شروع سرویس
+sudo systemctl start 3xui-backend.service
+```
+
+#### اجرای دستی (برای توسعه‌دهندگان)
+
+1. شروع بک‌اند:
    ```bash
    cd backend
    uvicorn app.main:app --reload
    ```
 
-2. Start the frontend:
+2. شروع فرانت‌اند (اختیاری):
    ```bash
    cd frontend
    npm start
    ```
 
-3. Access the application:
-   - Backend API: http://localhost:8000
-   - API Documentation: http://localhost:8000/api/docs
-   - Frontend: http://localhost:3000
+3. دسترسی به برنامه:
+   - API بک‌اند: http://localhost:8000
+   - مستندات API: http://localhost:8000/api/docs
+   - فرانت‌اند: http://localhost:3000
 
-## API Documentation
+## مستندات API
 
-The API documentation is available at `/api/docs` when the backend is running. It provides detailed information about all available endpoints, request/response schemas, and authentication requirements.
+مستندات API در آدرس `/api/docs` هنگامی که بک‌اند در حال اجراست در دسترس است. این مستندات اطلاعات دقیقی در مورد تمام نقاط پایانی موجود، الگوهای درخواست/پاسخ و نیازهای احراز هویت ارائه می‌دهد.
 
-## License
+## مجوز
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+این پروژه تحت مجوز MIT منتشر شده است - برای جزئیات بیشتر به فایل LICENSE مراجعه کنید. 
