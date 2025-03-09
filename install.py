@@ -4,8 +4,7 @@
 ================================
 This script automates the installation process for the 3X-UI Management System.
 It performs prerequisite checks, sets up the environment, and installs all
-necessary components for a local installation without requiring domain, SSL,
-telegram bot or frontend components.
+necessary components including backend, frontend, MySQL database, and phpMyAdmin.
 
 Features:
 - Dynamic environment configuration input
@@ -14,6 +13,8 @@ Features:
 - Error handling with detailed checklist
 - User-friendly output with emojis
 - Python virtual environment setup
+- MySQL database setup with phpMyAdmin
+- Frontend installation
 - Stateful execution - tracks what's already installed
 - Shell-independent execution
 
@@ -74,7 +75,10 @@ class InstallState:
         self.prerequisites_installed = False
         self.env_configured = False
         self.backend_installed = False
+        self.mysql_installed = False
+        self.phpmyadmin_installed = False
         self.database_initialized = False
+        self.frontend_installed = False
         self.services_configured = False
         self.installation_completed = False
         self.errors = []
@@ -87,7 +91,10 @@ class InstallState:
             "prerequisites_installed": self.prerequisites_installed,
             "env_configured": self.env_configured,
             "backend_installed": self.backend_installed,
+            "mysql_installed": self.mysql_installed,
+            "phpmyadmin_installed": self.phpmyadmin_installed,
             "database_initialized": self.database_initialized,
+            "frontend_installed": self.frontend_installed,
             "services_configured": self.services_configured,
             "installation_completed": self.installation_completed,
             "errors": self.errors,
@@ -107,7 +114,10 @@ class InstallState:
                     self.prerequisites_installed = state_dict.get("prerequisites_installed", False)
                     self.env_configured = state_dict.get("env_configured", False)
                     self.backend_installed = state_dict.get("backend_installed", False)
+                    self.mysql_installed = state_dict.get("mysql_installed", False)
+                    self.phpmyadmin_installed = state_dict.get("phpmyadmin_installed", False)
                     self.database_initialized = state_dict.get("database_initialized", False)
+                    self.frontend_installed = state_dict.get("frontend_installed", False)
                     self.services_configured = state_dict.get("services_configured", False)
                     self.installation_completed = state_dict.get("installation_completed", False)
                     self.errors = state_dict.get("errors", [])
@@ -183,14 +193,12 @@ def get_local_ip() -> str:
         String containing the local IP address
     """
     try:
-        # Create a socket connection to an external server to determine the local IP
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
         return local_ip
     except Exception:
-        # Fallback to hostname if the above method fails
         return socket.gethostbyname(socket.gethostname())
 
 def run_command(command: List[str], error_message: str, success_message: Optional[str] = None, 
@@ -256,7 +264,7 @@ def create_virtual_environment() -> bool:
         print_success("Virtual environment already created.")
         return True
         
-    print_step(1, 6, "Creating Python virtual environment")
+    print_step(1, 8, "Creating Python virtual environment")
     
     venv_path = os.path.join(os.getcwd(), "venv")
     if os.path.exists(venv_path):
@@ -308,7 +316,7 @@ def install_prerequisites() -> bool:
         print_success("Prerequisites already installed.")
         return True
         
-    print_step(2, 6, "Checking and installing prerequisites")
+    print_step(2, 8, "Checking and installing prerequisites")
     
     # Check operating system
     if platform.system() != "Linux":
@@ -328,12 +336,11 @@ def install_prerequisites() -> bool:
         "python3": "python3",
         "python3-pip": "python3-pip",
         "python3-venv": "python3-venv",
-        "postgresql": "postgresql",
-        "postgresql-contrib": "postgresql-contrib",
-        "libpq-dev": "libpq-dev",
-        "redis-server": "redis-server",
         "nginx": "nginx",
         "build-essential": "build-essential",
+        "nodejs": "nodejs",
+        "npm": "npm",
+        "curl": "curl",
     }
     
     # Install all packages at once to be more efficient
@@ -344,6 +351,32 @@ def install_prerequisites() -> bool:
         
         if not success:
             packages_to_install.append(apt_name)
+    
+    # Check Node.js version and add it to installation list if needed
+    success, stdout, _ = run_command(["node", "--version"], "Checking Node.js version", shell=False)
+    if success:
+        # Extract version number
+        node_version = stdout.strip().lstrip('v').split('.')
+        if len(node_version) >= 1 and int(node_version[0]) < 14:
+            print_warning(f"Node.js version {stdout.strip()} is too old. Need at least v14.x")
+            packages_to_install.append("nodejs")
+    else:
+        packages_to_install.append("nodejs")
+        packages_to_install.append("npm")
+    
+    # Install Node.js 16 (LTS) if needed
+    if "nodejs" in packages_to_install:
+        print_info("Setting up Node.js 16.x repository...")
+        run_command(
+            ["curl", "-fsSL", "https://deb.nodesource.com/setup_16.x", "-o", "/tmp/nodesource_setup.sh"],
+            "Failed to download Node.js setup script"
+        )
+        run_command(
+            ["sudo", "bash", "/tmp/nodesource_setup.sh"],
+            "Failed to setup Node.js repository"
+        )
+        # Refresh package list after adding repository
+        run_command(["sudo", "apt-get", "update"], "Failed to update package lists after adding Node.js repository")
     
     if packages_to_install:
         print_info(f"Installing packages: {', '.join(packages_to_install)}")
@@ -359,20 +392,205 @@ def install_prerequisites() -> bool:
     else:
         print_success("All required packages are already installed.")
     
-    # Start and enable PostgreSQL and Redis services
-    for service in ["postgresql", "redis-server"]:
-        print_info(f"Ensuring {service} is running...")
-        run_command(
-            ["sudo", "systemctl", "start", service],
-            f"Failed to start {service}"
-        )
-        run_command(
-            ["sudo", "systemctl", "enable", service],
-            f"Failed to enable {service}"
-        )
-    
     print_success("All prerequisites installed successfully!")
     state.prerequisites_installed = True
+    return True
+
+def install_mysql() -> bool:
+    """
+    Install and configure MySQL database
+    
+    Returns:
+        Boolean indicating if MySQL installation was successful
+    """
+    if state.mysql_installed:
+        print_success("MySQL already installed.")
+        return True
+        
+    print_step(3, 8, "Installing MySQL")
+    
+    # First, check if MySQL is already installed
+    success, _, _ = run_command(["dpkg", "-s", "mysql-server"], "Checking MySQL", shell=False)
+    
+    if success:
+        print_success("MySQL server is already installed.")
+    else:
+        print_info("Installing MySQL server...")
+        # Set default root password non-interactively
+        os.environ["DEBIAN_FRONTEND"] = "noninteractive"
+        mysql_root_password = get_user_input("MySQL root password", "mysql_root_password", password=True)
+        
+        # Prepare MySQL root password configuration
+        debconf_settings = [
+            f"mysql-server mysql-server/root_password password {mysql_root_password}",
+            f"mysql-server mysql-server/root_password_again password {mysql_root_password}"
+        ]
+        
+        # Configure MySQL root password
+        for setting in debconf_settings:
+            success, _, _ = run_command(
+                ["sudo", "debconf-set-selections"],
+                f"Failed to set MySQL config: {setting}",
+                input=setting.encode(),
+                shell=False
+            )
+            if not success:
+                return False
+        
+        # Install MySQL server
+        success, _, _ = run_command(
+            ["sudo", "apt-get", "install", "-y", "mysql-server"],
+            "Failed to install MySQL server",
+            "MySQL server installed successfully!"
+        )
+        
+        if not success:
+            return False
+    
+    # Ensure MySQL is running
+    print_info("Ensuring MySQL server is running...")
+    run_command(
+        ["sudo", "systemctl", "start", "mysql"],
+        "Failed to start MySQL server"
+    )
+    run_command(
+        ["sudo", "systemctl", "enable", "mysql"],
+        "Failed to enable MySQL server"
+    )
+    
+    # Save MySQL root password for later use
+    os.environ["MYSQL_ROOT_PASSWORD"] = mysql_root_password
+    
+    state.mysql_installed = True
+    return True
+
+def install_phpmyadmin() -> bool:
+    """
+    Install and configure phpMyAdmin
+    
+    Returns:
+        Boolean indicating if phpMyAdmin installation was successful
+    """
+    if state.phpmyadmin_installed:
+        print_success("phpMyAdmin already installed.")
+        return True
+        
+    print_step(4, 8, "Installing phpMyAdmin")
+    
+    # Check if phpMyAdmin is already installed
+    success, _, _ = run_command(["dpkg", "-s", "phpmyadmin"], "Checking phpMyAdmin", shell=False)
+    
+    if success:
+        print_success("phpMyAdmin is already installed.")
+    else:
+        print_info("Installing Apache2 (required for phpMyAdmin)...")
+        success, _, _ = run_command(
+            ["sudo", "apt-get", "install", "-y", "apache2", "php", "php-mysql", "libapache2-mod-php"],
+            "Failed to install Apache2 and PHP",
+            "Apache2 and PHP installed successfully!"
+        )
+        
+        if not success:
+            return False
+        
+        # Set debconf selections for phpMyAdmin to avoid interactive prompts
+        mysql_root_password = os.environ.get("MYSQL_ROOT_PASSWORD", "")
+        
+        debconf_settings = [
+            "phpmyadmin phpmyadmin/dbconfig-install boolean true",
+            f"phpmyadmin phpmyadmin/mysql/admin-pass password {mysql_root_password}",
+            "phpmyadmin phpmyadmin/mysql/app-pass password ''",
+            "phpmyadmin phpmyadmin/app-password-confirm password ''",
+            "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2"
+        ]
+        
+        # Configure phpMyAdmin non-interactively
+        for setting in debconf_settings:
+            success, _, _ = run_command(
+                ["sudo", "debconf-set-selections"],
+                f"Failed to set phpMyAdmin config: {setting}",
+                input=setting.encode(),
+                shell=False
+            )
+            if not success:
+                return False
+        
+        # Install phpMyAdmin
+        print_info("Installing phpMyAdmin...")
+        success, _, _ = run_command(
+            ["sudo", "apt-get", "install", "-y", "phpmyadmin"],
+            "Failed to install phpMyAdmin",
+            "phpMyAdmin installed successfully!"
+        )
+        
+        if not success:
+            return False
+    
+    # Configure nginx as a reverse proxy for phpMyAdmin
+    print_info("Configuring Nginx as a reverse proxy for phpMyAdmin...")
+    
+    server_ip = get_local_ip()
+    nginx_phpmyadmin_config = f"""
+location /phpmyadmin {{
+    proxy_pass http://127.0.0.1/phpmyadmin;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}}
+"""
+    
+    try:
+        # Make sure the Nginx sites-available directory exists
+        nginx_sites_dir = "/etc/nginx/sites-available"
+        if not os.path.exists(nginx_sites_dir):
+            print_error(f"Nginx sites-available directory not found: {nginx_sites_dir}")
+            return False
+        
+        # Check if our custom config exists
+        nginx_config_path = "/etc/nginx/sites-available/3xui.conf"
+        if os.path.exists(nginx_config_path):
+            # Read existing config
+            with open(nginx_config_path, "r") as f:
+                existing_config = f.read()
+            
+            # Only add phpMyAdmin config if it's not already there
+            if "location /phpmyadmin" not in existing_config:
+                # Add phpMyAdmin config before the closing brace
+                modified_config = existing_config.replace("}", f"{nginx_phpmyadmin_config}\n}}")
+                
+                # Write modified config to a temporary file
+                temp_config_path = "/tmp/3xui_phpmyadmin.conf"
+                with open(temp_config_path, "w") as f:
+                    f.write(modified_config)
+                
+                # Move temporary file to actual config location
+                success, _, _ = run_command(
+                    ["sudo", "mv", temp_config_path, nginx_config_path],
+                    "Failed to update Nginx configuration"
+                )
+                
+                if not success:
+                    return False
+                
+                print_success("Nginx configuration updated for phpMyAdmin.")
+                
+                # Reload Nginx to apply the configuration
+                print_info("Reloading Nginx...")
+                run_command(
+                    ["sudo", "systemctl", "reload", "nginx"],
+                    "Failed to reload Nginx"
+                )
+            else:
+                print_info("phpMyAdmin configuration already exists in Nginx config.")
+        else:
+            print_warning("Nginx config file not found. Will configure phpMyAdmin later.")
+    
+    except Exception as e:
+        print_error(f"Failed to configure Nginx for phpMyAdmin: {str(e)}")
+        return False
+    
+    state.phpmyadmin_installed = True
     return True
 
 def configure_environment() -> bool:
@@ -386,29 +604,29 @@ def configure_environment() -> bool:
         print_success("Environment already configured.")
         return True
         
-    print_step(3, 6, "Configuring environment")
+    print_step(5, 8, "Configuring environment")
     
     # Get server's local IP address
     server_ip = get_local_ip()
     print_info(f"Detected server IP address: {server_ip}")
     
-    # Get PostgreSQL credentials
-    pg_user = get_user_input("PostgreSQL username", "postgres")
-    pg_password = get_user_input("PostgreSQL password", "postgres", password=True)
-    pg_db = get_user_input("PostgreSQL database name", "threexui")
+    # Get MySQL credentials
+    mysql_user = get_user_input("MySQL username", "threexui_user")
+    mysql_password = get_user_input("MySQL password", "threexui_pass", password=True)
+    mysql_db = get_user_input("MySQL database name", "threexui")
     
     # Generate a secure random secret key
     secret_key = "".join(random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(64))
     
     # Backend environment variables
     backend_env = {
-        "DATABASE_URL": f"postgresql://{pg_user}:{pg_password}@localhost/{pg_db}",
+        "DATABASE_URL": f"mysql+pymysql://{mysql_user}:{mysql_password}@localhost/{mysql_db}",
         "REDIS_URL": "redis://localhost:6379/0",
         "SECRET_KEY": secret_key,
         "ACCESS_TOKEN_EXPIRE_MINUTES": "30",
         "REFRESH_TOKEN_EXPIRE_DAYS": "7",
         "ALGORITHM": "HS256",
-        "BACKEND_CORS_ORIGINS": f'["http://{server_ip}:3000", "http://localhost:3000", "http://localhost:8080"]',
+        "BACKEND_CORS_ORIGINS": f'["http://{server_ip}", "http://{server_ip}:3000", "http://localhost:3000"]',
         "SMTP_SERVER": "",
         "SMTP_PORT": "587",
         "SMTP_USERNAME": "",
@@ -417,8 +635,12 @@ def configure_environment() -> bool:
         "ENVIRONMENT": "development",
         "SERVER_IP": server_ip,
         "USE_SSL": "false",
-        "ENABLE_BOT": "false",
-        "ENABLE_FRONTEND": "false"
+        "ENABLE_BOT": "true",
+        "ENABLE_FRONTEND": "true",
+        "MYSQL_USER": mysql_user,
+        "MYSQL_PASSWORD": mysql_password,
+        "MYSQL_DATABASE": mysql_db,
+        "MYSQL_ROOT_PASSWORD": os.environ.get("MYSQL_ROOT_PASSWORD", "")
     }
     
     # Create .env file for backend
@@ -436,11 +658,230 @@ def configure_environment() -> bool:
             shutil.copy(env_file_path, backend_env_path)
             print_success("Environment file copied to backend directory.")
         
+        # Create a .env file for frontend
+        frontend_dir = os.path.join(os.getcwd(), "frontend")
+        if os.path.exists(frontend_dir):
+            frontend_env_path = os.path.join(frontend_dir, ".env")
+            with open(frontend_env_path, "w") as f:
+                f.write(f"REACT_APP_API_URL=http://{server_ip}/api\n")
+                f.write(f"REACT_APP_SERVER_IP={server_ip}\n")
+            print_success("Environment file created for frontend.")
+        
         state.env_configured = True
         return True
     except Exception as e:
         print_error(f"Failed to create environment file: {str(e)}")
         return False
+
+def initialize_database() -> bool:
+    """
+    Initialize the MySQL database for the application
+    
+    Returns:
+        Boolean indicating if database initialization was successful
+    """
+    if state.database_initialized:
+        print_success("Database already initialized.")
+        return True
+        
+    print_step(6, 8, "Initializing MySQL database")
+    
+    # Get MySQL credentials from .env file
+    env_file_path = os.path.join(os.getcwd(), ".env")
+    if not os.path.exists(env_file_path):
+        print_error("Environment file (.env) not found. Please run configuration step first.")
+        return False
+    
+    env_vars = {}
+    with open(env_file_path, "r") as f:
+        for line in f:
+            if "=" in line:
+                key, value = line.strip().split("=", 1)
+                env_vars[key] = value
+    
+    mysql_user = env_vars.get("MYSQL_USER", "")
+    mysql_password = env_vars.get("MYSQL_PASSWORD", "")
+    mysql_db = env_vars.get("MYSQL_DATABASE", "")
+    mysql_root_password = env_vars.get("MYSQL_ROOT_PASSWORD", "")
+    
+    if not mysql_db or not mysql_user:
+        print_error("MySQL credentials not found in .env file.")
+        return False
+    
+    # Create database user and permissions
+    print_info(f"Ensuring MySQL user '{mysql_user}' exists...")
+    
+    # Create a SQL script to create user and database
+    sql_script = f"""
+CREATE DATABASE IF NOT EXISTS `{mysql_db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '{mysql_user}'@'localhost' IDENTIFIED BY '{mysql_password}';
+GRANT ALL PRIVILEGES ON `{mysql_db}`.* TO '{mysql_user}'@'localhost';
+FLUSH PRIVILEGES;
+"""
+    
+    script_path = "/tmp/create_db.sql"
+    with open(script_path, "w") as f:
+        f.write(sql_script)
+    
+    # Execute SQL script as root
+    success, _, _ = run_command(
+        f"sudo mysql -u root -p{mysql_root_password} < {script_path}",
+        "Failed to create MySQL database and user",
+        f"MySQL database '{mysql_db}' and user '{mysql_user}' created successfully!",
+        shell=True
+    )
+    
+    # Remove temporary SQL file
+    if os.path.exists(script_path):
+        os.remove(script_path)
+    
+    if not success:
+        return False
+    
+    # Update backend/app/core/config.py if it exists to use MySQL
+    backend_config_path = os.path.join(os.getcwd(), "backend", "app", "core", "config.py")
+    if os.path.exists(backend_config_path):
+        print_info("Updating backend configuration to use MySQL...")
+        
+        try:
+            # Read existing config
+            with open(backend_config_path, "r") as f:
+                config_content = f.read()
+            
+            # Update database connection string if needed
+            if "postgresql" in config_content.lower() and "mysql" not in config_content.lower():
+                # Replace PostgreSQL connection with MySQL
+                config_content = re.sub(
+                    r"(SQLALCHEMY_DATABASE_URI|DATABASE_URL).*?=.*?['\"]postgresql.*?['\"]",
+                    f"\\1 = \"mysql+pymysql://{mysql_user}:{mysql_password}@localhost/{mysql_db}\"",
+                    config_content
+                )
+                
+                # Write updated config
+                with open(backend_config_path, "w") as f:
+                    f.write(config_content)
+                
+                print_success("Backend configuration updated to use MySQL.")
+            else:
+                print_info("Backend already configured for MySQL or connection string not found.")
+        except Exception as e:
+            print_warning(f"Failed to update backend config: {str(e)}")
+    
+    # Run database migrations
+    backend_dir = os.path.join(os.getcwd(), "backend")
+    if not os.path.exists(backend_dir):
+        print_error("Backend directory not found.")
+        return False
+    
+    # Get path to Python in virtual environment
+    venv_path = os.path.join(os.getcwd(), "venv")
+    if platform.system() == "Windows":
+        python_bin = os.path.join(venv_path, "Scripts", "python.exe")
+    else:
+        python_bin = os.path.join(venv_path, "bin", "python")
+    
+    print_info("Running database migrations...")
+    
+    # Check if there's an alembic.ini file or a migrations script
+    alembic_ini = os.path.join(backend_dir, "alembic.ini")
+    migrations_script = os.path.join(backend_dir, "migrations.py")
+    
+    if os.path.exists(alembic_ini):
+        # Update alembic.ini to use MySQL if needed
+        try:
+            with open(alembic_ini, "r") as f:
+                alembic_content = f.read()
+            
+            if "postgresql" in alembic_content and "mysql" not in alembic_content:
+                alembic_content = re.sub(
+                    r"sqlalchemy.url = postgresql.*",
+                    f"sqlalchemy.url = mysql+pymysql://{mysql_user}:{mysql_password}@localhost/{mysql_db}",
+                    alembic_content
+                )
+                
+                with open(alembic_ini, "w") as f:
+                    f.write(alembic_content)
+                
+                print_success("Updated alembic.ini to use MySQL.")
+        except Exception as e:
+            print_warning(f"Failed to update alembic.ini: {str(e)}")
+        
+        cmd = f"cd {backend_dir} && {python_bin} -m alembic upgrade head"
+        success, _, _ = run_command(
+            cmd,
+            "Failed to run database migrations",
+            "Database migrations completed successfully!",
+            shell=True
+        )
+    elif os.path.exists(migrations_script):
+        cmd = f"cd {backend_dir} && {python_bin} migrations.py"
+        success, _, _ = run_command(
+            cmd,
+            "Failed to run database migrations",
+            "Database migrations completed successfully!",
+            shell=True
+        )
+    else:
+        print_warning("No migration files found. Skipping database migration step.")
+        
+        # Create basic database structure if no migrations exist
+        print_info("Creating basic database structure...")
+        base_tables_sql = """
+CREATE TABLE IF NOT EXISTS `users` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `username` VARCHAR(50) NOT NULL UNIQUE,
+  `email` VARCHAR(100) NOT NULL UNIQUE,
+  `hashed_password` VARCHAR(255) NOT NULL,
+  `is_active` BOOLEAN NOT NULL DEFAULT TRUE,
+  `is_superuser` BOOLEAN NOT NULL DEFAULT FALSE,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS `roles` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(50) NOT NULL UNIQUE,
+  `description` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS `user_roles` (
+  `user_id` INT NOT NULL,
+  `role_id` INT NOT NULL,
+  PRIMARY KEY (`user_id`, `role_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE
+);
+
+INSERT INTO `roles` (`name`, `description`) 
+VALUES ('admin', 'Administrator with full access')
+ON DUPLICATE KEY UPDATE `description` = 'Administrator with full access';
+"""
+        
+        # Create basic tables SQL script
+        basic_tables_path = "/tmp/basic_tables.sql"
+        with open(basic_tables_path, "w") as f:
+            f.write(base_tables_sql)
+        
+        # Execute SQL script to create basic tables
+        run_command(
+            f"mysql -u {mysql_user} -p{mysql_password} {mysql_db} < {basic_tables_path}",
+            "Failed to create basic database tables",
+            "Basic database tables created successfully!",
+            shell=True
+        )
+        
+        # Remove temporary SQL file
+        if os.path.exists(basic_tables_path):
+            os.remove(basic_tables_path)
+        
+        success = True
+    
+    if not success:
+        return False
+    
+    state.database_initialized = True
+    return True
 
 def install_backend() -> bool:
     """
@@ -453,7 +894,7 @@ def install_backend() -> bool:
         print_success("Backend already installed.")
         return True
         
-    print_step(4, 6, "Installing backend")
+    print_step(7, 8, "Installing backend")
     
     backend_dir = os.path.join(os.getcwd(), "backend")
     if not os.path.exists(backend_dir):
@@ -501,264 +942,6 @@ def install_backend() -> bool:
     state.backend_installed = True
     return True
 
-def initialize_database() -> bool:
-    """
-    Initialize the database for the application
-    
-    Returns:
-        Boolean indicating if database initialization was successful
-    """
-    if state.database_initialized:
-        print_success("Database already initialized.")
-        return True
-        
-    print_step(5, 6, "Initializing database")
-    
-    # Get PostgreSQL credentials from .env file
-    env_file_path = os.path.join(os.getcwd(), ".env")
-    if not os.path.exists(env_file_path):
-        print_error("Environment file (.env) not found. Please run configuration step first.")
-        return False
-    
-    env_vars = {}
-    with open(env_file_path, "r") as f:
-        for line in f:
-            if "=" in line:
-                key, value = line.strip().split("=", 1)
-                env_vars[key] = value
-    
-    database_url = env_vars.get("DATABASE_URL", "")
-    if not database_url:
-        print_error("DATABASE_URL not found in .env file.")
-        return False
-    
-    # Parse database connection parameters
-    match = re.match(r"postgresql://([^:]+):([^@]+)@([^/]+)/(.+)", database_url)
-    if not match:
-        print_error(f"Failed to parse DATABASE_URL: {database_url}")
-        return False
-    
-    pg_user, pg_password, pg_host, pg_db = match.groups()
-    
-    # First create the PostgreSQL user if it doesn't exist
-    print_info(f"Ensuring PostgreSQL user '{pg_user}' exists...")
-    create_user_cmd = f"sudo -u postgres psql -c \"SELECT 1 FROM pg_roles WHERE rolname='{pg_user}'\" | grep -q 1 || sudo -u postgres psql -c \"CREATE USER {pg_user} WITH PASSWORD '{pg_password}' CREATEDB;\""
-    success, _, _ = run_command(
-        create_user_cmd,
-        f"Failed to create PostgreSQL user '{pg_user}'",
-        f"PostgreSQL user '{pg_user}' is ready",
-        shell=True
-    )
-    
-    if not success:
-        return False
-    
-    # Check if database exists, create if not
-    print_info(f"Checking if database '{pg_db}' exists...")
-    
-    # Use a simpler, more reliable approach to check and create database
-    check_db_cmd = f"sudo -u postgres psql -lqt | cut -d \\| -f 1 | grep -qw {pg_db}"
-    db_exists, _, _ = run_command(check_db_cmd, "Failed to check database", shell=True)
-    
-    if not db_exists:
-        print_info(f"Creating database '{pg_db}'...")
-        # Create database directly as postgres user, avoiding directory permission issues
-        create_db_cmd = f"sudo -u postgres psql -c \"CREATE DATABASE {pg_db} OWNER {pg_user};\""
-        success, _, _ = run_command(
-            create_db_cmd,
-            f"Failed to create database '{pg_db}'",
-            f"Database '{pg_db}' created successfully!",
-            shell=True
-        )
-        
-        if not success:
-            return False
-    else:
-        print_success(f"Database '{pg_db}' already exists.")
-    
-    # Run database migrations
-    backend_dir = os.path.join(os.getcwd(), "backend")
-    if not os.path.exists(backend_dir):
-        print_error("Backend directory not found.")
-        return False
-    
-    # Get path to Python in virtual environment
-    venv_path = os.path.join(os.getcwd(), "venv")
-    if platform.system() == "Windows":
-        python_bin = os.path.join(venv_path, "Scripts", "python.exe")
-    else:
-        python_bin = os.path.join(venv_path, "bin", "python")
-    
-    print_info("Running database migrations...")
-    
-    # Check if there's an alembic.ini file or a migrations script
-    alembic_ini = os.path.join(backend_dir, "alembic.ini")
-    migrations_script = os.path.join(backend_dir, "migrations.py")
-    
-    if os.path.exists(alembic_ini):
-        cmd = f"cd {backend_dir} && {python_bin} -m alembic upgrade head"
-        success, _, _ = run_command(
-            cmd,
-            "Failed to run database migrations",
-            "Database migrations completed successfully!",
-            shell=True
-        )
-    elif os.path.exists(migrations_script):
-        cmd = f"cd {backend_dir} && {python_bin} migrations.py"
-        success, _, _ = run_command(
-            cmd,
-            "Failed to run database migrations",
-            "Database migrations completed successfully!",
-            shell=True
-        )
-    else:
-        print_warning("No migration files found. Skipping database migration step.")
-        success = True
-    
-    if not success:
-        return False
-    
-    state.database_initialized = True
-    return True
-
-def configure_services() -> bool:
-    """
-    Configure system services for the application
-    
-    Returns:
-        Boolean indicating if service configuration was successful
-    """
-    if state.services_configured:
-        print_success("Services already configured.")
-        return True
-        
-    print_step(6, 6, "Configuring services")
-    
-    # Get the current username and project path
-    current_user = getpass.getuser()
-    project_path = os.getcwd()
-    venv_path = os.path.join(project_path, "venv")
-    
-    # Get path to Python and uvicorn in virtual environment
-    if platform.system() == "Windows":
-        python_bin = os.path.join(venv_path, "Scripts", "python.exe")
-        uvicorn_bin = os.path.join(venv_path, "Scripts", "uvicorn.exe")
-    else:
-        python_bin = os.path.join(venv_path, "bin", "python")
-        uvicorn_bin = os.path.join(venv_path, "bin", "uvicorn")
-    
-    # Create systemd service file for backend
-    backend_service = f"""[Unit]
-Description=3X-UI Backend Service
-After=network.target postgresql.service redis-server.service
-
-[Service]
-User={current_user}
-Group={current_user}
-WorkingDirectory={os.path.join(project_path, "backend")}
-Environment="PATH={os.path.dirname(python_bin)}:$PATH"
-ExecStart={uvicorn_bin} app.main:app --host 0.0.0.0 --port 8000
-
-[Install]
-WantedBy=multi-user.target
-"""
-    
-    # Configure Nginx for backend
-    server_ip = get_local_ip()
-    nginx_config = f"""server {{
-    listen 80;
-    server_name {server_ip};
-
-    location /api {{
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }}
-
-    location /api/docs {{
-        proxy_pass http://127.0.0.1:8000/docs;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }}
-}}
-"""
-    
-    # Write service files
-    try:
-        # Backend service
-        backend_service_path = "/tmp/3xui-backend.service"
-        with open(backend_service_path, "w") as f:
-            f.write(backend_service)
-        
-        print_info("Installing backend service...")
-        success, _, _ = run_command(
-            ["sudo", "mv", backend_service_path, "/etc/systemd/system/3xui-backend.service"],
-            "Failed to install backend service"
-        )
-        
-        if not success:
-            return False
-        
-        # Nginx config
-        nginx_config_path = "/tmp/3xui.conf"
-        with open(nginx_config_path, "w") as f:
-            f.write(nginx_config)
-        
-        print_info("Installing Nginx configuration...")
-        success, _, _ = run_command(
-            ["sudo", "mv", nginx_config_path, "/etc/nginx/sites-available/3xui.conf"],
-            "Failed to install Nginx configuration"
-        )
-        
-        if not success:
-            return False
-        
-        # Enable Nginx site
-        if not os.path.exists("/etc/nginx/sites-enabled/3xui.conf"):
-            success, _, _ = run_command(
-                ["sudo", "ln", "-s", "/etc/nginx/sites-available/3xui.conf", "/etc/nginx/sites-enabled/"],
-                "Failed to enable Nginx site"
-            )
-            
-            if not success:
-                return False
-        
-        # Reload systemd and enable services
-        print_info("Reloading systemd daemon...")
-        run_command(
-            ["sudo", "systemctl", "daemon-reload"],
-            "Failed to reload systemd daemon"
-        )
-        
-        print_info("Enabling backend service...")
-        run_command(
-            ["sudo", "systemctl", "enable", "3xui-backend.service"],
-            "Failed to enable backend service"
-        )
-        
-        print_info("Restarting Nginx...")
-        run_command(
-            ["sudo", "systemctl", "reload", "nginx"],
-            "Failed to restart Nginx"
-        )
-        
-        print_info("Starting backend service...")
-        run_command(
-            ["sudo", "systemctl", "start", "3xui-backend.service"],
-            "Failed to start backend service"
-        )
-        
-        state.services_configured = True
-        print_success("Services configured successfully!")
-        return True
-    except Exception as e:
-        print_error(f"Failed to configure services: {str(e)}")
-        return False
-
 def installation_summary() -> None:
     """Display a summary of the installation status"""
     print_header("3X-UI Installation Summary")
@@ -768,6 +951,8 @@ def installation_summary() -> None:
         ("Prerequisites Installation", state.prerequisites_installed),
         ("Environment Configuration", state.env_configured),
         ("Backend Installation", state.backend_installed),
+        ("MySQL Installation", state.mysql_installed),
+        ("phpMyAdmin Installation", state.phpmyadmin_installed),
         ("Database Initialization", state.database_initialized),
         ("Services Configuration", state.services_configured)
     ]
@@ -814,10 +999,11 @@ def main() -> None:
     steps = [
         create_virtual_environment,
         install_prerequisites,
+        install_mysql,
+        install_phpmyadmin,
         configure_environment,
-        install_backend,
         initialize_database,
-        configure_services
+        install_backend
     ]
     
     # Run installation steps
@@ -838,7 +1024,7 @@ def main() -> None:
     
     # Mark installation as completed if all steps were successful
     if (state.venv_created and state.prerequisites_installed and state.env_configured and 
-        state.backend_installed and state.database_initialized and state.services_configured):
+        state.mysql_installed and state.phpmyadmin_installed and state.database_initialized and state.backend_installed):
         state.installation_completed = True
         state.save_to_file()
 
