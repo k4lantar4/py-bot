@@ -1,103 +1,48 @@
 """
 User model for the 3X-UI Management System.
 
-This module defines the SQLAlchemy ORM model for users of the system,
-including authentication and role-based access control.
+This module defines the User model for the database.
 """
 
-import enum
-from typing import List, Optional
+from datetime import datetime
+from typing import List
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, Enum, JSON, func, Table
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String
 from sqlalchemy.orm import relationship
 
-from app.db.session import Base
-
-
-# User role enumeration
-class UserRole(str, enum.Enum):
-    """
-    Enumeration of user roles for role-based access control.
-    """
-    ADMIN = "admin"
-    MANAGER = "manager"
-    VENDOR = "vendor"
-    CUSTOMER = "customer"
-    GUEST = "guest"
-
-
-# User-role association table for many-to-many relationship
-user_roles = Table(
-    "user_roles",
-    Base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
-    Column("role", String, primary_key=True),
-)
+from app.db.base_class import Base
 
 
 class User(Base):
     """
-    SQLAlchemy model for users.
+    User model.
+    
+    This class represents a user in the system.
     """
-    __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
-    full_name = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
+    full_name = Column(String, index=True)
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
-    is_verified = Column(Boolean, default=False)
-    
-    # Two-factor authentication
-    totp_secret = Column(String, nullable=True)  # TOTP secret for 2FA
-    totp_enabled = Column(Boolean, default=False)
-    
-    # Contact information
-    phone = Column(String, nullable=True)
-    telegram_id = Column(String, nullable=True, unique=True)
-    
-    # Financial information
+    last_login = Column(DateTime, nullable=True)
+    telegram_id = Column(String, unique=True, nullable=True)
     wallet_balance = Column(Float, default=0.0)
     
-    # Metadata
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    last_login = Column(DateTime, nullable=True)
-    
-    # Preferences and settings
-    settings = Column(JSON, nullable=True)
-    language = Column(String, default="en")
-    
     # Relationships
-    roles = relationship("UserRole", secondary=user_roles, collection_class=list)
-    orders = relationship("Order", back_populates="user")
-    payments = relationship("Payment", back_populates="user")
-    
-    def has_role(self, role: str) -> bool:
-        """
-        Check if the user has a specific role.
-        
-        Args:
-            role: The role to check
-            
-        Returns:
-            True if the user has the role, False otherwise
-        """
-        if self.is_superuser:
-            return True
-        return role in self.roles
+    roles = relationship("Role", secondary="user_role", back_populates="users")
     
     @property
     def role_names(self) -> List[str]:
         """
-        Get the role names of the user.
+        Get role names.
         
         Returns:
-            List of role names
+            List[str]: List of role names
         """
-        return [role.value for role in self.roles]
+        return [role.name for role in self.roles]
 
 
 class UserClient(Base):

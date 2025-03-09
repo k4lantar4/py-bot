@@ -9,8 +9,10 @@ import json
 from typing import Any, Dict, List, Optional, Union
 import redis
 from redis.exceptions import RedisError
+from redis import Redis
 
 from app.core.config import settings
+from app.utils.logger import logger
 
 # Create a Redis client instance
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -242,4 +244,77 @@ def get_rate_limit_count(key: str) -> int:
         count = redis_client.get(formatted_key)
         return int(count) if count else 0
     except (RedisError, ValueError):
+        return 0
+
+
+def get_redis_connection() -> Redis:
+    """
+    Get a Redis connection.
+    
+    Returns:
+        Redis: Redis connection
+    """
+    try:
+        redis_client = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_DB,
+            password=settings.REDIS_PASSWORD,
+            decode_responses=False,
+            socket_timeout=5,
+        )
+        
+        # Test connection
+        redis_client.ping()
+        
+        return redis_client
+    except redis.ConnectionError as e:
+        logger.error(f"Redis connection error: {str(e)}")
+        # Return a dummy Redis client for development
+        if settings.ENVIRONMENT == "development":
+            logger.warning("Using dummy Redis client for development")
+            return DummyRedis()
+        raise
+
+
+class DummyRedis:
+    """
+    Dummy Redis client for development.
+    
+    This class implements a subset of Redis methods for development purposes.
+    """
+    
+    def __init__(self):
+        """Initialize the dummy Redis client."""
+        self.data = {}
+        self.expiry = {}
+    
+    def ping(self):
+        """Ping the Redis server."""
+        return True
+    
+    def get(self, key):
+        """Get a value from Redis."""
+        return self.data.get(key)
+    
+    def set(self, key, value, ex=None):
+        """Set a value in Redis."""
+        self.data[key] = value
+        if ex:
+            self.expiry[key] = ex
+        return True
+    
+    def setex(self, key, time, value):
+        """Set a value in Redis with an expiry."""
+        self.data[key] = value
+        self.expiry[key] = time
+        return True
+    
+    def delete(self, key):
+        """Delete a value from Redis."""
+        if key in self.data:
+            del self.data[key]
+            if key in self.expiry:
+                del self.expiry[key]
+            return 1
         return 0 

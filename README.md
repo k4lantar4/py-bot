@@ -1,117 +1,112 @@
 # 3X-UI Management System
 
-A comprehensive management system for 3X-UI panels with FastAPI backend, React frontend, and Telegram bot integration.
+A comprehensive management system for 3X-UI panels with user management, role-based access control, and API integration.
 
-## 🚀 Features
+## Features
 
-- **Location Management**: CRUD operations for server locations
-- **Server Management**: Integrate and manage 3X-UI servers
-- **Service Management**: Create and manage subscription plans
-- **User Management**: User accounts with role-based permissions
-- **Discount Management**: Create and manage discount codes
-- **Financial Reports**: Generate and export payment reports
-- **Bulk Messaging**: Send messages to users with delivery tracking
-- **Server Monitoring**: Real-time status and traffic monitoring
-- **Access Control**: Role-based access control (RBAC)
-- **Telegram Bot**: Mirror all management features in a Telegram bot
-- **AI Features**: User behavior analysis and plan suggestions
+- **User Management**: Create, update, and delete users with role-based access control
+- **Authentication**: JWT-based authentication with refresh tokens
+- **Role Management**: Assign roles to users with different permissions
+- **API Integration**: RESTful API for integration with other systems
+- **Redis Caching**: Efficient caching for improved performance
+- **Logging**: Comprehensive logging for monitoring and debugging
 
-## 📋 Requirements
+## Backend Technology Stack
 
-### Backend
-- Python 3.10+
-- PostgreSQL 14+
-- Redis 6+
+- **Framework**: FastAPI
+- **Database**: PostgreSQL with SQLAlchemy ORM
+- **Authentication**: JWT tokens with refresh capability
+- **Caching**: Redis
+- **Task Queue**: Celery (for background tasks)
 
-### Frontend
-- Node.js 18+
-- npm 8+
+## Frontend Technology Stack
 
-## 🛠️ Installation
+- **Framework**: React
+- **UI Library**: Material-UI (MUI)
+- **State Management**: Redux
+- **Routing**: React Router
+- **Internationalization**: i18next
+- **Charts**: Chart.js
 
-### Automated Installation (Ubuntu 22.04+)
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/3x-ui-management.git
-cd 3x-ui-management
+## Getting Started
 
-# Run the installer script
-python install.py
-```
+### Prerequisites
 
-### Manual Installation
+- Python 3.9+
+- PostgreSQL
+- Redis
+- Node.js 16+
 
-#### Backend Setup
-```bash
-# Navigate to the backend directory
-cd backend
+### Installation
 
-# Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/3x-ui-management.git
+   cd 3x-ui-management
+   ```
 
-# Install dependencies
-pip install -r requirements.txt
+2. Set up the backend:
+   ```bash
+   cd backend
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
 
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your configuration
+3. Create a `.env` file in the backend directory with the following content:
+   ```
+   # API settings
+   SECRET_KEY=your-secret-key
+   
+   # Database settings
+   POSTGRES_SERVER=localhost
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=password
+   POSTGRES_DB=3xui_management
+   
+   # Redis settings
+   REDIS_HOST=localhost
+   REDIS_PORT=6379
+   REDIS_DB=0
+   
+   # First superuser
+   FIRST_SUPERUSER_USERNAME=admin
+   FIRST_SUPERUSER_EMAIL=admin@example.com
+   FIRST_SUPERUSER_PASSWORD=admin
+   
+   # Environment
+   ENVIRONMENT=development
+   ```
 
-# Initialize the database
-python -m scripts.init_db
+4. Set up the frontend:
+   ```bash
+   cd ../frontend
+   npm install
+   ```
 
-# Start the backend server
-uvicorn app.main:app --reload
-```
+### Running the Application
 
-#### Frontend Setup
-```bash
-# Navigate to the frontend directory
-cd frontend
+1. Start the backend:
+   ```bash
+   cd backend
+   uvicorn app.main:app --reload
+   ```
 
-# Install dependencies
-npm install
+2. Start the frontend:
+   ```bash
+   cd frontend
+   npm start
+   ```
 
-# Start the development server
-npm start
-```
+3. Access the application:
+   - Backend API: http://localhost:8000
+   - API Documentation: http://localhost:8000/api/docs
+   - Frontend: http://localhost:3000
 
-#### Telegram Bot Setup
-```bash
-# Navigate to the bot directory
-cd bot
+## API Documentation
 
-# Install dependencies (if not already installed with backend)
-pip install -r requirements.txt
+The API documentation is available at `/api/docs` when the backend is running. It provides detailed information about all available endpoints, request/response schemas, and authentication requirements.
 
-# Configure your bot
-cp .env.example .env
-# Edit .env with your Telegram Bot API Token
-
-# Start the bot
-python bot.py
-```
-
-## 🧪 Testing
-
-```bash
-# Run backend tests
-cd backend
-pytest
-
-# Run frontend tests
-cd frontend
-npm test
-```
-
-## 📝 Configuration
-
-The system is highly configurable through environment variables and the `config.py` file. See the `.env.example` files in each directory for available options.
-
-## 📊 Documentation
-
-API documentation is available at `/docs` when the backend server is running.
-
-## 📜 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details. 

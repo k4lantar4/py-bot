@@ -1,227 +1,211 @@
-import React, { createContext, useContext, useEffect, useReducer, useState } from 'react';
+/**
+ * Authentication context for the 3X-UI Management System.
+ * 
+ * This module provides authentication state and methods for the application.
+ */
+
+import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import PropTypes from 'prop-types';
-import { jwtDecode } from 'jwt-decode';
-import { useSnackbar } from 'notistack';
-import api from '../services/api';
+import { authAPI, userAPI } from '../services/api';
 
 // Initial state
 const initialState = {
   isAuthenticated: false,
-  isInitializing: true,
-  user: null
+  isInitialized: false,
+  user: null,
 };
 
-// Create context
-const AuthContext = createContext({
-  ...initialState,
-  login: () => Promise.resolve(),
-  logout: () => Promise.resolve(),
-  register: () => Promise.resolve(),
-  updateProfile: () => Promise.resolve()
-});
+// Action types
+const ActionTypes = {
+  INITIALIZE: 'INITIALIZE',
+  LOGIN: 'LOGIN',
+  LOGOUT: 'LOGOUT',
+  UPDATE_USER: 'UPDATE_USER',
+};
 
-// Actions
-const SET_AUTH = 'SET_AUTH';
-const LOGOUT = 'LOGOUT';
-const INITIALIZE = 'INITIALIZE';
-const UPDATE_USER = 'UPDATE_USER';
-
-// Reducer
+// Reducer for managing auth state
 const reducer = (state, action) => {
   switch (action.type) {
-    case INITIALIZE:
+    case ActionTypes.INITIALIZE:
       return {
         ...state,
         isAuthenticated: action.payload.isAuthenticated,
+        isInitialized: true,
         user: action.payload.user,
-        isInitializing: false
       };
-    case SET_AUTH:
+    
+    case ActionTypes.LOGIN:
       return {
         ...state,
         isAuthenticated: true,
-        user: action.payload.user
+        user: action.payload.user,
       };
-    case LOGOUT:
+    
+    case ActionTypes.LOGOUT:
       return {
         ...state,
         isAuthenticated: false,
-        user: null
+        user: null,
       };
-    case UPDATE_USER:
+    
+    case ActionTypes.UPDATE_USER:
       return {
         ...state,
         user: {
           ...state.user,
-          ...action.payload
-        }
+          ...action.payload.user,
+        },
       };
+    
     default:
       return state;
   }
 };
 
-// Provider
+// Create context
+const AuthContext = createContext(null);
+
+/**
+ * Auth provider component.
+ * 
+ * @param {Object} props - Component props
+ * @param {React.ReactNode} props.children - Child components
+ */
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const { enqueueSnackbar } = useSnackbar();
-
-  // Initialize auth from localStorage
-  useEffect(() => {
-    const initialize = async () => {
-      try {
-        const accessToken = localStorage.getItem('accessToken');
-        const refreshToken = localStorage.getItem('refreshToken');
-
-        if (accessToken && refreshToken) {
-          // Validate token and get user data
-          try {
-            api.setAuthToken(accessToken);
-            const decodedToken = jwtDecode(accessToken);
-
-            // Check if token is expired
-            if (decodedToken.exp * 1000 < Date.now()) {
-              // Try to refresh token
-              const response = await api.post('/auth/refresh-token', { refreshToken });
-              const { access_token, refresh_token } = response.data;
-              
-              localStorage.setItem('accessToken', access_token);
-              localStorage.setItem('refreshToken', refresh_token);
-              api.setAuthToken(access_token);
-              
-              // Get user data
-              const { data: user } = await api.get('/users/me');
-              
-              dispatch({
-                type: INITIALIZE,
-                payload: {
-                  isAuthenticated: true,
-                  user
-                }
-              });
-            } else {
-              // Get user data
-              const { data: user } = await api.get('/users/me');
-              
-              dispatch({
-                type: INITIALIZE,
-                payload: {
-                  isAuthenticated: true,
-                  user
-                }
-              });
-            }
-          } catch (error) {
-            console.error('Failed to validate token', error);
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            
-            dispatch({
-              type: INITIALIZE,
-              payload: {
-                isAuthenticated: false,
-                user: null
-              }
-            });
-          }
-        } else {
+  
+  /**
+   * Initialize auth state from local storage or session.
+   */
+  const initialize = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      
+      if (accessToken) {
+        // Verify token and get user profile
+        try {
+          const user = await userAPI.getProfile();
+          
           dispatch({
-            type: INITIALIZE,
+            type: ActionTypes.INITIALIZE,
+            payload: {
+              isAuthenticated: true,
+              user,
+            },
+          });
+        } catch (error) {
+          console.error('Token verification failed:', error);
+          
+          // Token is invalid, clear local storage
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          
+          dispatch({
+            type: ActionTypes.INITIALIZE,
             payload: {
               isAuthenticated: false,
-              user: null
-            }
+              user: null,
+            },
           });
         }
-      } catch (error) {
-        console.error('Failed to initialize auth', error);
+      } else {
         dispatch({
-          type: INITIALIZE,
+          type: ActionTypes.INITIALIZE,
           payload: {
             isAuthenticated: false,
-            user: null
-          }
+            user: null,
+          },
         });
       }
-    };
-
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      
+      dispatch({
+        type: ActionTypes.INITIALIZE,
+        payload: {
+          isAuthenticated: false,
+          user: null,
+        },
+      });
+    }
+  };
+  
+  // Initialize on component mount
+  useEffect(() => {
     initialize();
   }, []);
-
-  // Login
-  const login = async (email, password) => {
-    try {
-      const response = await api.post('/auth/login', {
-        username: email,
-        password
-      });
-
-      const { access_token, refresh_token, user } = response.data;
-
-      localStorage.setItem('accessToken', access_token);
-      localStorage.setItem('refreshToken', refresh_token);
-      
-      api.setAuthToken(access_token);
-
-      dispatch({
-        type: SET_AUTH,
-        payload: {
-          user
-        }
-      });
-
-      enqueueSnackbar('Login successful! Welcome back!', { variant: 'success' });
-      return response;
-    } catch (error) {
-      enqueueSnackbar(error.response?.data?.detail || 'Login failed', { variant: 'error' });
-      throw error;
-    }
+  
+  /**
+   * Login user with data from API.
+   * 
+   * @param {Object} user - User data
+   * @param {Object} tokens - Auth tokens
+   */
+  const login = async (user, tokens) => {
+    // Store tokens
+    localStorage.setItem('accessToken', tokens.accessToken);
+    localStorage.setItem('refreshToken', tokens.refreshToken);
+    
+    dispatch({
+      type: ActionTypes.LOGIN,
+      payload: {
+        user,
+      },
+    });
   };
-
-  // Logout
+  
+  /**
+   * Logout current user.
+   */
   const logout = async () => {
     try {
-      await api.post('/auth/logout');
+      // Call logout API
+      await authAPI.logout();
     } catch (error) {
-      console.error('Logout error', error);
+      console.error('Logout error:', error);
+    } finally {
+      // Remove tokens
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      
+      dispatch({ type: ActionTypes.LOGOUT });
     }
-
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    api.setAuthToken(null);
-    
-    dispatch({ type: LOGOUT });
-    enqueueSnackbar('You have been logged out successfully', { variant: 'success' });
   };
-
-  // Register
+  
+  /**
+   * Register a new user.
+   * 
+   * @param {Object} userData - Registration data
+   * @returns {Object} Registered user data
+   */
   const register = async (userData) => {
-    try {
-      const response = await api.post('/auth/register', userData);
-      enqueueSnackbar('Registration successful! Please log in.', { variant: 'success' });
-      return response;
-    } catch (error) {
-      enqueueSnackbar(error.response?.data?.detail || 'Registration failed', { variant: 'error' });
-      throw error;
-    }
+    const response = await authAPI.register(userData);
+    return response;
   };
-
-  // Update profile
+  
+  /**
+   * Update user profile.
+   * 
+   * @param {Object} userData - User data to update
+   */
   const updateProfile = async (userData) => {
     try {
-      const response = await api.put('/users/me', userData);
+      const updatedUser = await userAPI.updateProfile(userData);
+      
       dispatch({
-        type: UPDATE_USER,
-        payload: response.data
+        type: ActionTypes.UPDATE_USER,
+        payload: {
+          user: updatedUser,
+        },
       });
-      enqueueSnackbar('Profile updated successfully!', { variant: 'success' });
-      return response;
+      
+      return updatedUser;
     } catch (error) {
-      enqueueSnackbar(error.response?.data?.detail || 'Failed to update profile', { variant: 'error' });
+      console.error('Update profile error:', error);
       throw error;
     }
   };
-
+  
   return (
     <AuthContext.Provider
       value={{
@@ -230,7 +214,6 @@ export const AuthProvider = ({ children }) => {
         logout,
         register,
         updateProfile,
-        isInitialized: !state.isInitializing
       }}
     >
       {children}
@@ -239,10 +222,14 @@ export const AuthProvider = ({ children }) => {
 };
 
 AuthProvider.propTypes = {
-  children: PropTypes.node.isRequired
+  children: PropTypes.node.isRequired,
 };
 
-// Hook
+/**
+ * Hook for using the auth context.
+ * 
+ * @returns {Object} Auth context
+ */
 export const useAuth = () => useContext(AuthContext);
 
 export default AuthContext; 

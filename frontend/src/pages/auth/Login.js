@@ -1,158 +1,249 @@
+/**
+ * Login page for the 3X-UI Management System.
+ * 
+ * This component provides a login form for authenticating users.
+ */
+
 import React, { useState } from 'react';
-import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
   Button,
   Checkbox,
+  Container,
   FormControlLabel,
-  Link,
-  Stack,
   TextField,
   Typography,
-  InputAdornment,
+  Paper,
+  Grid,
+  Divider,
   IconButton,
+  InputAdornment,
   Alert,
-  CircularProgress
+  CircularProgress,
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useAuth } from '../../contexts/AuthContext';
+import { authAPI } from '../../services/api';
 
+// Validation schema for login form
+const validationSchema = Yup.object({
+  usernameOrEmail: Yup.string().required('Username or email is required'),
+  password: Yup.string().required('Password is required'),
+});
+
+/**
+ * Login component for user authentication.
+ */
 const Login = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
   const { login } = useAuth();
   
-  // Form state
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
-  // UI state
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // Get redirect path from location state or use default
-  const from = location.state?.from?.pathname || '/';
-  
-  // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!email || !password) {
-      setError(t('auth.allFieldsRequired'));
-      return;
-    }
-    
-    setIsSubmitting(true);
+  /**
+   * Handle form submission.
+   * 
+   * @param {Object} values - Form values
+   */
+  const handleSubmit = async (values) => {
+    setLoading(true);
     setError('');
     
     try {
-      await login(email, password);
-      navigate(from, { replace: true });
-    } catch (err) {
-      console.error('Login error:', err);
-      setError(err.response?.data?.detail || t('auth.loginFailed'));
+      // Call API to login
+      const data = await authAPI.login(
+        values.usernameOrEmail,
+        values.password
+      );
+      
+      // Update auth context
+      await login(data.user, data.tokens);
+      
+      // Redirect to dashboard
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Login error:', error);
+      
+      // Handle different error cases
+      if (error.response) {
+        if (error.response.status === 401) {
+          setError(t('auth.loginFailed'));
+        } else if (error.response.data?.detail) {
+          setError(error.response.data.detail);
+        } else {
+          setError(t('common.error'));
+        }
+      } else {
+        setError(t('common.error'));
+      }
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
   
+  // Form handling with Formik
+  const formik = useFormik({
+    initialValues: {
+      usernameOrEmail: '',
+      password: '',
+      rememberMe: false,
+    },
+    validationSchema,
+    onSubmit: handleSubmit,
+  });
+  
+  /**
+   * Toggle password visibility.
+   */
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+  
   return (
-    <Box>
-      <Typography variant="h5" component="h1" gutterBottom align="center">
-        {t('auth.login')}
-      </Typography>
-      
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
-      
-      <Box component="form" onSubmit={handleSubmit} noValidate>
-        <TextField
-          margin="normal"
-          required
-          fullWidth
-          id="email"
-          label={t('auth.email')}
-          name="email"
-          autoComplete="email"
-          autoFocus
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={isSubmitting}
-        />
-        
-        <TextField
-          margin="normal"
-          required
-          fullWidth
-          name="password"
-          label={t('auth.password')}
-          type={showPassword ? 'text' : 'password'}
-          id="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={isSubmitting}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  aria-label="toggle password visibility"
-                  onClick={() => setShowPassword(!showPassword)}
-                  edge="end"
-                >
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            )
+    <Container component="main" maxWidth="xs">
+      <Paper 
+        elevation={3} 
+        sx={{
+          mt: 8,
+          p: 4,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          borderRadius: 2,
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            mb: 3,
           }}
-        />
-        
-        <FormControlLabel
-          control={
-            <Checkbox
-              value="remember"
-              color="primary"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              disabled={isSubmitting}
-            />
-          }
-          label={t('auth.rememberMe')}
-        />
-        
-        <Button
-          type="submit"
-          fullWidth
-          variant="contained"
-          disabled={isSubmitting}
-          sx={{ mt: 3, mb: 2 }}
         >
-          {isSubmitting ? (
-            <CircularProgress size={24} color="inherit" />
-          ) : (
-            t('auth.login')
-          )}
-        </Button>
+          <IconButton
+            sx={{
+              bgcolor: 'primary.main',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'primary.dark',
+              },
+              mb: 2,
+            }}
+            disabled
+          >
+            <LockOutlinedIcon />
+          </IconButton>
+          <Typography component="h1" variant="h5">
+            {t('auth.login')}
+          </Typography>
+        </Box>
         
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Link component={RouterLink} to="/auth/forgot-password" variant="body2">
-            {t('auth.forgotPassword')}
-          </Link>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2, width: '100%' }}>
+            {error}
+          </Alert>
+        )}
+        
+        <Box component="form" onSubmit={formik.handleSubmit} noValidate sx={{ mt: 1, width: '100%' }}>
+          <TextField
+            margin="normal"
+            fullWidth
+            id="usernameOrEmail"
+            label={t('auth.emailAddress')}
+            name="usernameOrEmail"
+            autoComplete="email"
+            autoFocus
+            value={formik.values.usernameOrEmail}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={formik.touched.usernameOrEmail && Boolean(formik.errors.usernameOrEmail)}
+            helperText={formik.touched.usernameOrEmail && formik.errors.usernameOrEmail}
+            disabled={loading}
+          />
           
-          <Link component={RouterLink} to="/auth/register" variant="body2">
-            {t('auth.dontHaveAccount')}
-          </Link>
-        </Stack>
-      </Box>
-    </Box>
+          <TextField
+            margin="normal"
+            fullWidth
+            name="password"
+            label={t('auth.password')}
+            type={showPassword ? 'text' : 'password'}
+            id="password"
+            autoComplete="current-password"
+            value={formik.values.password}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={formik.touched.password && Boolean(formik.errors.password)}
+            helperText={formik.touched.password && formik.errors.password}
+            disabled={loading}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={handleTogglePasswordVisibility}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          
+          <FormControlLabel
+            control={
+              <Checkbox 
+                color="primary" 
+                name="rememberMe" 
+                checked={formik.values.rememberMe}
+                onChange={formik.handleChange}
+                disabled={loading}
+              />
+            }
+            label={t('auth.rememberMe')}
+          />
+          
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            sx={{ mt: 3, mb: 2, py: 1.2 }}
+            disabled={loading}
+          >
+            {loading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              t('auth.signIn')
+            )}
+          </Button>
+          
+          <Grid container>
+            <Grid item xs>
+              <Link to="/auth/forgot-password" style={{ textDecoration: 'none' }}>
+                <Typography variant="body2" color="primary">
+                  {t('auth.forgotPassword')}
+                </Typography>
+              </Link>
+            </Grid>
+            <Grid item>
+              <Link to="/auth/register" style={{ textDecoration: 'none' }}>
+                <Typography variant="body2" color="primary">
+                  {t('auth.dontHaveAccount')} {t('auth.signUp')}
+                </Typography>
+              </Link>
+            </Grid>
+          </Grid>
+        </Box>
+      </Paper>
+    </Container>
   );
 };
 

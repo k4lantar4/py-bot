@@ -1,106 +1,107 @@
 """
-Configuration module for the 3X-UI Management System.
+Configuration settings for the 3X-UI Management System.
 
-This module loads environment variables and provides configuration settings
-for the entire application. It uses Pydantic's settings management to validate
-and parse environment variables.
+This module defines the application settings loaded from environment variables.
 """
 
-import os
 import secrets
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import AnyHttpUrl, PostgresDsn, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AnyHttpUrl, BaseSettings, EmailStr, PostgresDsn, validator
 
 
 class Settings(BaseSettings):
     """
-    Application settings class that loads from environment variables.
+    Application settings.
+    
+    These settings are loaded from environment variables.
     """
-    # Application metadata
-    PROJECT_NAME: str = "3X-UI Management System"
+    # API settings
     API_V1_STR: str = "/api/v1"
-    VERSION: str = "0.1.0"
-    ENVIRONMENT: str = "development"
-    
-    # Security
-    SECRET_KEY: str
-    # 60 minutes * 24 hours * 7 days = 7 days
+    SECRET_KEY: str = secrets.token_urlsafe(32)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    ALGORITHM: str = "HS256"
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 24
+    SESSION_LIFETIME_SECONDS: int = 60 * 60 * 24 * 7  # 7 days
     
-    # CORS configuration
-    BACKEND_CORS_ORIGINS: List[str] = []
+    # CORS settings
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
 
-    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
-    @classmethod
+    @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        """Parse CORS origins from string to list."""
+        """
+        Validate CORS origins.
+        
+        Args:
+            v: CORS origins as string or list
+            
+        Returns:
+            List of CORS origins
+        """
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, (list, str)):
             return v
         raise ValueError(v)
+    
+    # Database settings
+    POSTGRES_SERVER: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    SQLALCHEMY_DATABASE_URI: Optional[PostgresDsn] = None
 
-    # Database
-    DATABASE_URL: PostgresDsn
+    @validator("SQLALCHEMY_DATABASE_URI", pre=True)
+    def assemble_db_connection(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+        """
+        Assemble database connection string.
+        
+        Args:
+            v: Database connection string
+            values: Settings values
+            
+        Returns:
+            Database connection string
+        """
+        if isinstance(v, str):
+            return v
+        return PostgresDsn.build(
+            scheme="postgresql",
+            user=values.get("POSTGRES_USER"),
+            password=values.get("POSTGRES_PASSWORD"),
+            host=values.get("POSTGRES_SERVER"),
+            path=f"/{values.get('POSTGRES_DB') or ''}",
+        )
     
-    # Redis
-    REDIS_URL: str
+    # Redis settings
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: Optional[str] = None
     
-    # Email
-    SMTP_SERVER: Optional[str] = None
-    SMTP_PORT: Optional[int] = 587
-    SMTP_USERNAME: Optional[str] = None
+    # Email settings
+    SMTP_TLS: bool = True
+    SMTP_PORT: Optional[int] = None
+    SMTP_HOST: Optional[str] = None
+    SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
-    SMTP_FROM: Optional[str] = "noreply@example.com"
+    EMAILS_FROM_EMAIL: Optional[EmailStr] = None
+    EMAILS_FROM_NAME: Optional[str] = None
     
-    # Superuser settings (first user created)
-    FIRST_SUPERUSER_EMAIL: str = "admin@example.com"
-    FIRST_SUPERUSER_PASSWORD: str = "admin"
+    # First superuser
+    FIRST_SUPERUSER_USERNAME: str
+    FIRST_SUPERUSER_EMAIL: EmailStr
+    FIRST_SUPERUSER_PASSWORD: str
     
-    # Features toggle
-    ENABLE_LOCATION_MANAGEMENT: bool = True
-    ENABLE_SERVER_MANAGEMENT: bool = True
-    ENABLE_SERVICE_MANAGEMENT: bool = True
-    ENABLE_USER_MANAGEMENT: bool = True
-    ENABLE_DISCOUNT_MANAGEMENT: bool = True
-    ENABLE_FINANCIAL_REPORTS: bool = True
-    ENABLE_BULK_MESSAGING: bool = True
-    ENABLE_SERVER_MONITORING: bool = True
-    ENABLE_AI_FEATURES: bool = True
+    # Environment
+    ENVIRONMENT: str = "production"
     
-    # 3X-UI API configuration
-    THREEXUI_SESSION_REFRESH_MINUTES: int = 60  # Refresh 3X-UI sessions every 60 minutes
-    THREEXUI_PING_INTERVAL_MINUTES: int = 5  # Check 3X-UI servers every 5 minutes
-    
-    # Telegram Bot
-    TELEGRAM_BOT_ENABLED: bool = True
-    
-    # Model config
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=True,
-        extra="ignore"
-    )
+    class Config:
+        """
+        Pydantic configuration.
+        """
+        case_sensitive = True
+        env_file = ".env"
 
 
-# Create settings instance
-settings = Settings()
-
-# Feature toggles as a dictionary for easier access
-FEATURE_FLAGS = {
-    "location_management": settings.ENABLE_LOCATION_MANAGEMENT,
-    "server_management": settings.ENABLE_SERVER_MANAGEMENT,
-    "service_management": settings.ENABLE_SERVICE_MANAGEMENT,
-    "user_management": settings.ENABLE_USER_MANAGEMENT,
-    "discount_management": settings.ENABLE_DISCOUNT_MANAGEMENT,
-    "financial_reports": settings.ENABLE_FINANCIAL_REPORTS,
-    "bulk_messaging": settings.ENABLE_BULK_MESSAGING,
-    "server_monitoring": settings.ENABLE_SERVER_MONITORING,
-    "ai_features": settings.ENABLE_AI_FEATURES,
-    "telegram_bot": settings.TELEGRAM_BOT_ENABLED,
-} 
+settings = Settings() 

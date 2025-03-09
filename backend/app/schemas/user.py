@@ -1,10 +1,10 @@
 """
 User schemas for the 3X-UI Management System.
 
-This module defines Pydantic models for user data validation and serialization.
+This module defines the schemas for user data validation and serialization.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 
 from pydantic import BaseModel, Field, EmailStr, validator
@@ -15,10 +15,10 @@ class UserBase(BaseModel):
     """
     Base schema for user data shared between requests.
     """
-    email: EmailStr = Field(..., description="User email address")
-    username: str = Field(..., min_length=3, max_length=50, description="Username")
-    full_name: Optional[str] = Field(None, max_length=100, description="Full name")
-    is_active: bool = Field(True, description="Whether the user is active")
+    email: Optional[EmailStr] = None
+    username: Optional[str] = None
+    full_name: Optional[str] = None
+    is_active: Optional[bool] = True
     phone: Optional[str] = Field(None, max_length=20, description="Phone number")
     telegram_id: Optional[str] = Field(None, description="Telegram user ID")
     language: Optional[str] = Field("en", min_length=2, max_length=5, description="User preferred language")
@@ -29,28 +29,32 @@ class UserCreate(UserBase):
     """
     Schema for creating a new user.
     """
-    password: str = Field(..., min_length=8, description="Password")
-    is_superuser: bool = Field(False, description="Whether the user is a superuser")
-    roles: List[str] = Field(["customer"], description="User roles")
+    email: EmailStr
+    username: str
+    password: str
+    full_name: Optional[str] = None
+    roles: Optional[List[str]] = Field(default_factory=lambda: ["user"])
+
+    @validator("username")
+    def username_alphanumeric(cls, v):
+        """Validate that username is alphanumeric with optional underscores."""
+        if not all(c.isalnum() or c == '_' for c in v):
+            raise ValueError("Username must be alphanumeric with optional underscores")
+        return v
 
 
 # Properties to receive on user update
-class UserUpdate(BaseModel):
+class UserUpdate(UserBase):
     """
     Schema for updating an existing user.
     """
-    email: Optional[EmailStr] = Field(None, description="User email address")
-    username: Optional[str] = Field(None, min_length=3, max_length=50, description="Username")
-    full_name: Optional[str] = Field(None, max_length=100, description="Full name")
-    password: Optional[str] = Field(None, min_length=8, description="Password")
-    is_active: Optional[bool] = Field(None, description="Whether the user is active")
-    is_superuser: Optional[bool] = Field(None, description="Whether the user is a superuser")
+    password: Optional[str] = None
+    roles: Optional[List[str]] = None
+    is_superuser: Optional[bool] = None
+    telegram_id: Optional[str] = None
+    wallet_balance: Optional[float] = None
     phone: Optional[str] = Field(None, max_length=20, description="Phone number")
-    telegram_id: Optional[str] = Field(None, description="Telegram user ID")
-    wallet_balance: Optional[float] = Field(None, ge=0, description="User wallet balance")
     language: Optional[str] = Field(None, min_length=2, max_length=5, description="User preferred language")
-    roles: Optional[List[str]] = Field(None, description="User roles")
-    settings: Optional[Dict[str, Any]] = Field(None, description="User preferences and settings")
 
 
 # Properties to receive on wallet update
@@ -58,12 +62,12 @@ class WalletUpdate(BaseModel):
     """
     Schema for updating a user's wallet balance.
     """
-    amount: float = Field(..., description="Amount to add to or subtract from wallet")
-    operation: str = Field(..., description="Operation to perform (add or subtract)")
-    description: Optional[str] = Field(None, description="Description of the transaction")
-    
+    amount: float = Field(..., gt=0.0, description="Amount to add or subtract")
+    operation: str = Field(..., description="Operation to perform: 'add' or 'subtract'")
+
     @validator("operation")
     def validate_operation(cls, v):
+        """Validate that operation is either 'add' or 'subtract'."""
         if v not in ["add", "subtract"]:
             raise ValueError("Operation must be either 'add' or 'subtract'")
         return v
@@ -75,17 +79,17 @@ class UserInDBBase(UserBase):
     Base schema for users retrieved from the database.
     """
     id: int
+    is_active: bool
     is_superuser: bool
-    is_verified: bool
-    totp_enabled: bool
-    wallet_balance: float
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = None
-    settings: Optional[Dict[str, Any]] = None
-    
+    telegram_id: Optional[str] = None
+    wallet_balance: float = 0.0
+    role_names: List[str] = []
+
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 
 # Properties to return to client
@@ -112,7 +116,7 @@ class UserRoleUpdate(BaseModel):
     """
     Schema for updating user roles.
     """
-    roles: List[str] = Field(..., description="List of role names")
+    roles: List[str]
     
     @validator("roles")
     def validate_roles(cls, v):

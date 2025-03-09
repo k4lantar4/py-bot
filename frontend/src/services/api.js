@@ -1,73 +1,74 @@
+/**
+ * API service for the 3X-UI Management System.
+ * 
+ * This module provides functions for communicating with the backend API.
+ */
+
 import axios from 'axios';
 
-// Create an Axios instance with default config
-const api = axios.create({
+// Create axios instance with base URL and default headers
+const apiClient = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
+  },
 });
 
-// Request interceptor for adding auth token
-api.interceptors.request.use(
+// Add request interceptor to include auth token in requests
+apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    return Promise.reject(error);
+  }
 );
 
-// Response interceptor for handling errors globally
-api.interceptors.response.use(
+// Add response interceptor to handle token refresh
+apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     
-    // If error is 401 and we haven't already tried to refresh the token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // If error is 401 and not already retrying
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
       try {
         // Try to refresh the token
         const refreshToken = localStorage.getItem('refreshToken');
         if (!refreshToken) {
-          throw new Error('No refresh token available');
+          // No refresh token available, redirect to login
+          window.location.href = '/auth/login';
+          return Promise.reject(error);
         }
         
-        // Make refresh token request
+        // Call refresh token endpoint
         const response = await axios.post(
-          `${api.defaults.baseURL}/auth/refresh-token`,
-          { refreshToken },
+          `${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/auth/refresh-token`,
+          { refresh_token: refreshToken },
           { headers: { 'Content-Type': 'application/json' } }
         );
         
-        const { access_token, refresh_token } = response.data;
-        
-        // Update tokens in localStorage
-        localStorage.setItem('accessToken', access_token);
-        localStorage.setItem('refreshToken', refresh_token);
-        
-        // Update Authorization header
-        api.defaults.headers.common.Authorization = `Bearer ${access_token}`;
-        originalRequest.headers.Authorization = `Bearer ${access_token}`;
-        
-        // Retry the original request
-        return api(originalRequest);
-      } catch (err) {
-        // If refresh fails, clear tokens and redirect to login
+        if (response.data) {
+          // Store new tokens
+          localStorage.setItem('accessToken', response.data.access_token);
+          localStorage.setItem('refreshToken', response.data.refresh_token);
+          
+          // Retry original request with new token
+          originalRequest.headers['Authorization'] = `Bearer ${response.data.access_token}`;
+          return apiClient(originalRequest);
+        }
+      } catch (refreshError) {
+        // Refresh token failed, redirect to login
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        
-        // Redirect to login page if we're in the browser
-        if (typeof window !== 'undefined') {
-          window.location.href = '/auth/login';
-        }
-        
-        return Promise.reject(err);
+        window.location.href = '/auth/login';
+        return Promise.reject(refreshError);
       }
     }
     
@@ -75,102 +76,310 @@ api.interceptors.response.use(
   }
 );
 
-// Helper methods
-const apiService = {
-  setAuthToken: (token) => {
-    if (token) {
-      api.defaults.headers.common.Authorization = `Bearer ${token}`;
-    } else {
-      delete api.defaults.headers.common.Authorization;
-    }
-  },
-  
-  // GET request
-  get: async (url, params) => {
-    try {
-      const response = await api.get(url, { params });
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  },
-  
-  // POST request
-  post: async (url, data) => {
-    try {
-      const response = await api.post(url, data);
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  },
-  
-  // PUT request
-  put: async (url, data) => {
-    try {
-      const response = await api.put(url, data);
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  },
-  
-  // PATCH request
-  patch: async (url, data) => {
-    try {
-      const response = await api.patch(url, data);
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  },
-  
-  // DELETE request
-  delete: async (url) => {
-    try {
-      const response = await api.delete(url);
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  },
-  
-  // File upload
-  upload: async (url, formData, onUploadProgress) => {
-    try {
-      const response = await api.post(url, formData, {
+// Authentication API
+const authAPI = {
+  /**
+   * Login user with username/email and password.
+   * 
+   * @param {string} usernameOrEmail - The username or email
+   * @param {string} password - The password
+   * @returns {Promise<Object>} User data and tokens
+   */
+  login: async (usernameOrEmail, password) => {
+    const formData = new FormData();
+    formData.append('username', usernameOrEmail);
+    formData.append('password', password);
+    
+    const response = await axios.post(
+      `${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/auth/login`,
+      formData,
+      {
         headers: {
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        onUploadProgress
-      });
-      return response;
+      }
+    );
+    
+    // Store tokens in localStorage
+    localStorage.setItem('accessToken', response.data.access_token);
+    localStorage.setItem('refreshToken', response.data.refresh_token);
+    
+    // Get user profile
+    const userResponse = await apiClient.get('/users/me');
+    
+    return {
+      user: userResponse.data,
+      tokens: {
+        accessToken: response.data.access_token,
+        refreshToken: response.data.refresh_token,
+      },
+    };
+  },
+  
+  /**
+   * Register a new user.
+   * 
+   * @param {Object} userData - User registration data
+   * @returns {Promise<Object>} Created user data
+   */
+  register: async (userData) => {
+    const response = await apiClient.post('/auth/register', userData);
+    return response.data;
+  },
+  
+  /**
+   * Logout current user.
+   * 
+   * @returns {Promise<Object>} Success message
+   */
+  logout: async () => {
+    try {
+      const response = await apiClient.post('/auth/logout');
+      // Clear tokens from localStorage
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      return response.data;
     } catch (error) {
+      // Still clear tokens on error
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
       throw error;
     }
   },
   
-  // Download file
-  download: async (url, filename) => {
-    try {
-      const response = await api.get(url, {
-        responseType: 'blob'
-      });
-      
-      // Create download link and click it
-      const downloadUrl = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
+  /**
+   * Verify auth token is valid.
+   * 
+   * @returns {Promise<Object>} User data if token is valid
+   */
+  verifyToken: async () => {
+    const response = await apiClient.get('/auth/verify-token');
+    return response.data;
+  },
+  
+  /**
+   * Request password reset email.
+   * 
+   * @param {string} email - User email
+   * @returns {Promise<Object>} Success message
+   */
+  requestPasswordReset: async (email) => {
+    const response = await apiClient.post('/auth/password-reset-request', { email });
+    return response.data;
+  },
+  
+  /**
+   * Reset password with token.
+   * 
+   * @param {string} token - Reset token
+   * @param {string} newPassword - New password
+   * @returns {Promise<Object>} Success message
+   */
+  resetPassword: async (token, newPassword) => {
+    const response = await apiClient.post('/auth/password-reset', {
+      token,
+      new_password: newPassword,
+    });
+    return response.data;
+  },
 };
 
-export default apiService; 
+// User API
+const userAPI = {
+  /**
+   * Get current user profile.
+   * 
+   * @returns {Promise<Object>} User data
+   */
+  getProfile: async () => {
+    const response = await apiClient.get('/users/me');
+    return response.data;
+  },
+  
+  /**
+   * Update current user profile.
+   * 
+   * @param {Object} userData - User update data
+   * @returns {Promise<Object>} Updated user data
+   */
+  updateProfile: async (userData) => {
+    const response = await apiClient.put('/users/me', userData);
+    return response.data;
+  },
+  
+  /**
+   * Get all users (admin only).
+   * 
+   * @param {number} page - Page number
+   * @param {number} limit - Items per page
+   * @returns {Promise<Array>} List of users
+   */
+  getUsers: async (page = 1, limit = 10) => {
+    const skip = (page - 1) * limit;
+    const response = await apiClient.get(`/users?skip=${skip}&limit=${limit}`);
+    return response.data;
+  },
+  
+  /**
+   * Get a specific user by ID (admin only).
+   * 
+   * @param {number} userId - User ID
+   * @returns {Promise<Object>} User data
+   */
+  getUserById: async (userId) => {
+    const response = await apiClient.get(`/users/${userId}`);
+    return response.data;
+  },
+  
+  /**
+   * Create a new user (admin only).
+   * 
+   * @param {Object} userData - User creation data
+   * @returns {Promise<Object>} Created user data
+   */
+  createUser: async (userData) => {
+    const response = await apiClient.post('/users', userData);
+    return response.data;
+  },
+  
+  /**
+   * Update a user by ID (admin only).
+   * 
+   * @param {number} userId - User ID
+   * @param {Object} userData - User update data
+   * @returns {Promise<Object>} Updated user data
+   */
+  updateUser: async (userId, userData) => {
+    const response = await apiClient.put(`/users/${userId}`, userData);
+    return response.data;
+  },
+  
+  /**
+   * Delete a user by ID (admin only).
+   * 
+   * @param {number} userId - User ID
+   * @returns {Promise<Object>} Deleted user data
+   */
+  deleteUser: async (userId) => {
+    const response = await apiClient.delete(`/users/${userId}`);
+    return response.data;
+  },
+  
+  /**
+   * Update a user's roles (admin only).
+   * 
+   * @param {number} userId - User ID
+   * @param {Array<string>} roles - List of role names
+   * @returns {Promise<Object>} Updated user data
+   */
+  updateUserRoles: async (userId, roles) => {
+    const response = await apiClient.put(`/users/${userId}/roles`, { roles });
+    return response.data;
+  },
+  
+  /**
+   * Update user wallet balance (admin only).
+   * 
+   * @param {number} userId - User ID
+   * @param {number} amount - Amount to add or subtract
+   * @param {string} operation - "add" or "subtract"
+   * @returns {Promise<Object>} Updated user data
+   */
+  updateUserWallet: async (userId, amount, operation) => {
+    const response = await apiClient.put(`/users/${userId}/wallet`, { 
+      amount, 
+      operation 
+    });
+    return response.data;
+  },
+  
+  /**
+   * Get current user's clients.
+   * 
+   * @param {number} page - Page number
+   * @param {number} limit - Items per page
+   * @returns {Promise<Array>} List of user clients
+   */
+  getMyClients: async (page = 1, limit = 10) => {
+    const skip = (page - 1) * limit;
+    const response = await apiClient.get(`/users/me/clients?skip=${skip}&limit=${limit}`);
+    return response.data;
+  },
+};
+
+// Role API
+const roleAPI = {
+  /**
+   * Get all roles.
+   * 
+   * @returns {Promise<Array>} List of roles
+   */
+  getRoles: async () => {
+    const response = await apiClient.get('/roles');
+    return response.data;
+  },
+  
+  /**
+   * Create a new role (admin only).
+   * 
+   * @param {Object} roleData - Role creation data
+   * @returns {Promise<Object>} Created role data
+   */
+  createRole: async (roleData) => {
+    const response = await apiClient.post('/roles', roleData);
+    return response.data;
+  },
+  
+  /**
+   * Update a role (admin only).
+   * 
+   * @param {number} roleId - Role ID
+   * @param {Object} roleData - Role update data
+   * @returns {Promise<Object>} Updated role data
+   */
+  updateRole: async (roleId, roleData) => {
+    const response = await apiClient.put(`/roles/${roleId}`, roleData);
+    return response.data;
+  },
+  
+  /**
+   * Delete a role (admin only).
+   * 
+   * @param {number} roleId - Role ID
+   * @returns {Promise<Object>} Deleted role data
+   */
+  deleteRole: async (roleId) => {
+    const response = await apiClient.delete(`/roles/${roleId}`);
+    return response.data;
+  },
+};
+
+// Dashboard API
+const dashboardAPI = {
+  /**
+   * Get dashboard statistics.
+   * 
+   * @returns {Promise<Object>} Dashboard statistics
+   */
+  getStats: async () => {
+    const response = await apiClient.get('/dashboard/stats');
+    return response.data;
+  },
+  
+  /**
+   * Get recent activities.
+   * 
+   * @param {number} limit - Number of activities to fetch
+   * @returns {Promise<Array>} List of recent activities
+   */
+  getRecentActivities: async (limit = 10) => {
+    const response = await apiClient.get(`/dashboard/activities?limit=${limit}`);
+    return response.data;
+  },
+};
+
+// Export all API services
+export { apiClient, authAPI, userAPI, roleAPI, dashboardAPI };
+
+// Default export is the raw axios instance
+export default apiClient; 

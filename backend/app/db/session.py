@@ -1,28 +1,28 @@
 """
-Database session management module.
+Database session module for the 3X-UI Management System.
 
-This module initializes and manages the SQLAlchemy session for database operations.
+This module provides the SQLAlchemy session for the application.
 """
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 
-# Create the SQLAlchemy engine
+# Create SQLAlchemy engine
 engine = create_engine(
-    str(settings.DATABASE_URL),
-    pool_pre_ping=True,  # Ping the server before connections to ensure they're valid
-    pool_recycle=3600,   # Recycle connections after an hour to avoid stale connections
-    pool_size=20,        # Maximum number of connections to keep in the pool
-    max_overflow=10,     # Maximum number of connections to create beyond pool_size
+    settings.SQLALCHEMY_DATABASE_URI,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=3600,
 )
 
-# Create a sessionmaker with autocommit=False (transactions must be explicitly committed)
+# Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create base class for SQLAlchemy models
+# Create declarative base
 Base = declarative_base()
 
 
