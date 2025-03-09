@@ -988,8 +988,119 @@ def installation_summary() -> None:
             for error in state.errors:
                 print_error(error)
 
+class UpdateManager:
+    def __init__(self):
+        self.backup_dir = "backups"
+        self.current_version = "1.0.0"
+        
+    def create_backup(self) -> bool:
+        """Create backup of critical files and database"""
+        try:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            backup_path = os.path.join(self.backup_dir, f"backup_{timestamp}")
+            
+            # Create backup directory if it doesn't exist
+            os.makedirs(backup_path, exist_ok=True)
+            
+            # Backup .env file
+            if os.path.exists(".env"):
+                shutil.copy2(".env", os.path.join(backup_path, ".env"))
+            
+            # Backup database
+            if state.mysql_installed:
+                env_vars = {}
+                with open(".env", "r") as f:
+                    for line in f:
+                        if "=" in line:
+                            key, value = line.strip().split("=", 1)
+                            env_vars[key] = value
+                
+                mysql_user = env_vars.get("MYSQL_USER", "")
+                mysql_password = env_vars.get("MYSQL_PASSWORD", "")
+                mysql_db = env_vars.get("MYSQL_DATABASE", "")
+                
+                if mysql_db and mysql_user and mysql_password:
+                    backup_file = os.path.join(backup_path, f"{mysql_db}.sql")
+                    cmd = f"mysqldump -u {mysql_user} -p{mysql_password} {mysql_db} > {backup_file}"
+                    success, _, _ = run_command(cmd, "Failed to backup database", shell=True)
+                    if not success:
+                        return False
+            
+            print_success(f"Backup created successfully at {backup_path}")
+            return True
+        except Exception as e:
+            print_error(f"Failed to create backup: {str(e)}")
+            return False
+    
+    def check_for_updates(self) -> Tuple[bool, str]:
+        """Check if updates are available"""
+        try:
+            # Here you would typically check against a remote version
+            # For now, we'll just return the current version
+            return True, self.current_version
+        except Exception as e:
+            print_error(f"Failed to check for updates: {str(e)}")
+            return False, ""
+    
+    def update_system(self) -> bool:
+        """Update the system to the latest version"""
+        try:
+            # Create backup before updating
+            if not self.create_backup():
+                return False
+            
+            # Update package lists
+            print_info("Updating system packages...")
+            run_command(["sudo", "apt-get", "update"], "Failed to update package lists")
+            
+            # Upgrade installed packages
+            print_info("Upgrading installed packages...")
+            run_command(["sudo", "apt-get", "upgrade", "-y"], "Failed to upgrade packages")
+            
+            # Update Python packages
+            print_info("Updating Python packages...")
+            venv_pip = os.path.join("venv", "bin", "pip") if platform.system() != "Windows" else os.path.join("venv", "Scripts", "pip.exe")
+            run_command([venv_pip, "install", "--upgrade", "-r", "backend/requirements.txt"], "Failed to update Python packages")
+            
+            # Update Node.js packages if frontend exists
+            if os.path.exists("frontend"):
+                print_info("Updating frontend packages...")
+                os.chdir("frontend")
+                run_command(["npm", "install"], "Failed to update frontend packages")
+                os.chdir("..")
+            
+            print_success("System updated successfully!")
+            return True
+        except Exception as e:
+            print_error(f"Failed to update system: {str(e)}")
+            return False
+
+def update_command() -> None:
+    """Handle the update command"""
+    print_header("3X-UI Management System Updater")
+    
+    updater = UpdateManager()
+    has_updates, version = updater.check_for_updates()
+    
+    if has_updates:
+        print_info(f"Current version: {version}")
+        response = get_user_input("Do you want to update the system? [y/N]", "N")
+        
+        if response.lower() == "y":
+            if updater.update_system():
+                print_success("Update completed successfully!")
+            else:
+                print_error("Update failed. Please check the logs for details.")
+    else:
+        print_success("System is already up to date!")
+
 def main() -> None:
     """Main installation function"""
+    # Check if running in update mode
+    if len(sys.argv) > 1 and sys.argv[1] == "update":
+        update_command()
+        return
+    
     print_header("3X-UI Management System Local Installer")
     
     # Load previous state if available
