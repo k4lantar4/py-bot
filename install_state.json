@@ -1,0 +1,12 @@
+{
+  "venv_created": true,
+  "prerequisites_installed": false,
+  "env_configured": false,
+  "backend_installed": false,
+  "database_initialized": false,
+  "services_configured": false,
+  "installation_completed": false,
+  "errors": [],
+  "warnings": [],
+  "last_update": "2025-03-10 00:36:11"
+}
