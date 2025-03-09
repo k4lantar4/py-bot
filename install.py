@@ -15,6 +15,7 @@ Features:
 - User-friendly output with emojis
 - Python virtual environment setup
 - Stateful execution - tracks what's already installed
+- Shell-independent execution
 
 Designed for Ubuntu 22.04+ systems
 """
@@ -261,9 +262,13 @@ def create_virtual_environment() -> bool:
     if os.path.exists(venv_path):
         print_info("Virtual environment directory already exists. Checking if it's valid...")
         
-        # Check if it's a valid venv
-        activate_script = os.path.join(venv_path, "bin", "activate")
-        if os.path.exists(activate_script):
+        # Check if it's a valid venv - check for python executable
+        if platform.system() == "Windows":
+            python_path = os.path.join(venv_path, "Scripts", "python.exe")
+        else:
+            python_path = os.path.join(venv_path, "bin", "python")
+            
+        if os.path.exists(python_path):
             print_success("Existing virtual environment looks valid.")
             state.venv_created = True
             return True
@@ -274,9 +279,20 @@ def create_virtual_environment() -> bool:
     try:
         print_info("Creating virtual environment...")
         venv.create(venv_path, with_pip=True)
-        print_success("Virtual environment created successfully!")
-        state.venv_created = True
-        return True
+        
+        # Verify the venv was created correctly
+        if platform.system() == "Windows":
+            python_path = os.path.join(venv_path, "Scripts", "python.exe")
+        else:
+            python_path = os.path.join(venv_path, "bin", "python")
+            
+        if os.path.exists(python_path):
+            print_success("Virtual environment created successfully!")
+            state.venv_created = True
+            return True
+        else:
+            print_error("Failed to create virtual environment: Python executable not found in the expected location")
+            return False
     except Exception as e:
         print_error(f"Failed to create virtual environment: {str(e)}")
         return False
@@ -320,23 +336,28 @@ def install_prerequisites() -> bool:
         "build-essential": "build-essential",
     }
     
-    # Install required packages
+    # Install all packages at once to be more efficient
+    packages_to_install = []
     for package_name, apt_name in required_packages.items():
         print_info(f"Checking {package_name}...")
         success, _, _ = run_command(["dpkg", "-s", apt_name], f"Checking {package_name}", shell=False)
         
         if not success:
-            print_info(f"Installing {package_name}...")
-            success, _, _ = run_command(
-                ["sudo", "apt-get", "install", "-y", apt_name],
-                f"Failed to install {package_name}",
-                f"{package_name} installed successfully!"
-            )
-            if not success:
-                print_error(f"Failed to install {package_name}. Installation may be incomplete.")
-                return False
-        else:
-            print_success(f"{package_name} is already installed.")
+            packages_to_install.append(apt_name)
+    
+    if packages_to_install:
+        print_info(f"Installing packages: {', '.join(packages_to_install)}")
+        install_cmd = ["sudo", "apt-get", "install", "-y"] + packages_to_install
+        success, _, _ = run_command(
+            install_cmd,
+            "Failed to install required packages",
+            "Packages installed successfully!"
+        )
+        if not success:
+            print_error("Failed to install required packages. Installation may be incomplete.")
+            return False
+    else:
+        print_success("All required packages are already installed.")
     
     # Start and enable PostgreSQL and Redis services
     for service in ["postgresql", "redis-server"]:
@@ -439,14 +460,23 @@ def install_backend() -> bool:
         print_error("Backend directory not found. Please ensure the repository is properly cloned.")
         return False
     
-    # Activate virtual environment
+    # Get paths to Python and pip executables in the virtual environment
     venv_path = os.path.join(os.getcwd(), "venv")
     if platform.system() == "Windows":
-        activate_script = os.path.join(venv_path, "Scripts", "activate")
-        pip_path = os.path.join(venv_path, "Scripts", "pip")
+        python_bin = os.path.join(venv_path, "Scripts", "python.exe")
+        pip_bin = os.path.join(venv_path, "Scripts", "pip.exe")
     else:
-        activate_script = os.path.join(venv_path, "bin", "activate")
-        pip_path = os.path.join(venv_path, "bin", "pip")
+        python_bin = os.path.join(venv_path, "bin", "python")
+        pip_bin = os.path.join(venv_path, "bin", "pip")
+    
+    # Verify Python and pip executables exist
+    if not os.path.exists(python_bin):
+        print_error(f"Python executable not found at {python_bin}. Virtual environment may be corrupted.")
+        return False
+    
+    if not os.path.exists(pip_bin):
+        print_error(f"Pip executable not found at {pip_bin}. Virtual environment may be corrupted.")
+        return False
     
     # Check for requirements.txt
     requirements_path = os.path.join(backend_dir, "requirements.txt")
@@ -454,23 +484,18 @@ def install_backend() -> bool:
         print_error("requirements.txt not found in backend directory.")
         return False
     
-    # Install dependencies using the virtual environment
-    env = os.environ.copy()
-    if platform.system() == "Windows":
-        cmd = f"{pip_path} install -r {requirements_path}"
-    else:
-        cmd = f"source {activate_script} && pip install -r {requirements_path}"
-    
+    # Install dependencies using direct paths to Python and pip in the virtual environment
     print_info("Installing backend dependencies...")
-    success, _, _ = run_command(
+    cmd = f"{python_bin} -m pip install -r {requirements_path}"
+    success, stdout, stderr = run_command(
         cmd,
         "Failed to install backend dependencies",
         "Backend dependencies installed successfully!",
-        env=env,
         shell=True
     )
     
     if not success:
+        print_error(f"Failed to install backend dependencies: {stderr}")
         return False
     
     state.backend_installed = True
@@ -551,11 +576,12 @@ def initialize_database() -> bool:
         print_error("Backend directory not found.")
         return False
     
+    # Get path to Python in virtual environment
     venv_path = os.path.join(os.getcwd(), "venv")
     if platform.system() == "Windows":
-        python_path = os.path.join(venv_path, "Scripts", "python")
+        python_bin = os.path.join(venv_path, "Scripts", "python.exe")
     else:
-        python_path = os.path.join(venv_path, "bin", "python")
+        python_bin = os.path.join(venv_path, "bin", "python")
     
     print_info("Running database migrations...")
     
@@ -564,7 +590,7 @@ def initialize_database() -> bool:
     migrations_script = os.path.join(backend_dir, "migrations.py")
     
     if os.path.exists(alembic_ini):
-        cmd = f"cd {backend_dir} && {python_path} -m alembic upgrade head"
+        cmd = f"cd {backend_dir} && {python_bin} -m alembic upgrade head"
         success, _, _ = run_command(
             cmd,
             "Failed to run database migrations",
@@ -572,7 +598,7 @@ def initialize_database() -> bool:
             shell=True
         )
     elif os.path.exists(migrations_script):
-        cmd = f"cd {backend_dir} && {python_path} migrations.py"
+        cmd = f"cd {backend_dir} && {python_bin} migrations.py"
         success, _, _ = run_command(
             cmd,
             "Failed to run database migrations",
@@ -607,6 +633,14 @@ def configure_services() -> bool:
     project_path = os.getcwd()
     venv_path = os.path.join(project_path, "venv")
     
+    # Get path to Python and uvicorn in virtual environment
+    if platform.system() == "Windows":
+        python_bin = os.path.join(venv_path, "Scripts", "python.exe")
+        uvicorn_bin = os.path.join(venv_path, "Scripts", "uvicorn.exe")
+    else:
+        python_bin = os.path.join(venv_path, "bin", "python")
+        uvicorn_bin = os.path.join(venv_path, "bin", "uvicorn")
+    
     # Create systemd service file for backend
     backend_service = f"""[Unit]
 Description=3X-UI Backend Service
@@ -616,8 +650,8 @@ After=network.target postgresql.service redis-server.service
 User={current_user}
 Group={current_user}
 WorkingDirectory={os.path.join(project_path, "backend")}
-Environment="PATH={os.path.join(venv_path, "bin")}"
-ExecStart={os.path.join(venv_path, "bin", "uvicorn")} app.main:app --host 0.0.0.0 --port 8000
+Environment="PATH={os.path.dirname(python_bin)}:$PATH"
+ExecStart={uvicorn_bin} app.main:app --host 0.0.0.0 --port 8000
 
 [Install]
 WantedBy=multi-user.target
