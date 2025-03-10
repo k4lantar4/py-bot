@@ -328,8 +328,47 @@ def install_prerequisites() -> bool:
         print_error("This installer requires apt-get package manager (Ubuntu/Debian)")
         return False
     
-    print_info("Updating package lists...")
+    # Fix any broken packages first
+    print_info("Fixing any broken packages...")
     run_command(["sudo", "apt-get", "update"], "Failed to update package lists")
+    run_command(["sudo", "apt-get", "install", "-f"], "Failed to fix broken packages")
+    run_command(["sudo", "dpkg", "--configure", "-a"], "Failed to configure packages")
+    
+    # Clean apt cache
+    print_info("Cleaning package cache...")
+    run_command(["sudo", "apt-get", "clean"], "Failed to clean package cache")
+    run_command(["sudo", "apt-get", "autoclean"], "Failed to auto-clean package cache")
+    
+    # Update package lists
+    print_info("Updating package lists...")
+    success, _, _ = run_command(["sudo", "apt-get", "update"], "Failed to update package lists")
+    if not success:
+        return False
+    
+    # Install Node.js and npm properly
+    print_info("Setting up Node.js repository...")
+    
+    # Remove old nodejs if exists
+    run_command(["sudo", "apt-get", "remove", "-y", "nodejs", "npm"], "Failed to remove old Node.js")
+    
+    # Add NodeSource repository
+    curl_cmd = "curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -"
+    success, _, _ = run_command(curl_cmd, "Failed to add Node.js repository", shell=True)
+    if not success:
+        # Try alternative method
+        print_info("Trying alternative Node.js installation method...")
+        run_command(["sudo", "apt-get", "install", "-y", "ca-certificates", "curl", "gnupg"], 
+                   "Failed to install prerequisites for Node.js")
+        run_command(["sudo", "mkdir", "-p", "/etc/apt/keyrings"], "Failed to create keyrings directory")
+        curl_cmd = "curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg"
+        run_command(curl_cmd, "Failed to add Node.js GPG key", shell=True)
+        
+        # Add repository
+        echo_cmd = 'echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_16.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list'
+        run_command(echo_cmd, "Failed to add Node.js repository", shell=True)
+        
+        # Update again after adding repository
+        run_command(["sudo", "apt-get", "update"], "Failed to update package lists")
     
     # Define required packages with their apt package names
     required_packages = {
@@ -339,60 +378,32 @@ def install_prerequisites() -> bool:
         "nginx": "nginx",
         "build-essential": "build-essential",
         "nodejs": "nodejs",
-        "npm": "npm",
         "curl": "curl",
     }
     
-    # Install all packages at once to be more efficient
-    packages_to_install = []
+    # Install packages one by one to better handle errors
     for package_name, apt_name in required_packages.items():
-        print_info(f"Checking {package_name}...")
-        success, _, _ = run_command(["dpkg", "-s", apt_name], f"Checking {package_name}", shell=False)
-        
-        if not success:
-            packages_to_install.append(apt_name)
-    
-    # Check Node.js version and add it to installation list if needed
-    success, stdout, _ = run_command(["node", "--version"], "Checking Node.js version", shell=False)
-    if success:
-        # Extract version number
-        node_version = stdout.strip().lstrip('v').split('.')
-        if len(node_version) >= 1 and int(node_version[0]) < 14:
-            print_warning(f"Node.js version {stdout.strip()} is too old. Need at least v14.x")
-            packages_to_install.append("nodejs")
-    else:
-        packages_to_install.append("nodejs")
-        packages_to_install.append("npm")
-    
-    # Install Node.js 16 (LTS) if needed
-    if "nodejs" in packages_to_install:
-        print_info("Setting up Node.js 16.x repository...")
-        run_command(
-            ["curl", "-fsSL", "https://deb.nodesource.com/setup_16.x", "-o", "/tmp/nodesource_setup.sh"],
-            "Failed to download Node.js setup script"
-        )
-        run_command(
-            ["sudo", "bash", "/tmp/nodesource_setup.sh"],
-            "Failed to setup Node.js repository"
-        )
-        # Refresh package list after adding repository
-        run_command(["sudo", "apt-get", "update"], "Failed to update package lists after adding Node.js repository")
-    
-    if packages_to_install:
-        print_info(f"Installing packages: {', '.join(packages_to_install)}")
-        install_cmd = ["sudo", "apt-get", "install", "-y"] + packages_to_install
+        print_info(f"Installing {package_name}...")
         success, _, _ = run_command(
-            install_cmd,
-            "Failed to install required packages",
-            "Packages installed successfully!"
+            ["sudo", "apt-get", "install", "-y", apt_name],
+            f"Failed to install {package_name}"
         )
         if not success:
-            print_error("Failed to install required packages. Installation may be incomplete.")
-            return False
-    else:
-        print_success("All required packages are already installed.")
+            print_error(f"Failed to install {package_name}. Trying to continue...")
+            continue
     
-    print_success("All prerequisites installed successfully!")
+    # Verify Node.js and npm installation
+    print_info("Verifying Node.js installation...")
+    node_success, node_version, _ = run_command(["node", "--version"], "Checking Node.js version")
+    npm_success, npm_version, _ = run_command(["npm", "--version"], "Checking npm version")
+    
+    if not node_success or not npm_success:
+        print_error("Node.js or npm installation failed. Please install manually:")
+        print("1. curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -")
+        print("2. sudo apt-get install -y nodejs")
+        return False
+    
+    print_success(f"Node.js {node_version.strip()} and npm {npm_version.strip()} installed successfully!")
     state.prerequisites_installed = True
     return True
 
