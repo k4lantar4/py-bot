@@ -72,22 +72,19 @@ if [ ! -f ".db_initialized" ]; then
     echo -e "${YELLOW}Initializing database...${NC}"
     
     # Create PostgreSQL user and database if they don't exist
-    if sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "3xui"; then
+    if sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "xui_db"; then
         echo -e "${GREEN}Database already exists${NC}"
     else
         echo -e "${YELLOW}Creating PostgreSQL user and database...${NC}"
-        sudo -u postgres psql -c "CREATE USER 3xui WITH PASSWORD 'password';"
-        sudo -u postgres psql -c "CREATE DATABASE 3xui OWNER 3xui;"
-        sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE 3xui TO 3xui;"
+        sudo -u postgres psql -c "CREATE USER xui_user WITH PASSWORD 'password';" || true
+        sudo -u postgres psql -c "CREATE DATABASE xui_db OWNER xui_user;" || true
+        sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE xui_db TO xui_user;" || true
         echo -e "${GREEN}Database created${NC}"
     fi
     
     # Run database initialization script
     echo -e "${YELLOW}Running database initialization scripts...${NC}"
-    cd backend
-    source ../venv/bin/activate
-    python -m scripts.init_db
-    cd ..
+    ./fix_db_init.sh
     
     # Mark database as initialized
     touch .db_initialized
@@ -96,8 +93,6 @@ fi
 
 # Start backend
 echo -e "\n${YELLOW}🚀 Starting backend service...${NC}"
-cd backend
-source ../venv/bin/activate
 
 # Check if backend is already running through supervisor
 if supervisorctl status backend | grep -q "RUNNING"; then
@@ -108,8 +103,6 @@ else
     echo -e "${GREEN}Backend started via supervisor${NC}"
 fi
 
-cd ..
-
 # Start bot
 echo -e "\n${YELLOW}🤖 Starting Telegram bot...${NC}"
 if supervisorctl status telegram_bot | grep -q "RUNNING"; then
@@ -118,6 +111,24 @@ else
     # Start bot with supervisor
     supervisorctl start telegram_bot
     echo -e "${GREEN}Telegram bot started via supervisor${NC}"
+fi
+
+# Start Celery services if configured
+echo -e "\n${YELLOW}🔄 Checking Celery services...${NC}"
+if [ -f "/etc/supervisor/conf.d/celery.conf" ]; then
+    if supervisorctl status celery_worker | grep -q "RUNNING"; then
+        echo -e "${GREEN}Celery worker is already running via supervisor${NC}"
+    else
+        supervisorctl start celery_worker
+        echo -e "${GREEN}Celery worker started via supervisor${NC}"
+    fi
+    
+    if supervisorctl status celery_beat | grep -q "RUNNING"; then
+        echo -e "${GREEN}Celery beat is already running via supervisor${NC}"
+    else
+        supervisorctl start celery_beat
+        echo -e "${GREEN}Celery beat started via supervisor${NC}"
+    fi
 fi
 
 # Start frontend (if needed)

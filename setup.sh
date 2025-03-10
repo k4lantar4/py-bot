@@ -35,8 +35,6 @@ apt_packages=(
     postgresql
     postgresql-contrib
     nginx
-    nodejs
-    npm
     curl
 )
 
@@ -45,11 +43,19 @@ echo -e "\n${YELLOW}📦 Installing system packages...${NC}"
 apt update
 apt install -y "${apt_packages[@]}"
 
-# Make sure Node.js and npm are installed and up to date
-echo -e "\n${YELLOW}📦 Setting up Node.js and npm...${NC}"
-if ! command -v node &> /dev/null; then
+# Make sure Node.js and npm are installed and up to date (v16.x)
+echo -e "\n${YELLOW}📦 Setting up Node.js v16...${NC}"
+if ! command -v node &> /dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 16 ]]; then
+    echo -e "${YELLOW}Removing old Node.js version if exists...${NC}"
+    apt remove -y nodejs npm || true
+    
+    echo -e "${YELLOW}Installing Node.js v16...${NC}"
     curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
     apt install -y nodejs
+    
+    echo -e "${GREEN}Node.js $(node -v) and npm $(npm -v) installed successfully${NC}"
+else
+    echo -e "${GREEN}Using existing Node.js $(node -v) and npm $(npm -v)${NC}"
 fi
 
 # Create virtual environment if it doesn't exist
@@ -71,7 +77,7 @@ pip install -r requirements.txt
 
 # Ensure email-validator is installed (critical for Pydantic)
 echo -e "\n${YELLOW}🔍 Ensuring critical dependencies are installed...${NC}"
-pip install email-validator==2.0.0
+pip install email-validator==2.0.0 pydantic-settings==2.0.3
 
 # Create necessary directories
 echo -e "\n${YELLOW}📁 Creating necessary directories...${NC}"
@@ -92,16 +98,35 @@ if [ ! -f ".env" ]; then
     echo -e "${YELLOW}⚠️ Please update the .env file with your actual configuration values${NC}"
 fi
 
-# Setup PostgreSQL
+# Setup PostgreSQL - Using proper naming convention (not starting with number)
 echo -e "\n${YELLOW}🐘 Setting up PostgreSQL...${NC}"
-if sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "3xui"; then
+if sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "xui_db"; then
     echo -e "${GREEN}✅ PostgreSQL database already exists${NC}"
 else
     echo -e "${YELLOW}Creating PostgreSQL user and database...${NC}"
-    sudo -u postgres psql -c "CREATE USER 3xui WITH PASSWORD 'password';" || true
-    sudo -u postgres psql -c "CREATE DATABASE 3xui OWNER 3xui;" || true
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE 3xui TO 3xui;" || true
+    sudo -u postgres psql -c "CREATE USER xui_user WITH PASSWORD 'password';" || true
+    sudo -u postgres psql -c "CREATE DATABASE xui_db OWNER xui_user;" || true
+    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE xui_db TO xui_user;" || true
+    
+    # Update .env file with the correct database settings
+    sed -i 's/POSTGRES_USER=3xui/POSTGRES_USER=xui_user/g' .env
+    sed -i 's/POSTGRES_DB=3xui/POSTGRES_DB=xui_db/g' .env
+    sed -i 's/postgresql:\/\/3xui:password@localhost\/3xui/postgresql:\/\/xui_user:password@localhost\/xui_db/g' .env
+    
     echo -e "${GREEN}✅ PostgreSQL database created${NC}"
+fi
+
+# Update database connection in backend code if necessary
+echo -e "\n${YELLOW}🔄 Checking backend config files...${NC}"
+if [ -f "backend/app/core/config.py" ]; then
+    # Make a backup of the original file
+    cp backend/app/core/config.py backend/app/core/config.py.bak
+    
+    # Fix BaseSettings import
+    echo -e "${YELLOW}Fixing Pydantic BaseSettings import...${NC}"
+    sed -i 's/from pydantic import AnyHttpUrl, BaseSettings/from pydantic import AnyHttpUrl\nfrom pydantic_settings import BaseSettings/g' backend/app/core/config.py
+    
+    echo -e "${GREEN}✅ Backend config fixed${NC}"
 fi
 
 # Setup supervisor configs
@@ -157,17 +182,11 @@ if [ -d "frontend" ]; then
     echo -e "${GREEN}✅ Frontend dependencies installed${NC}"
 fi
 
-# Initialize the database
-echo -e "\n${YELLOW}🗄️ Initializing database...${NC}"
-cd backend
-source ../venv/bin/activate
-python -m scripts.init_db
-cd ..
-
 echo -e "\n${GREEN}✅ Setup completed successfully!${NC}"
 echo -e "\n${YELLOW}ℹ️ Next steps:${NC}"
 echo -e "1. Update the .env file with your actual configuration: ${BLUE}nano .env${NC}"
-echo -e "2. Start all services: ${BLUE}./start_services.sh${NC}"
-echo -e "3. Check status of all services: ${BLUE}supervisorctl status${NC}"
-echo -e "4. Access the API at: ${BLUE}http://your_server_ip/api${NC}"
-echo -e "5. Access the frontend at: ${BLUE}http://your_server_ip${NC}" 
+echo -e "2. Run database initialization: ${BLUE}./fix_db_init.sh${NC}"
+echo -e "3. Start all services: ${BLUE}./start_services.sh${NC}"
+echo -e "4. Check status of all services: ${BLUE}supervisorctl status${NC}"
+echo -e "5. Access the API at: ${BLUE}http://your_server_ip/api${NC}"
+echo -e "6. Access the frontend at: ${BLUE}http://your_server_ip${NC}" 
