@@ -218,40 +218,63 @@ def run_command(command: List[str], error_message: str, success_message: Optiona
         Tuple of (success boolean, stdout, stderr)
     """
     try:
+        # Prepare environment
+        current_env = os.environ.copy()
+        if env:
+            current_env.update(env)
+        
+        # Handle shell commands
         if shell:
             if isinstance(command, list):
                 cmd = " ".join(command)
             else:
                 cmd = command
-            
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE if input_data else None,
-                universal_newlines=True,
-                env=env,
-                shell=True
-            )
         else:
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE if input_data else None,
-                universal_newlines=True,
-                env=env
+            cmd = command
+
+        # Create process
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE if input_data else None,
+            env=current_env,
+            shell=shell,
+            text=True
+        )
+
+        try:
+            # Run command with timeout
+            stdout, stderr = process.communicate(
+                input=input_data.decode() if input_data else None,
+                timeout=300  # 5 minute timeout
             )
-            
-        stdout, stderr = process.communicate(input=input_data.decode() if input_data else None)
-        
+        except subprocess.TimeoutExpired:
+            process.kill()
+            print_error(f"{error_message}: Command timed out after 5 minutes")
+            return False, "", "Command timed out"
+
+        # Check return code
         if process.returncode != 0:
-            print_error(f"{error_message}: {stderr}")
+            # Special handling for package manager errors
+            if "apt-get" in str(cmd) and ("Could not get lock" in stderr or "Could not open lock file" in stderr):
+                print_warning("Package manager is locked. Waiting for other processes to finish...")
+                time.sleep(10)  # Wait 10 seconds
+                return run_command(command, error_message, success_message, env, shell, input_data)
+            
+            # Handle common errors
+            if "Could not resolve host" in stderr:
+                print_error(f"{error_message}: Network connection issue. Please check your internet connection.")
+            elif "Permission denied" in stderr:
+                print_error(f"{error_message}: Permission denied. Make sure you have the right permissions.")
+            else:
+                print_error(f"{error_message}: {stderr}")
             return False, stdout, stderr
-        
+
         if success_message:
             print_success(success_message)
         return True, stdout, stderr
+
     except Exception as e:
         print_error(f"{error_message}: {str(e)}")
         return False, "", str(e)
@@ -331,47 +354,33 @@ def install_prerequisites() -> bool:
         print_error("This installer requires apt-get package manager (Ubuntu/Debian)")
         return False
     
-    # Fix any broken packages first
-    print_info("Fixing any broken packages...")
-    run_command(["sudo", "apt-get", "update"], "Failed to update package lists")
-    run_command(["sudo", "apt-get", "install", "-f"], "Failed to fix broken packages")
-    run_command(["sudo", "dpkg", "--configure", "-a"], "Failed to configure packages")
+    # Wait for any existing apt processes to finish
+    print_info("Checking for existing package manager processes...")
+    while True:
+        success, _, _ = run_command(
+            "! pgrep -a apt-get && ! pgrep -a dpkg",
+            "Checking package manager locks",
+            shell=True
+        )
+        if success:
+            break
+        print_warning("Waiting for other package manager processes to finish...")
+        time.sleep(5)
     
-    # Clean apt cache
-    print_info("Cleaning package cache...")
-    run_command(["sudo", "apt-get", "clean"], "Failed to clean package cache")
-    run_command(["sudo", "apt-get", "autoclean"], "Failed to auto-clean package cache")
+    # Fix any broken packages and clean up
+    print_info("Fixing package manager state...")
+    commands = [
+        ["sudo", "dpkg", "--configure", "-a"],
+        ["sudo", "apt-get", "clean"],
+        ["sudo", "apt-get", "autoclean"],
+        ["sudo", "apt-get", "update"],
+        ["sudo", "apt-get", "install", "-f", "-y"]
+    ]
     
-    # Update package lists
-    print_info("Updating package lists...")
-    success, _, _ = run_command(["sudo", "apt-get", "update"], "Failed to update package lists")
-    if not success:
-        return False
-    
-    # Install Node.js and npm properly
-    print_info("Setting up Node.js repository...")
-    
-    # Remove old nodejs if exists
-    run_command(["sudo", "apt-get", "remove", "-y", "nodejs", "npm"], "Failed to remove old Node.js")
-    
-    # Add NodeSource repository
-    curl_cmd = "curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -"
-    success, _, _ = run_command(curl_cmd, "Failed to add Node.js repository", shell=True)
-    if not success:
-        # Try alternative method
-        print_info("Trying alternative Node.js installation method...")
-        run_command(["sudo", "apt-get", "install", "-y", "ca-certificates", "curl", "gnupg"], 
-                   "Failed to install prerequisites for Node.js")
-        run_command(["sudo", "mkdir", "-p", "/etc/apt/keyrings"], "Failed to create keyrings directory")
-        curl_cmd = "curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg"
-        run_command(curl_cmd, "Failed to add Node.js GPG key", shell=True)
-        
-        # Add repository
-        echo_cmd = 'echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_16.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list'
-        run_command(echo_cmd, "Failed to add Node.js repository", shell=True)
-        
-        # Update again after adding repository
-        run_command(["sudo", "apt-get", "update"], "Failed to update package lists")
+    for cmd in commands:
+        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
+        if not success:
+            print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
     
     # Define required packages with their apt package names
     required_packages = {
@@ -380,33 +389,70 @@ def install_prerequisites() -> bool:
         "python3-venv": "python3-venv",
         "nginx": "nginx",
         "build-essential": "build-essential",
-        "nodejs": "nodejs",
         "curl": "curl",
+        "gnupg": "gnupg",
+        "ca-certificates": "ca-certificates"
     }
     
-    # Install packages one by one to better handle errors
-    for package_name, apt_name in required_packages.items():
-        print_info(f"Installing {package_name}...")
-        success, _, _ = run_command(
-            ["sudo", "apt-get", "install", "-y", apt_name],
-            f"Failed to install {package_name}"
-        )
+    # Install base packages first
+    print_info("Installing base packages...")
+    base_cmd = ["sudo", "apt-get", "install", "-y"] + list(required_packages.values())
+    success, _, _ = run_command(base_cmd, "Failed to install base packages")
+    if not success:
+        print_warning("Some base packages failed to install. Trying individual installation...")
+        for package_name, apt_name in required_packages.items():
+            run_command(
+                ["sudo", "apt-get", "install", "-y", apt_name],
+                f"Failed to install {package_name}"
+            )
+    
+    # Install Node.js
+    print_info("Setting up Node.js...")
+    
+    # Remove old nodejs if exists
+    run_command(["sudo", "apt-get", "remove", "-y", "nodejs", "npm"], "Removing old Node.js")
+    
+    # Add NodeSource repository using the new method
+    print_info("Adding Node.js repository...")
+    
+    # Create keyrings directory
+    run_command(["sudo", "mkdir", "-p", "/etc/apt/keyrings"], "Creating keyrings directory")
+    
+    # Download and add GPG key
+    curl_cmd = "curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg"
+    success, _, _ = run_command(curl_cmd, "Failed to add Node.js GPG key", shell=True)
+    
+    if success:
+        # Add repository
+        echo_cmd = 'echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_16.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list'
+        run_command(echo_cmd, "Failed to add Node.js repository", shell=True)
+        
+        # Update and install Node.js
+        run_command(["sudo", "apt-get", "update"], "Failed to update package lists")
+        success, _, _ = run_command(["sudo", "apt-get", "install", "-y", "nodejs"], "Failed to install Node.js")
+        
         if not success:
-            print_error(f"Failed to install {package_name}. Trying to continue...")
-            continue
+            print_error("Failed to install Node.js through repository. Please install manually:")
+            print("1. curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -")
+            print("2. sudo apt-get install -y nodejs")
+            return False
     
-    # Verify Node.js and npm installation
-    print_info("Verifying Node.js installation...")
-    node_success, node_version, _ = run_command(["node", "--version"], "Checking Node.js version")
-    npm_success, npm_version, _ = run_command(["npm", "--version"], "Checking npm version")
+    # Verify installations
+    verifications = [
+        (["python3", "--version"], "Python"),
+        (["node", "--version"], "Node.js"),
+        (["npm", "--version"], "npm"),
+        (["nginx", "-v"], "Nginx")
+    ]
     
-    if not node_success or not npm_success:
-        print_error("Node.js or npm installation failed. Please install manually:")
-        print("1. curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -")
-        print("2. sudo apt-get install -y nodejs")
-        return False
+    print_info("Verifying installations...")
+    for cmd, name in verifications:
+        success, version, _ = run_command(cmd, f"Checking {name} version")
+        if success:
+            print_success(f"{name} {version.strip()} installed successfully!")
+        else:
+            print_warning(f"{name} verification failed, but continuing...")
     
-    print_success(f"Node.js {node_version.strip()} and npm {npm_version.strip()} installed successfully!")
     state.prerequisites_installed = True
     return True
 
@@ -515,119 +561,132 @@ def install_phpmyadmin() -> bool:
         
     print_step(4, 8, "Installing phpMyAdmin")
     
-    # Check if phpMyAdmin is already installed
-    success, _, _ = run_command(["dpkg", "-s", "phpmyadmin"], "Checking phpMyAdmin", shell=False)
+    # Install Apache2 and PHP first
+    print_info("Installing Apache2 and PHP prerequisites...")
+    php_packages = [
+        "apache2",
+        "php",
+        "php-mysql",
+        "php-json",
+        "php-mbstring",
+        "php-zip",
+        "php-gd",
+        "php-xml",
+        "libapache2-mod-php"
+    ]
     
-    if success:
-        print_success("phpMyAdmin is already installed.")
-    else:
-        print_info("Installing Apache2 (required for phpMyAdmin)...")
+    for package in php_packages:
         success, _, _ = run_command(
-            ["sudo", "apt-get", "install", "-y", "apache2", "php", "php-mysql", "libapache2-mod-php"],
-            "Failed to install Apache2 and PHP",
-            "Apache2 and PHP installed successfully!"
+            ["sudo", "apt-get", "install", "-y", package],
+            f"Failed to install {package}"
         )
-        
         if not success:
-            return False
-        
-        # Set debconf selections for phpMyAdmin to avoid interactive prompts
-        mysql_root_password = os.environ.get("MYSQL_ROOT_PASSWORD", "")
-        
-        debconf_settings = [
-            "phpmyadmin phpmyadmin/dbconfig-install boolean true",
-            f"phpmyadmin phpmyadmin/mysql/admin-pass password {mysql_root_password}",
-            "phpmyadmin phpmyadmin/mysql/app-pass password ''",
-            "phpmyadmin phpmyadmin/app-password-confirm password ''",
-            "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2"
-        ]
-        
-        # Configure phpMyAdmin non-interactively
-        for setting in debconf_settings:
-            success, _, _ = run_command(
-                ["sudo", "debconf-set-selections"],
-                f"Failed to set phpMyAdmin config: {setting}",
-                input=setting.encode(),
-                shell=False
-            )
-            if not success:
-                return False
-        
-        # Install phpMyAdmin
-        print_info("Installing phpMyAdmin...")
+            print_warning(f"Failed to install {package}, but continuing...")
+    
+    # Set environment variable for non-interactive installation
+    os.environ["DEBIAN_FRONTEND"] = "noninteractive"
+    
+    # Get MySQL root password from environment or prompt
+    mysql_root_password = os.environ.get("MYSQL_ROOT_PASSWORD", "")
+    if not mysql_root_password:
+        mysql_root_password = get_user_input("MySQL root password", password=True)
+    
+    # Configure phpMyAdmin installation
+    print_info("Configuring phpMyAdmin installation...")
+    debconf_settings = [
+        "phpmyadmin phpmyadmin/dbconfig-install boolean true",
+        f"phpmyadmin phpmyadmin/mysql/admin-pass password {mysql_root_password}",
+        "phpmyadmin phpmyadmin/mysql/app-pass password ''",
+        "phpmyadmin phpmyadmin/app-password-confirm password ''",
+        "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2"
+    ]
+    
+    for setting in debconf_settings:
         success, _, _ = run_command(
-            ["sudo", "apt-get", "install", "-y", "phpmyadmin"],
-            "Failed to install phpMyAdmin",
-            "phpMyAdmin installed successfully!"
+            ["sudo", "debconf-set-selections"],
+            "Failed to configure phpMyAdmin",
+            input_data=setting.encode()
         )
-        
         if not success:
-            return False
+            print_warning("Failed to set some phpMyAdmin configurations, but continuing...")
     
-    # Configure nginx as a reverse proxy for phpMyAdmin
-    print_info("Configuring Nginx as a reverse proxy for phpMyAdmin...")
+    # Install phpMyAdmin
+    print_info("Installing phpMyAdmin...")
+    success, _, _ = run_command(
+        ["sudo", "apt-get", "install", "-y", "phpmyadmin"],
+        "Failed to install phpMyAdmin"
+    )
     
-    server_ip = get_local_ip()
-    nginx_phpmyadmin_config = f"""
-location /phpmyadmin {{
+    if not success:
+        print_error("Failed to install phpMyAdmin. You can try installing it manually later.")
+        return False
+    
+    # Configure Apache2
+    print_info("Configuring Apache2...")
+    apache_conf = """
+# phpMyAdmin Apache configuration
+Alias /phpmyadmin /usr/share/phpmyadmin
+<Directory /usr/share/phpmyadmin>
+    Options SymLinksIfOwnerMatch
+    DirectoryIndex index.php
+    Require all granted
+</Directory>
+"""
+    
+    # Write Apache configuration
+    apache_conf_path = "/etc/apache2/conf-available/phpmyadmin.conf"
+    try:
+        with open("/tmp/phpmyadmin.conf", "w") as f:
+            f.write(apache_conf)
+        run_command(
+            ["sudo", "mv", "/tmp/phpmyadmin.conf", apache_conf_path],
+            "Failed to create Apache configuration"
+        )
+    except Exception as e:
+        print_warning(f"Failed to write Apache configuration: {str(e)}")
+    
+    # Enable Apache configuration and modules
+    apache_commands = [
+        ["sudo", "a2enconf", "phpmyadmin"],
+        ["sudo", "a2enmod", "rewrite"],
+        ["sudo", "systemctl", "restart", "apache2"]
+    ]
+    
+    for cmd in apache_commands:
+        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
+        if not success:
+            print_warning(f"Failed to run {' '.join(cmd)}, but continuing...")
+    
+    # Configure Nginx as reverse proxy
+    print_info("Configuring Nginx as reverse proxy for phpMyAdmin...")
+    nginx_conf = """
+location /phpmyadmin {
     proxy_pass http://127.0.0.1/phpmyadmin;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-}}
+}
 """
     
     try:
-        # Make sure the Nginx sites-available directory exists
-        nginx_sites_dir = "/etc/nginx/sites-available"
-        if not os.path.exists(nginx_sites_dir):
-            print_error(f"Nginx sites-available directory not found: {nginx_sites_dir}")
-            return False
+        # Add configuration to Nginx
+        nginx_conf_path = "/etc/nginx/conf.d/phpmyadmin.conf"
+        with open("/tmp/phpmyadmin_nginx.conf", "w") as f:
+            f.write(nginx_conf)
+        run_command(
+            ["sudo", "mv", "/tmp/phpmyadmin_nginx.conf", nginx_conf_path],
+            "Failed to create Nginx configuration"
+        )
         
-        # Check if our custom config exists
-        nginx_config_path = "/etc/nginx/sites-available/3xui.conf"
-        if os.path.exists(nginx_config_path):
-            # Read existing config
-            with open(nginx_config_path, "r") as f:
-                existing_config = f.read()
-            
-            # Only add phpMyAdmin config if it's not already there
-            if "location /phpmyadmin" not in existing_config:
-                # Add phpMyAdmin config before the closing brace
-                modified_config = existing_config.replace("}", f"{nginx_phpmyadmin_config}\n}}")
-                
-                # Write modified config to a temporary file
-                temp_config_path = "/tmp/3xui_phpmyadmin.conf"
-                with open(temp_config_path, "w") as f:
-                    f.write(modified_config)
-                
-                # Move temporary file to actual config location
-                success, _, _ = run_command(
-                    ["sudo", "mv", temp_config_path, nginx_config_path],
-                    "Failed to update Nginx configuration"
-                )
-                
-                if not success:
-                    return False
-                
-                print_success("Nginx configuration updated for phpMyAdmin.")
-                
-                # Reload Nginx to apply the configuration
-                print_info("Reloading Nginx...")
-                run_command(
-                    ["sudo", "systemctl", "reload", "nginx"],
-                    "Failed to reload Nginx"
-                )
-            else:
-                print_info("phpMyAdmin configuration already exists in Nginx config.")
-        else:
-            print_warning("Nginx config file not found. Will configure phpMyAdmin later.")
-    
+        # Test and reload Nginx
+        run_command(["sudo", "nginx", "-t"], "Nginx configuration test failed")
+        run_command(["sudo", "systemctl", "reload", "nginx"], "Failed to reload Nginx")
+        
     except Exception as e:
-        print_error(f"Failed to configure Nginx for phpMyAdmin: {str(e)}")
-        return False
+        print_warning(f"Failed to configure Nginx: {str(e)}")
     
+    print_success("phpMyAdmin installation completed!")
     state.phpmyadmin_installed = True
     return True
 
