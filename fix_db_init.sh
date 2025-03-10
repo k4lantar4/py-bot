@@ -32,8 +32,17 @@ echo -e "${YELLOW}🔍 Checking for Pydantic BaseSettings imports in backend fil
 # Fix config.py if it exists
 if [ -f "backend/app/core/config.py" ]; then
     echo -e "${YELLOW}Fixing backend/app/core/config.py...${NC}"
-    # Replace the import statement
-    sed -i 's/from pydantic import AnyHttpUrl, BaseSettings/from pydantic import AnyHttpUrl\nfrom pydantic_settings import BaseSettings/g' backend/app/core/config.py
+    # Replace the import statement - Ensure EmailStr is imported from pydantic, not pydantic_settings
+    if grep -q "from pydantic_settings import BaseSettings, EmailStr" "backend/app/core/config.py"; then
+        # Fix incorrect import if it exists
+        sed -i 's/from pydantic_settings import BaseSettings, EmailStr/from pydantic_settings import BaseSettings\nfrom pydantic import EmailStr/g' "backend/app/core/config.py"
+    elif grep -q "from pydantic import.*EmailStr" "backend/app/core/config.py" && grep -q "from pydantic_settings import BaseSettings" "backend/app/core/config.py"; then
+        # Already fixed, do nothing
+        echo "Config file already has correct imports"
+    else
+        # Standard fix
+        sed -i 's/from pydantic import AnyHttpUrl, BaseSettings/from pydantic import AnyHttpUrl, EmailStr\nfrom pydantic_settings import BaseSettings/g' "backend/app/core/config.py"
+    fi
 fi
 
 # Find all Python files that import BaseSettings from pydantic
@@ -56,11 +65,14 @@ else
     echo -e "${RED}❌ Database initialization failed. Check the error above.${NC}"
     echo -e "${YELLOW}🔍 Attempting to fix the issue manually...${NC}"
     
-    # Here we can add more specific fixes for the init_db.py script if needed
-    # For now, let's check if we need to fix EmailStr import as well
-    if grep -q "EmailStr" scripts/init_db.py; then
-        echo -e "${YELLOW}Fixing EmailStr import in init_db.py...${NC}"
-        sed -i 's/from pydantic import.*EmailStr/from pydantic import AnyHttpUrl\nfrom pydantic_settings import EmailStr/g' scripts/init_db.py
+    # Fix for EmailStr import issue
+    if grep -q "EmailStr" app/core/config.py; then
+        echo -e "${YELLOW}Fixing EmailStr import in config.py...${NC}"
+        # Ensure EmailStr is imported from pydantic, not pydantic_settings
+        sed -i 's/from pydantic_settings import BaseSettings, EmailStr/from pydantic_settings import BaseSettings\nfrom pydantic import EmailStr/g' app/core/config.py
+        
+        # Also check for EmailStr in validator import
+        sed -i 's/from pydantic_settings import BaseSettings, EmailStr, PostgresDsn, validator/from pydantic_settings import BaseSettings, PostgresDsn, validator\nfrom pydantic import EmailStr/g' app/core/config.py
         
         echo -e "${YELLOW}Trying database initialization again...${NC}"
         python -m scripts.init_db
@@ -68,7 +80,7 @@ else
             echo -e "${GREEN}✅ Database initialized successfully after fixes!${NC}"
         else
             echo -e "${RED}❌ Database initialization still failing.${NC}"
-            echo -e "${YELLOW}Please check the logs and fix the issues manually.${NC}"
+            echo -e "${YELLOW}Please check app/core/config.py and fix the EmailStr import manually.${NC}"
         fi
     fi
 fi
