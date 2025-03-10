@@ -384,14 +384,40 @@ def install_prerequisites() -> bool:
     
     # Define required packages with their apt package names
     required_packages = {
+        # Python packages
         "python3": "python3",
         "python3-pip": "python3-pip",
         "python3-venv": "python3-venv",
+        "python3-dev": "python3-dev",
+        
+        # Web server packages
         "nginx": "nginx",
+        "apache2": "apache2",
+        
+        # PHP and its extensions
+        "php": "php",
+        "php-fpm": "php-fpm",
+        "php-mysql": "php-mysql",
+        "php-json": "php-json",
+        "php-mbstring": "php-mbstring",
+        "php-zip": "php-zip",
+        "php-gd": "php-gd",
+        "php-xml": "php-xml",
+        "php-curl": "php-curl",
+        "libapache2-mod-php": "libapache2-mod-php",
+        
+        # MySQL packages
+        "mysql-server": "mysql-server",
+        "mysql-client": "mysql-client",
+        "libmysqlclient-dev": "libmysqlclient-dev",
+        
+        # Build tools and utilities
         "build-essential": "build-essential",
         "curl": "curl",
         "gnupg": "gnupg",
-        "ca-certificates": "ca-certificates"
+        "ca-certificates": "ca-certificates",
+        "software-properties-common": "software-properties-common",
+        "git": "git"
     }
     
     # Install base packages first
@@ -424,7 +450,7 @@ def install_prerequisites() -> bool:
     
     if success:
         # Add repository
-        echo_cmd = 'echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_16.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list'
+        echo_cmd = 'echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list'
         run_command(echo_cmd, "Failed to add Node.js repository", shell=True)
         
         # Update and install Node.js
@@ -433,16 +459,34 @@ def install_prerequisites() -> bool:
         
         if not success:
             print_error("Failed to install Node.js through repository. Please install manually:")
-            print("1. curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -")
+            print("1. curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -")
             print("2. sudo apt-get install -y nodejs")
             return False
+    
+    # Configure PHP version
+    print_info("Configuring PHP...")
+    php_commands = [
+        ["sudo", "update-alternatives", "--set", "php", "/usr/bin/php8.2"],
+        ["sudo", "a2enmod", "php8.2"],
+        ["sudo", "a2enmod", "rewrite"],
+        ["sudo", "phpenmod", "mbstring"],
+        ["sudo", "systemctl", "restart", "apache2"]
+    ]
+    
+    for cmd in php_commands:
+        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
+        if not success:
+            print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
     
     # Verify installations
     verifications = [
         (["python3", "--version"], "Python"),
         (["node", "--version"], "Node.js"),
         (["npm", "--version"], "npm"),
-        (["nginx", "-v"], "Nginx")
+        (["nginx", "-v"], "Nginx"),
+        (["apache2", "-v"], "Apache2"),
+        (["php", "-v"], "PHP"),
+        (["mysql", "--version"], "MySQL")
     ]
     
     print_info("Verifying installations...")
@@ -470,7 +514,6 @@ def install_mysql() -> bool:
     print_step(3, 8, "Installing MySQL")
     
     # Set default root password non-interactively
-    os.environ["DEBIAN_FRONTEND"] = "noninteractive"
     mysql_root_password = get_user_input("MySQL root password", "mysql_root_password", password=True)
     
     # Pre-configure MySQL root password
@@ -490,43 +533,49 @@ def install_mysql() -> bool:
         if not success:
             return False
     
-    # Install MySQL server and client
-    print_info("Installing MySQL server...")
-    packages = ["mysql-server", "mysql-client", "libmysqlclient-dev"]
-    for package in packages:
-        success, _, _ = run_command(
-            ["sudo", "apt-get", "install", "-y", package],
-            f"Failed to install {package}"
-        )
+    # Ensure MySQL is installed and running
+    print_info("Ensuring MySQL is properly installed...")
+    mysql_commands = [
+        ["sudo", "systemctl", "stop", "mysql"],
+        ["sudo", "apt-get", "remove", "-y", "mysql-server", "mysql-client"],
+        ["sudo", "apt-get", "autoremove", "-y"],
+        ["sudo", "apt-get", "autoclean"],
+        ["sudo", "rm", "-rf", "/var/lib/mysql"],
+        ["sudo", "rm", "-rf", "/etc/mysql"],
+        ["sudo", "apt-get", "update"],
+        ["sudo", "apt-get", "install", "-y", "mysql-server", "mysql-client"]
+    ]
+    
+    for cmd in mysql_commands:
+        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
         if not success:
-            print_error(f"Failed to install {package}. Please try installing manually:")
-            print(f"sudo apt-get install -y {package}")
+            print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
+    
+    # Start and enable MySQL
+    print_info("Starting MySQL service...")
+    service_commands = [
+        ["sudo", "systemctl", "enable", "mysql"],
+        ["sudo", "systemctl", "start", "mysql"]
+    ]
+    
+    for cmd in service_commands:
+        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
+        if not success:
+            print_error(f"Failed to run {' '.join(cmd)}")
             return False
     
-    # Ensure MySQL is running
-    print_info("Starting MySQL service...")
-    run_command(
-        ["sudo", "systemctl", "start", "mysql"],
-        "Failed to start MySQL server"
-    )
+    # Secure MySQL installation
+    print_info("Securing MySQL installation...")
+    secure_commands = [
+        f"sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{mysql_root_password}';\"",
+        f"sudo mysql -e \"FLUSH PRIVILEGES;\"",
+        "sudo mysql_secure_installation"
+    ]
     
-    # Enable MySQL to start on boot
-    print_info("Enabling MySQL service...")
-    run_command(
-        ["sudo", "systemctl", "enable", "mysql"],
-        "Failed to enable MySQL server"
-    )
-    
-    # Verify MySQL installation
-    print_info("Verifying MySQL installation...")
-    success, _, _ = run_command(
-        ["mysql", "--version"],
-        "Failed to get MySQL version"
-    )
-    
-    if not success:
-        print_error("MySQL installation verification failed.")
-        return False
+    for cmd in secure_commands:
+        success, _, _ = run_command(cmd, f"Failed to secure MySQL", shell=True)
+        if not success:
+            print_warning(f"Failed to run MySQL secure installation. Please run 'sudo mysql_secure_installation' manually.")
     
     # Test MySQL connection
     print_info("Testing MySQL connection...")
@@ -534,6 +583,7 @@ def install_mysql() -> bool:
     success, _, _ = run_command(
         test_cmd,
         "Failed to connect to MySQL",
+        "MySQL connection test successful!",
         shell=True
     )
     
@@ -560,28 +610,6 @@ def install_phpmyadmin() -> bool:
         return True
         
     print_step(4, 8, "Installing phpMyAdmin")
-    
-    # Install Apache2 and PHP first
-    print_info("Installing Apache2 and PHP prerequisites...")
-    php_packages = [
-        "apache2",
-        "php",
-        "php-mysql",
-        "php-json",
-        "php-mbstring",
-        "php-zip",
-        "php-gd",
-        "php-xml",
-        "libapache2-mod-php"
-    ]
-    
-    for package in php_packages:
-        success, _, _ = run_command(
-            ["sudo", "apt-get", "install", "-y", package],
-            f"Failed to install {package}"
-        )
-        if not success:
-            print_warning(f"Failed to install {package}, but continuing...")
     
     # Set environment variable for non-interactive installation
     os.environ["DEBIAN_FRONTEND"] = "noninteractive"
@@ -621,20 +649,65 @@ def install_phpmyadmin() -> bool:
         print_error("Failed to install phpMyAdmin. You can try installing it manually later.")
         return False
     
-    # Configure Apache2
+    # Configure Apache2 to run on port 8080
     print_info("Configuring Apache2...")
+    apache_port_cmd = "sudo sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf"
+    run_command(apache_port_cmd, "Failed to change Apache port", shell=True)
+    
+    # Create Apache configuration
     apache_conf = """
 # phpMyAdmin Apache configuration
-Alias /phpmyadmin /usr/share/phpmyadmin
-<Directory /usr/share/phpmyadmin>
-    Options SymLinksIfOwnerMatch
-    DirectoryIndex index.php
-    Require all granted
-</Directory>
+<VirtualHost *:8080>
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/www/html
+    
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+    
+    <Directory /var/www/html>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    
+    Alias /phpmyadmin /usr/share/phpmyadmin
+    
+    <Directory /usr/share/phpmyadmin>
+        Options FollowSymLinks
+        DirectoryIndex index.php
+        AllowOverride All
+        
+        <IfModule mod_authz_core.c>
+            Require all granted
+        </IfModule>
+        
+        <IfModule mod_php.c>
+            php_value upload_max_filesize 64M
+            php_value post_max_size 64M
+            php_value max_execution_time 300
+            php_value memory_limit 128M
+        </IfModule>
+        
+        <IfModule mod_php8.c>
+            php_value upload_max_filesize 64M
+            php_value post_max_size 64M
+            php_value max_execution_time 300
+            php_value memory_limit 128M
+        </IfModule>
+    </Directory>
+    
+    # Disallow access to files
+    <Directory /usr/share/phpmyadmin/libraries>
+        Require all denied
+    </Directory>
+    <Directory /usr/share/phpmyadmin/templates>
+        Require all denied
+    </Directory>
+</VirtualHost>
 """
     
     # Write Apache configuration
-    apache_conf_path = "/etc/apache2/conf-available/phpmyadmin.conf"
+    apache_conf_path = "/etc/apache2/sites-available/000-default.conf"
     try:
         with open("/tmp/phpmyadmin.conf", "w") as f:
             f.write(apache_conf)
@@ -645,10 +718,10 @@ Alias /phpmyadmin /usr/share/phpmyadmin
     except Exception as e:
         print_warning(f"Failed to write Apache configuration: {str(e)}")
     
-    # Enable Apache configuration and modules
+    # Enable Apache modules and restart
     apache_commands = [
-        ["sudo", "a2enconf", "phpmyadmin"],
         ["sudo", "a2enmod", "rewrite"],
+        ["sudo", "a2enmod", "php8.2"],
         ["sudo", "systemctl", "restart", "apache2"]
     ]
     
@@ -660,22 +733,48 @@ Alias /phpmyadmin /usr/share/phpmyadmin
     # Configure Nginx as reverse proxy
     print_info("Configuring Nginx as reverse proxy for phpMyAdmin...")
     nginx_conf = """
-location /phpmyadmin {
-    proxy_pass http://127.0.0.1/phpmyadmin;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    
+    root /var/www/html;
+    index index.php index.html index.htm;
+    server_name _;
+
+    # Main application location
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # phpMyAdmin configuration
+    location /phpmyadmin {
+        proxy_pass http://127.0.0.1:8080/phpmyadmin;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Pass PHP scripts to FastCGI server
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+    }
+
+    # Deny access to .htaccess files
+    location ~ /\.ht {
+        deny all;
+    }
 }
 """
     
     try:
         # Add configuration to Nginx
-        nginx_conf_path = "/etc/nginx/conf.d/phpmyadmin.conf"
-        with open("/tmp/phpmyadmin_nginx.conf", "w") as f:
+        nginx_conf_path = "/etc/nginx/sites-available/default"
+        with open("/tmp/default", "w") as f:
             f.write(nginx_conf)
         run_command(
-            ["sudo", "mv", "/tmp/phpmyadmin_nginx.conf", nginx_conf_path],
+            ["sudo", "mv", "/tmp/default", nginx_conf_path],
             "Failed to create Nginx configuration"
         )
         
@@ -685,6 +784,54 @@ location /phpmyadmin {
         
     except Exception as e:
         print_warning(f"Failed to configure Nginx: {str(e)}")
+    
+    # Create phpMyAdmin configuration override
+    print_info("Creating phpMyAdmin configuration override...")
+    config_inc_php = """<?php
+$cfg['Servers'][$i]['host'] = 'localhost';
+$cfg['Servers'][$i]['port'] = '';
+$cfg['Servers'][$i]['socket'] = '';
+$cfg['Servers'][$i]['connect_type'] = 'tcp';
+$cfg['Servers'][$i]['extension'] = 'mysqli';
+$cfg['Servers'][$i]['auth_type'] = 'cookie';
+$cfg['Servers'][$i]['AllowNoPassword'] = false;
+$cfg['UploadDir'] = '';
+$cfg['SaveDir'] = '';
+$cfg['TempDir'] = '/tmp';
+$cfg['MaxRows'] = 50;
+$cfg['SendErrorReports'] = 'never';
+$cfg['ShowDatabasesNavigationAsTree'] = true;
+$cfg['NavigationTreeEnableGrouping'] = true;
+$cfg['VersionCheck'] = false;
+"""
+    
+    config_path = "/etc/phpmyadmin/config.inc.php"
+    try:
+        with open("/tmp/config.inc.php", "w") as f:
+            f.write(config_inc_php)
+        run_command(
+            ["sudo", "mv", "/tmp/config.inc.php", config_path],
+            "Failed to create phpMyAdmin configuration"
+        )
+        run_command(
+            ["sudo", "chmod", "644", config_path],
+            "Failed to set phpMyAdmin configuration permissions"
+        )
+    except Exception as e:
+        print_warning(f"Failed to create phpMyAdmin configuration: {str(e)}")
+    
+    # Restart services
+    print_info("Restarting services...")
+    service_commands = [
+        ["sudo", "systemctl", "restart", "php8.2-fpm"],
+        ["sudo", "systemctl", "restart", "apache2"],
+        ["sudo", "systemctl", "restart", "nginx"]
+    ]
+    
+    for cmd in service_commands:
+        success, _, _ = run_command(cmd, f"Failed to restart {cmd[2]}")
+        if not success:
+            print_warning(f"Failed to restart {cmd[2]}, but continuing...")
     
     print_success("phpMyAdmin installation completed!")
     state.phpmyadmin_installed = True
