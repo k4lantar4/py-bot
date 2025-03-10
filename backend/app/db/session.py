@@ -6,13 +6,17 @@ This module provides the SQLAlchemy session for the application.
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
+import os
 
-from app.core.config import settings
+from ..core.config import settings
+
+# Get database URL from environment variable or use default
+DATABASE_URL = os.environ.get("DATABASE_URL", "mysql+pymysql://user:password@db/threexui")
 
 # Create SQLAlchemy engine
 engine = create_engine(
-    settings.SQLALCHEMY_DATABASE_URI,
+    DATABASE_URL,
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,

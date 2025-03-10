@@ -11,7 +11,7 @@ from typing import List, Optional
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Enum, JSON, func, Table
 from sqlalchemy.orm import relationship
 
-from app.db.session import Base
+from ..db.session import Base
 
 
 # Message status enumeration

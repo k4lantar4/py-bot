@@ -11,7 +11,7 @@ from typing import Optional
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Enum, func
 from sqlalchemy.orm import relationship
 
-from app.db.session import Base
+from ..db.session import Base
 
 
 # Discount type enumeration

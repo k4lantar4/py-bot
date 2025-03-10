@@ -7,7 +7,7 @@ This module defines the SQLAlchemy ORM model for locations where servers are hos
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
 from sqlalchemy.orm import relationship
 
-from app.db.session import Base
+from ..db.session import Base
 
 
 class Location(Base):

@@ -7,10 +7,10 @@ This module defines the User model for the database.
 from datetime import datetime
 from typing import List
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, ForeignKey, func
 from sqlalchemy.orm import relationship
 
-from app.db.base_class import Base
+from ..db.base_class import Base
 
 
 class User(Base):

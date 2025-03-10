@@ -1,0 +1,15 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# کپی کردن فایل‌های فرانت‌اند
+COPY ./frontend/ ./
+
+# نصب وابستگی‌ها
+RUN npm install
+
+# اکسپوز کردن پورت
+EXPOSE 3000
+
+# کامند شروع برنامه در محیط توسعه
+CMD ["npm", "start"] 

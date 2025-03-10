@@ -9,7 +9,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, validator
 
-from app.models.order import OrderStatus, PaymentMethod
+from ..models.order import OrderStatus, PaymentMethod
 
 
 # Order schemas

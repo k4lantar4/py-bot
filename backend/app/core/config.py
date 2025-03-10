@@ -8,7 +8,7 @@ import secrets
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import AnyHttpUrl, EmailStr, field_validator
-from pydantic_settings import BaseSettings, PostgresDsn
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -46,11 +46,11 @@ class Settings(BaseSettings):
         raise ValueError(v)
     
     # Database settings
-    POSTGRES_SERVER: str
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
-    SQLALCHEMY_DATABASE_URI: Optional[PostgresDsn] = None
+    POSTGRES_SERVER: str = "db"
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_DB: str = "app"
+    SQLALCHEMY_DATABASE_URI: Optional[str] = None
 
     @field_validator("SQLALCHEMY_DATABASE_URI", mode='before')
     def assemble_db_connection(cls, v: Optional[str], info) -> Any:
@@ -68,13 +68,7 @@ class Settings(BaseSettings):
             return v
             
         values = info.data
-        return PostgresDsn.build(
-            scheme="postgresql",
-            username=values.get("POSTGRES_USER"),
-            password=values.get("POSTGRES_PASSWORD"),
-            host=values.get("POSTGRES_SERVER"),
-            path=f"/{values.get('POSTGRES_DB') or ''}",
-        )
+        return f"postgresql://{values.get('POSTGRES_USER')}:{values.get('POSTGRES_PASSWORD')}@{values.get('POSTGRES_SERVER')}/{values.get('POSTGRES_DB')}"
     
     # Redis settings
     REDIS_HOST: str = "localhost"
@@ -92,16 +86,17 @@ class Settings(BaseSettings):
     EMAILS_FROM_NAME: Optional[str] = None
     
     # First superuser
-    FIRST_SUPERUSER_USERNAME: str
-    FIRST_SUPERUSER_EMAIL: EmailStr
-    FIRST_SUPERUSER_PASSWORD: str
+    FIRST_SUPERUSER_USERNAME: str = "admin"
+    FIRST_SUPERUSER_EMAIL: EmailStr = "admin@example.com"
+    FIRST_SUPERUSER_PASSWORD: str = "admin"
     
     # Environment
-    ENVIRONMENT: str = "production"
+    ENVIRONMENT: str = "development"
     
     model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
         "case_sensitive": True,
-        "env_file": ".env"
     }
 
 

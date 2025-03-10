@@ -6,7 +6,7 @@ This module defines the UserRole model for the database.
 
 from sqlalchemy import Column, ForeignKey, Integer, Table
 
-from app.db.base_class import Base
+from ..db.base_class import Base
 
 
 class UserRole(Base):

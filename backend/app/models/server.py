@@ -7,7 +7,7 @@ This module defines the SQLAlchemy ORM model for servers managed by the system.
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, JSON, func
 from sqlalchemy.orm import relationship
 
-from app.db.session import Base
+from ..db.session import Base
 
 
 class Server(Base):

@@ -7,7 +7,7 @@ This module defines the Role model for the database.
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 
-from app.db.base_class import Base
+from ..db.base_class import Base
 
 
 class Role(Base):

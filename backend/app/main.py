@@ -8,9 +8,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.api_v1.api import api_router
-from app.core.config import settings
-from app.utils.logger import logger
+from .api.api_v1.api import api_router
+from .core.config import settings
+from .utils.logger import logger
 
 # Create FastAPI app
 app = FastAPI(

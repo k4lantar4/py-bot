@@ -11,7 +11,7 @@ from typing import List, Optional
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, Enum, func
 from sqlalchemy.orm import relationship
 
-from app.db.session import Base
+from ..db.session import Base
 
 
 # Order status enumeration

@@ -12,20 +12,20 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from redis import Redis
 
-from app import schemas, models, crud
-from app.api import deps
-from app.core import security
-from app.core.config import settings
-from app.core.security import get_password_hash
-from app.utils.logger import logger
+from .... import schemas, models, crud
+from ...deps import get_db, get_redis, get_current_active_user
+from ....core import security
+from ....core.config import settings
+from ....core.security import get_password_hash
+from ....utils.logger import logger
 
 router = APIRouter()
 
 
 @router.post("/login", response_model=schemas.Token)
 async def login_access_token(
-    db: Session = Depends(deps.get_db),
-    redis: Redis = Depends(deps.get_redis),
+    db: Session = Depends(get_db),
+    redis: Redis = Depends(get_redis),
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
     """
@@ -84,8 +84,8 @@ async def login_access_token(
 
 @router.post("/refresh-token", response_model=schemas.Token)
 async def refresh_token(
-    db: Session = Depends(deps.get_db),
-    redis: Redis = Depends(deps.get_redis),
+    db: Session = Depends(get_db),
+    redis: Redis = Depends(get_redis),
     refresh_token: str = Body(...),
 ) -> Any:
     """
@@ -172,8 +172,8 @@ async def refresh_token(
 
 @router.post("/logout")
 async def logout(
-    redis: Redis = Depends(deps.get_redis),
-    current_user: models.User = Depends(deps.get_current_active_user),
+    redis: Redis = Depends(get_redis),
+    current_user: models.User = Depends(get_current_active_user),
 ) -> Any:
     """
     Logout the current user by invalidating their refresh token.
@@ -190,7 +190,7 @@ async def logout(
 @router.post("/password-reset-request")
 async def request_password_reset(
     email: str = Body(...),
-    db: Session = Depends(deps.get_db),
+    db: Session = Depends(get_db),
 ) -> Any:
     """
     Request a password reset.
@@ -218,7 +218,7 @@ async def request_password_reset(
 async def reset_password(
     token: str = Body(...),
     new_password: str = Body(...),
-    db: Session = Depends(deps.get_db),
+    db: Session = Depends(get_db),
 ) -> Any:
     """
     Reset password using a reset token.
@@ -268,7 +268,7 @@ async def reset_password(
 
 @router.get("/verify-token")
 async def verify_token(
-    current_user: models.User = Depends(deps.get_current_active_user),
+    current_user: models.User = Depends(get_current_active_user),
 ) -> Any:
     """
     Verify that the access token is valid and return the current user.
@@ -279,7 +279,7 @@ async def verify_token(
 @router.post("/register", response_model=schemas.User)
 async def register(
     user_in: schemas.UserCreate,
-    db: Session = Depends(deps.get_db)
+    db: Session = Depends(get_db)
 ) -> Any:
     """
     Register a new user.
@@ -311,7 +311,7 @@ async def register(
 @router.post("/forgot-password")
 async def forgot_password(
     email: str = Body(..., embed=True),
-    db: Session = Depends(deps.get_db)
+    db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
     Password recovery endpoint. Sends a password reset email to the user.
@@ -346,7 +346,7 @@ async def forgot_password(
 async def reset_password(
     token: str = Body(...),
     new_password: str = Body(...),
-    db: Session = Depends(deps.get_db)
+    db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
     Reset password endpoint. Takes a token and new password.

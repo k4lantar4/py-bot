@@ -10,7 +10,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash, verify_password
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.models.user_role import UserRole
 from app.schemas.user import UserCreate, UserUpdate
 
 
