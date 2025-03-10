@@ -202,7 +202,7 @@ def get_local_ip() -> str:
         return socket.gethostbyname(socket.gethostname())
 
 def run_command(command: List[str], error_message: str, success_message: Optional[str] = None, 
-                env: Optional[Dict[str, str]] = None, shell: bool = False) -> Tuple[bool, str, str]:
+                env: Optional[Dict[str, str]] = None, shell: bool = False, input_data: Optional[bytes] = None) -> Tuple[bool, str, str]:
     """
     Run a shell command and handle its output
     
@@ -212,6 +212,7 @@ def run_command(command: List[str], error_message: str, success_message: Optiona
         success_message: Message to display on success
         env: Environment variables to set
         shell: Whether to use shell execution
+        input_data: Optional input data to pass to the command
         
     Returns:
         Tuple of (success boolean, stdout, stderr)
@@ -227,6 +228,7 @@ def run_command(command: List[str], error_message: str, success_message: Optiona
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE if input_data else None,
                 universal_newlines=True,
                 env=env,
                 shell=True
@@ -236,11 +238,12 @@ def run_command(command: List[str], error_message: str, success_message: Optiona
                 command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE if input_data else None,
                 universal_newlines=True,
                 env=env
             )
             
-        stdout, stderr = process.communicate()
+        stdout, stderr = process.communicate(input=input_data.decode() if input_data else None)
         
         if process.returncode != 0:
             print_error(f"{error_message}: {stderr}")
@@ -420,58 +423,82 @@ def install_mysql() -> bool:
         
     print_step(3, 8, "Installing MySQL")
     
-    # First, check if MySQL is already installed
-    success, _, _ = run_command(["dpkg", "-s", "mysql-server"], "Checking MySQL", shell=False)
+    # Set default root password non-interactively
+    os.environ["DEBIAN_FRONTEND"] = "noninteractive"
+    mysql_root_password = get_user_input("MySQL root password", "mysql_root_password", password=True)
     
-    if success:
-        print_success("MySQL server is already installed.")
-    else:
-        print_info("Installing MySQL server...")
-        # Set default root password non-interactively
-        os.environ["DEBIAN_FRONTEND"] = "noninteractive"
-        mysql_root_password = get_user_input("MySQL root password", "mysql_root_password", password=True)
-        
-        # Prepare MySQL root password configuration
-        debconf_settings = [
-            f"mysql-server mysql-server/root_password password {mysql_root_password}",
-            f"mysql-server mysql-server/root_password_again password {mysql_root_password}"
-        ]
-        
-        # Configure MySQL root password
-        for setting in debconf_settings:
-            success, _, _ = run_command(
-                ["sudo", "debconf-set-selections"],
-                f"Failed to set MySQL config: {setting}",
-                input=setting.encode(),
-                shell=False
-            )
-            if not success:
-                return False
-        
-        # Install MySQL server
+    # Pre-configure MySQL root password
+    print_info("Configuring MySQL root password...")
+    debconf_settings = [
+        f"mysql-server mysql-server/root_password password {mysql_root_password}",
+        f"mysql-server mysql-server/root_password_again password {mysql_root_password}"
+    ]
+    
+    # Configure MySQL root password using debconf-set-selections
+    for setting in debconf_settings:
         success, _, _ = run_command(
-            ["sudo", "apt-get", "install", "-y", "mysql-server"],
-            "Failed to install MySQL server",
-            "MySQL server installed successfully!"
+            ["sudo", "debconf-set-selections"],
+            f"Failed to set MySQL config",
+            input_data=setting.encode()
         )
-        
         if not success:
             return False
     
+    # Install MySQL server and client
+    print_info("Installing MySQL server...")
+    packages = ["mysql-server", "mysql-client", "libmysqlclient-dev"]
+    for package in packages:
+        success, _, _ = run_command(
+            ["sudo", "apt-get", "install", "-y", package],
+            f"Failed to install {package}"
+        )
+        if not success:
+            print_error(f"Failed to install {package}. Please try installing manually:")
+            print(f"sudo apt-get install -y {package}")
+            return False
+    
     # Ensure MySQL is running
-    print_info("Ensuring MySQL server is running...")
+    print_info("Starting MySQL service...")
     run_command(
         ["sudo", "systemctl", "start", "mysql"],
         "Failed to start MySQL server"
     )
+    
+    # Enable MySQL to start on boot
+    print_info("Enabling MySQL service...")
     run_command(
         ["sudo", "systemctl", "enable", "mysql"],
         "Failed to enable MySQL server"
     )
     
+    # Verify MySQL installation
+    print_info("Verifying MySQL installation...")
+    success, _, _ = run_command(
+        ["mysql", "--version"],
+        "Failed to get MySQL version"
+    )
+    
+    if not success:
+        print_error("MySQL installation verification failed.")
+        return False
+    
+    # Test MySQL connection
+    print_info("Testing MySQL connection...")
+    test_cmd = f"mysql -u root -p{mysql_root_password} -e 'SELECT VERSION();'"
+    success, _, _ = run_command(
+        test_cmd,
+        "Failed to connect to MySQL",
+        shell=True
+    )
+    
+    if not success:
+        print_error("Failed to connect to MySQL. Please check the root password and try again.")
+        return False
+    
     # Save MySQL root password for later use
     os.environ["MYSQL_ROOT_PASSWORD"] = mysql_root_password
     
+    print_success("MySQL installed and configured successfully!")
     state.mysql_installed = True
     return True
 
