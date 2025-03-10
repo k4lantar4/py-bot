@@ -24,7 +24,9 @@ files_to_transfer=(
     "manage.sh"
     "deploy.sh"
     "security.sh"
+    "start_services.sh"
     "SERVER_SETUP.md"
+    ".env.example"
 )
 
 # Transfer each file
@@ -42,9 +44,29 @@ for file in "${files_to_transfer[@]}"; do
     fi
 done
 
-# Transfer directories if needed
-# echo -e "${BLUE}📁 Transferring bot directory...${NC}"
-# scp -r bot "${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/"
+# Transfer directories
+echo -e "${BLUE}📁 Transferring supervisor directory...${NC}"
+ssh ${SERVER_USER}@${SERVER_IP} "mkdir -p ${REMOTE_DIR}/supervisor"
+scp supervisor/* "${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/supervisor/"
+
+# Transfer bot, backend, and frontend directories if they exist
+if [ -d "bot" ]; then
+    echo -e "${BLUE}📁 Transferring bot directory...${NC}"
+    ssh ${SERVER_USER}@${SERVER_IP} "mkdir -p ${REMOTE_DIR}/bot"
+    scp -r bot/* "${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/bot/"
+fi
+
+if [ -d "backend" ]; then
+    echo -e "${BLUE}📁 Transferring backend directory...${NC}"
+    ssh ${SERVER_USER}@${SERVER_IP} "mkdir -p ${REMOTE_DIR}/backend"
+    scp -r backend/* "${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/backend/"
+fi
+
+if [ -d "frontend" ]; then
+    echo -e "${BLUE}📁 Transferring frontend directory...${NC}"
+    ssh ${SERVER_USER}@${SERVER_IP} "mkdir -p ${REMOTE_DIR}/frontend"
+    scp -r frontend/* "${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/frontend/"
+fi
 
 echo -e "${GREEN}🎉 Transfer completed!${NC}"
 echo -e "${YELLOW}ℹ️ Next steps:${NC}"
@@ -52,4 +74,4 @@ echo -e "1. SSH into your server: ${BLUE}ssh ${SERVER_USER}@${SERVER_IP}${NC}"
 echo -e "2. Navigate to the project: ${BLUE}cd ${REMOTE_DIR}${NC}"
 echo -e "3. Run setup script: ${BLUE}./setup.sh${NC}"
 echo -e "4. Edit .env file: ${BLUE}nano .env${NC}"
-echo -e "5. Start the bot: ${BLUE}./manage.sh start${NC}" 
+echo -e "5. Start all services: ${BLUE}./start_services.sh${NC}" 

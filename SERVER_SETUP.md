@@ -1,163 +1,175 @@
-# 🚀 Server Setup Guide
+# 🚀 3X-UI Management System - Server Setup Guide
 
-## Prerequisites
-- Ubuntu 20.04 or 22.04 LTS
-- Root access to the server
-- A Telegram Bot Token (from BotFather)
+## 📋 پیش‌نیازها
+- Ubuntu 20.04 یا 22.04 LTS
+- دسترسی root به سرور
+- توکن بات تلگرام (از BotFather)
 
-## Step 1: Initial Server Preparation
+## 🔧 مرحله 1: آماده‌سازی اولیه سرور
 
-1. **Connect to your server via SSH**:
+1. **اتصال به سرور از طریق SSH**:
    ```bash
    ssh root@your_server_ip
    ```
 
-2. **Update system packages**:
+2. **به‌روزرسانی بسته‌های سیستم**:
    ```bash
    apt update && apt upgrade -y
    ```
 
-3. **Install Git**:
+3. **نصب Git**:
    ```bash
    apt install -y git
    ```
 
-## Step 2: Project Setup
+## 🔧 مرحله 2: راه‌اندازی پروژه
 
-1. **Clone or upload the project to your server**:
+1. **کلون یا آپلود پروژه به سرور**:
    
-   Either clone from a repository:
+   کلون از مخزن:
    ```bash
    git clone https://your-repository-url.git /root/py_bot
    ```
    
-   Or upload files using SCP:
+   یا آپلود فایل‌ها با استفاده از SCP:
    ```bash
-   # From your local machine
-   scp -r /path/to/local/project/* root@your_server_ip:/root/py_bot/
+   # از سیستم محلی خود
+   ./transfer.sh
    ```
 
-2. **Navigate to the project directory**:
+2. **رفتن به دایرکتوری پروژه**:
    ```bash
    cd /root/py_bot
    ```
 
-3. **Run the setup script**:
+3. **اجرای اسکریپت راه‌اندازی**:
    ```bash
    chmod +x setup.sh
    ./setup.sh
    ```
 
-4. **Configure environment variables**:
+4. **پیکربندی متغیرهای محیطی**:
    
-   Edit the `.env` file:
+   ویرایش فایل `.env`:
    ```bash
    nano .env
    ```
    
-   Update the following parameters:
-   - `TELEGRAM_BOT_TOKEN`: Your bot token from BotFather
-   - `ADMIN_USER_IDS`: Comma-separated list of admin Telegram user IDs
-   - `API_USERNAME` and `API_PASSWORD`: If using the API
-   - Other settings as needed
+   پارامترهای زیر را به‌روزرسانی کنید:
+   - `TELEGRAM_BOT_TOKEN`: توکن بات شما از BotFather
+   - `ADMIN_USER_IDS`: لیست شناسه‌های کاربران ادمین تلگرام (با کاما جدا شده)
+   - `API_USERNAME` و `API_PASSWORD`: اگر از API استفاده می‌کنید
+   - `POSTGRES_PASSWORD`: رمز عبور دیتابیس PostgreSQL
+   - سایر تنظیمات مورد نیاز
 
-## Step 3: Start the Bot
+## 🔧 مرحله 3: راه‌اندازی سرویس‌ها
 
-1. **Start the bot service**:
+1. **راه‌اندازی تمام سرویس‌ها**:
    ```bash
-   supervisorctl start telegram_bot
+   chmod +x start_services.sh
+   ./start_services.sh
    ```
 
-2. **Check service status**:
+2. **بررسی وضعیت سرویس‌ها**:
    ```bash
-   supervisorctl status telegram_bot
+   supervisorctl status
    ```
 
-3. **View logs if needed**:
+3. **مشاهده لاگ‌ها در صورت نیاز**:
    ```bash
-   tail -f logs/output.log
+   ./manage.sh logs
    ```
 
-## Step 4: Security Hardening (Optional)
+## 🔧 مرحله 4: امن‌سازی سرور (اختیاری)
 
-Run the security hardening script:
+اجرای اسکریپت امن‌سازی:
 ```bash
 chmod +x security.sh
 ./security.sh
 ```
 
-This script:
-- Updates system packages
-- Sets proper file permissions
-- Configures UFW firewall
-- Installs and configures fail2ban for SSH protection
+این اسکریپت:
+- بسته‌های سیستم را به‌روزرسانی می‌کند
+- مجوزهای فایل مناسب را تنظیم می‌کند
+- فایروال UFW را پیکربندی می‌کند
+- fail2ban را برای محافظت SSH نصب و پیکربندی می‌کند
 
-## Management Commands
+## 🔧 دستورات مدیریتی
 
-Use the management script for common operations:
+از اسکریپت مدیریتی برای عملیات رایج استفاده کنید:
 
 ```bash
-./manage.sh start    # Start the bot
-./manage.sh stop     # Stop the bot
-./manage.sh restart  # Restart the bot
-./manage.sh status   # Check service status
-./manage.sh logs     # View logs
-./manage.sh update   # Update dependencies
-./manage.sh backup   # Create a backup
-./manage.sh help     # Show help
+./manage.sh start    # شروع سرویس‌ها
+./manage.sh stop     # توقف سرویس‌ها
+./manage.sh restart  # راه‌اندازی مجدد سرویس‌ها
+./manage.sh status   # بررسی وضعیت سرویس‌ها
+./manage.sh logs     # مشاهده لاگ‌ها
+./manage.sh update   # به‌روزرسانی وابستگی‌ها
+./manage.sh backup   # ایجاد پشتیبان
+./manage.sh help     # نمایش راهنما
 ```
 
-## Deployment Updates
+## 🔧 به‌روزرسانی‌های استقرار
 
-To deploy updates to the server:
+برای استقرار به‌روزرسانی‌ها به سرور:
 
-1. Transfer updated files to the server
-2. Run the deployment script:
+1. انتقال فایل‌های به‌روزرسانی شده به سرور
+2. اجرای اسکریپت استقرار:
    ```bash
    ./deploy.sh
    ```
 
-## Troubleshooting
+## 🔧 عیب‌یابی
 
-If the bot fails to start:
+اگر سرویس‌ها شروع به کار نمی‌کنند:
 
-1. **Check the logs**:
+1. **بررسی لاگ‌ها**:
    ```bash
-   tail -f logs/error.log
+   tail -f logs/backend_error.log
+   tail -f logs/telegram_bot.err.log
    ```
 
-2. **Verify environment variables**:
+2. **بررسی متغیرهای محیطی**:
    ```bash
    cat .env
    ```
 
-3. **Check Python dependencies**:
+3. **بررسی وابستگی‌های پایتون**:
    ```bash
    source venv/bin/activate
    pip list
    ```
 
-4. **Restart the service**:
+4. **راه‌اندازی مجدد سرویس‌ها**:
    ```bash
-   supervisorctl restart telegram_bot
+   supervisorctl restart all
    ```
 
-## Backup and Restore
+## 🔧 پشتیبان‌گیری و بازیابی
 
-**Create a backup**:
+**ایجاد پشتیبان**:
 ```bash
 ./manage.sh backup
 ```
 
-**Restore from backup**:
+**بازیابی از پشتیبان**:
 ```bash
-# Stop the service first
-supervisorctl stop telegram_bot
+# ابتدا سرویس را متوقف کنید
+supervisorctl stop all
 
-# Copy data from backup
+# کپی داده‌ها از پشتیبان
 cp -r backups/YYYYMMDD_HHMMSS/data/* data/
 cp backups/YYYYMMDD_HHMMSS/.env .
 
-# Restart the service
-supervisorctl start telegram_bot
-``` 
+# راه‌اندازی مجدد سرویس
+supervisorctl start all
+```
+
+## 🔧 دسترسی به سرویس‌ها
+
+پس از راه‌اندازی موفقیت‌آمیز، می‌توانید به سرویس‌های زیر دسترسی داشته باشید:
+
+- **API**: `http://your_server_ip/api/v1`
+- **مستندات API**: `http://your_server_ip/api/docs`
+- **فرانت‌اند**: `http://your_server_ip`
+- **بات تلگرام**: از طریق تلگرام با نام کاربری بات خود 
