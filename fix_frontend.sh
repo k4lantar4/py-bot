@@ -629,10 +629,55 @@ EOF
   echo -e "${GREEN}✅ Theme file created${NC}"
 fi
 
+# Check if index.js needs updating to React 18
+if [ -f "index.js" ]; then
+    echo -e "${YELLOW}📝 Updating React 18 entry point...${NC}"
+    cp index.js index.js.bak
+    
+    # Update to React 18 format
+    cat > index.js << 'EOF'
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './index.css';
+
+const container = document.getElementById('root');
+const root = createRoot(container);
+
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+EOF
+    echo -e "${GREEN}✅ Updated index.js to use React 18 createRoot API${NC}"
+fi
+
 # Install formik if missing
 echo -e "${YELLOW}📦 Installing missing dependencies...${NC}"
 cd ../..
-npm install --save formik yup web-vitals
+npm install --save formik@2.4.5 yup@1.3.2 web-vitals react@18.2.0 react-dom@18.2.0 react-router-dom
+
+# Update package.json if needed
+if [ -f "package.json" ]; then
+    echo -e "${YELLOW}📝 Checking package.json for necessary updates...${NC}"
+    
+    # Update React versions
+    sed -i 's/"react": "[^"]*"/"react": "^18.2.0"/g' package.json
+    sed -i 's/"react-dom": "[^"]*"/"react-dom": "^18.2.0"/g' package.json
+    
+    # Ensure formik and yup are included
+    if ! grep -q '"formik"' package.json; then
+        sed -i '/"dependencies": {/a \    "formik": "^2.4.5",' package.json
+    fi
+    
+    if ! grep -q '"yup"' package.json; then
+        sed -i '/"dependencies": {/a \    "yup": "^1.3.2",' package.json
+    fi
+    
+    echo -e "${GREEN}✅ Updated package.json dependencies${NC}"
+fi
 
 echo -e "${GREEN}✅ Frontend fixes completed!${NC}"
-echo -e "${YELLOW}ℹ️ Next step: Restart frontend service with ${BLUE}supervisorctl restart frontend${NC}" 
+echo -e "${YELLOW}ℹ️ Next step: Fix the Login component with ${BLUE}./fix_login.sh${NC}"
+echo -e "${YELLOW}ℹ️ Then restart frontend service with ${BLUE}supervisorctl restart frontend${NC}" 
