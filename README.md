@@ -24,7 +24,7 @@
 ## فناوری‌های استفاده شده در بک‌اند
 
 - **فریم‌ورک**: FastAPI
-- **پایگاه داده**: PostgreSQL با SQLAlchemy ORM
+- **پایگاه داده**: MySQL با SQLAlchemy ORM
 - **احراز هویت**: توکن‌های JWT با قابلیت بازنشانی
 - **کشینگ**: Redis
 - **صف کار**: Celery (برای کارهای پس‌زمینه)
@@ -42,28 +42,94 @@
 
 ### پیش‌نیازها
 
-- Ubuntu 22.04+
+- Ubuntu 22.04+ (تست شده روی Ubuntu 22.04 و 24.04)
 - دسترسی root یا sudo
+- حداقل 1GB RAM
+- حداقل 10GB فضای دیسک
 
 ### نصب آسان با یک دستور
 
 فقط کافیست مخزن را کلون کرده و اسکریپت نصب را اجرا کنید:
 
 ```bash
+# نصب git اگر نصب نیست
+sudo apt-get update && sudo apt-get install -y git
+
+# کلون کردن مخزن
 git clone https://github.com/k4lantar4/py_bot.git
 cd py_bot
+
+# اجرای اسکریپت نصب
 python3 install.py
 ```
 
 این اسکریپت بطور خودکار:
 1. محیط مجازی پایتون را ایجاد می‌کند
-2. تمام پیش‌نیازها مانند Python، PostgreSQL، Redis و Nginx را نصب می‌کند
+2. تمام پیش‌نیازها مانند Python، MySQL، Redis و Nginx را نصب می‌کند
 3. فایل‌های محیطی `.env` را با دریافت اطلاعات از کاربر یا استفاده از مقادیر پیش‌فرض ایجاد می‌کند
 4. پایگاه داده را راه‌اندازی می‌کند
 5. سرویس‌های سیستمی را پیکربندی می‌کند
 6. وضعیت نصب را گزارش می‌دهد
 
 هر بار که اسکریپت را اجرا می‌کنید، فقط مراحلی که هنوز کامل نشده‌اند اجرا می‌شوند.
+
+### رفع مشکلات رایج
+
+#### مشکلات PHP
+
+اگر با خطای نصب PHP مواجه شدید:
+
+```bash
+# حذف کامل PHP
+sudo apt-get purge 'php*'
+sudo apt-get autoremove
+sudo apt-get autoclean
+
+# نصب مجدد PHP 8.2
+sudo add-apt-repository -y ppa:ondrej/php
+sudo apt-get update
+sudo apt-get install -y php8.2 php8.2-fpm php8.2-mysql php8.2-common
+```
+
+#### مشکلات MySQL
+
+اگر MySQL به درستی نصب نمی‌شود:
+
+```bash
+# حذف کامل MySQL
+sudo systemctl stop mysql
+sudo killall -9 mysql
+sudo killall -9 mysqld
+sudo apt-get purge 'mysql*'
+sudo rm -rf /var/lib/mysql /etc/mysql /var/run/mysqld
+sudo deluser mysql
+sudo delgroup mysql
+
+# نصب مجدد MySQL
+sudo apt-get update
+sudo apt-get install -y mysql-server mysql-client
+sudo mysql_secure_installation
+```
+
+#### مشکلات دسترسی به phpMyAdmin
+
+اگر نمی‌توانید به phpMyAdmin دسترسی پیدا کنید:
+
+1. بررسی کنید که Apache2 روی پورت 8080 در حال اجراست:
+```bash
+sudo netstat -tlpn | grep apache2
+```
+
+2. بررسی کنید که Nginx روی پورت 80 در حال اجراست:
+```bash
+sudo netstat -tlpn | grep nginx
+```
+
+3. بررسی لاگ‌های خطا:
+```bash
+sudo tail -f /var/log/nginx/error.log
+sudo tail -f /var/log/apache2/error.log
+```
 
 ### نصب دستی (برای توسعه‌دهندگان)
 
@@ -87,7 +153,7 @@ python3 install.py
    SECRET_KEY=your-secret-key
    
    # تنظیمات پایگاه داده
-   DATABASE_URL=postgresql://postgres:postgres@localhost/threexui
+   DATABASE_URL=mysql+pymysql://user:password@localhost/threexui
    
    # تنظیمات Redis
    REDIS_URL=redis://localhost:6379/0
@@ -121,20 +187,27 @@ python3 install.py
 پس از نصب با اسکریپت، سرویس‌ها به صورت خودکار راه‌اندازی می‌شوند و می‌توانید با مراجعه به آدرس‌های زیر به برنامه دسترسی داشته باشید:
 - API بک‌اند: http://YOUR_SERVER_IP/api
 - مستندات API: http://YOUR_SERVER_IP/api/docs
+- phpMyAdmin: http://YOUR_SERVER_IP/phpmyadmin
 
-برای مدیریت سرویس بک‌اند:
+برای مدیریت سرویس‌ها:
 ```bash
-# مشاهده وضعیت سرویس
+# مدیریت بک‌اند
 sudo systemctl status 3xui-backend.service
-
-# راه‌اندازی مجدد سرویس
 sudo systemctl restart 3xui-backend.service
-
-# توقف سرویس
 sudo systemctl stop 3xui-backend.service
-
-# شروع سرویس
 sudo systemctl start 3xui-backend.service
+
+# مدیریت MySQL
+sudo systemctl status mysql
+sudo systemctl restart mysql
+
+# مدیریت Apache2
+sudo systemctl status apache2
+sudo systemctl restart apache2
+
+# مدیریت Nginx
+sudo systemctl status nginx
+sudo systemctl restart nginx
 ```
 
 #### اجرای دستی (برای توسعه‌دهندگان)

@@ -381,6 +381,19 @@ def install_prerequisites() -> bool:
         success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
         if not success:
             print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
+
+    # Add PHP repository
+    print_info("Adding PHP repository...")
+    php_commands = [
+        ["sudo", "apt-get", "install", "-y", "software-properties-common"],
+        ["sudo", "add-apt-repository", "-y", "ppa:ondrej/php"],
+        ["sudo", "apt-get", "update"]
+    ]
+    
+    for cmd in php_commands:
+        success, _, _ = run_command(cmd, f"Failed to add PHP repository")
+        if not success:
+            print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
     
     # Define required packages with their apt package names
     required_packages = {
@@ -395,16 +408,16 @@ def install_prerequisites() -> bool:
         "apache2": "apache2",
         
         # PHP and its extensions
-        "php": "php",
-        "php-fpm": "php-fpm",
-        "php-mysql": "php-mysql",
-        "php-json": "php-json",
-        "php-mbstring": "php-mbstring",
-        "php-zip": "php-zip",
-        "php-gd": "php-gd",
-        "php-xml": "php-xml",
-        "php-curl": "php-curl",
-        "libapache2-mod-php": "libapache2-mod-php",
+        "php8.2": "php8.2",
+        "php8.2-fpm": "php8.2-fpm",
+        "php8.2-mysql": "php8.2-mysql",
+        "php8.2-json": "php8.2-json",
+        "php8.2-mbstring": "php8.2-mbstring",
+        "php8.2-zip": "php8.2-zip",
+        "php8.2-gd": "php8.2-gd",
+        "php8.2-xml": "php8.2-xml",
+        "php8.2-curl": "php8.2-curl",
+        "libapache2-mod-php8.2": "libapache2-mod-php8.2",
         
         # MySQL packages
         "mysql-server": "mysql-server",
@@ -422,15 +435,14 @@ def install_prerequisites() -> bool:
     
     # Install base packages first
     print_info("Installing base packages...")
-    base_cmd = ["sudo", "apt-get", "install", "-y"] + list(required_packages.values())
-    success, _, _ = run_command(base_cmd, "Failed to install base packages")
-    if not success:
-        print_warning("Some base packages failed to install. Trying individual installation...")
-        for package_name, apt_name in required_packages.items():
-            run_command(
-                ["sudo", "apt-get", "install", "-y", apt_name],
-                f"Failed to install {package_name}"
-            )
+    for package_name, apt_name in required_packages.items():
+        print_info(f"Installing {package_name}...")
+        success, _, _ = run_command(
+            ["sudo", "apt-get", "install", "-y", apt_name],
+            f"Failed to install {package_name}"
+        )
+        if not success:
+            print_warning(f"Failed to install {package_name}. Continuing anyway...")
     
     # Install Node.js
     print_info("Setting up Node.js...")
@@ -466,8 +478,6 @@ def install_prerequisites() -> bool:
     # Configure PHP version
     print_info("Configuring PHP...")
     php_commands = [
-        ["sudo", "update-alternatives", "--set", "php", "/usr/bin/php8.2"],
-        ["sudo", "a2enmod", "php8.2"],
         ["sudo", "a2enmod", "rewrite"],
         ["sudo", "phpenmod", "mbstring"],
         ["sudo", "systemctl", "restart", "apache2"]
@@ -485,7 +495,7 @@ def install_prerequisites() -> bool:
         (["npm", "--version"], "npm"),
         (["nginx", "-v"], "Nginx"),
         (["apache2", "-v"], "Apache2"),
-        (["php", "-v"], "PHP"),
+        (["php8.2", "-v"], "PHP"),
         (["mysql", "--version"], "MySQL")
     ]
     
@@ -533,20 +543,67 @@ def install_mysql() -> bool:
         if not success:
             return False
     
-    # Ensure MySQL is installed and running
-    print_info("Ensuring MySQL is properly installed...")
-    mysql_commands = [
+    # Ensure MySQL is properly removed first
+    print_info("Removing any existing MySQL installation...")
+    cleanup_commands = [
         ["sudo", "systemctl", "stop", "mysql"],
-        ["sudo", "apt-get", "remove", "-y", "mysql-server", "mysql-client"],
+        ["sudo", "killall", "-9", "mysql"],
+        ["sudo", "killall", "-9", "mysqld"],
+        ["sudo", "apt-get", "remove", "-y", "--purge", "mysql*"],
         ["sudo", "apt-get", "autoremove", "-y"],
         ["sudo", "apt-get", "autoclean"],
         ["sudo", "rm", "-rf", "/var/lib/mysql"],
         ["sudo", "rm", "-rf", "/etc/mysql"],
+        ["sudo", "rm", "-rf", "/var/run/mysqld"],
+        ["sudo", "rm", "-rf", "/var/log/mysql"],
+        ["sudo", "rm", "-rf", "/etc/apparmor.d/abstractions/mysql"],
+        ["sudo", "rm", "-rf", "/etc/apparmor.d/cache/usr.sbin.mysqld"],
+        ["sudo", "deluser", "mysql"],
+        ["sudo", "delgroup", "mysql"]
+    ]
+    
+    for cmd in cleanup_commands:
+        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
+        if not success:
+            print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
+    
+    # Create necessary directories
+    print_info("Creating MySQL directories...")
+    directory_commands = [
+        ["sudo", "mkdir", "-p", "/var/run/mysqld"],
+        ["sudo", "mkdir", "-p", "/var/lib/mysql"],
+        ["sudo", "mkdir", "-p", "/var/log/mysql"],
+        ["sudo", "chown", "-R", "mysql:mysql", "/var/run/mysqld"],
+        ["sudo", "chown", "-R", "mysql:mysql", "/var/lib/mysql"],
+        ["sudo", "chown", "-R", "mysql:mysql", "/var/log/mysql"]
+    ]
+    
+    for cmd in directory_commands:
+        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
+        if not success:
+            print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
+    
+    # Install MySQL server and client
+    print_info("Installing MySQL...")
+    mysql_install_commands = [
         ["sudo", "apt-get", "update"],
         ["sudo", "apt-get", "install", "-y", "mysql-server", "mysql-client"]
     ]
     
-    for cmd in mysql_commands:
+    for cmd in mysql_install_commands:
+        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
+        if not success:
+            print_error(f"Failed to install MySQL. Please check the system logs.")
+            return False
+    
+    # Initialize MySQL data directory
+    print_info("Initializing MySQL data directory...")
+    init_commands = [
+        ["sudo", "mysqld", "--initialize-insecure"],
+        ["sudo", "chown", "-R", "mysql:mysql", "/var/lib/mysql"]
+    ]
+    
+    for cmd in init_commands:
         success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
         if not success:
             print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
@@ -561,8 +618,12 @@ def install_mysql() -> bool:
     for cmd in service_commands:
         success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
         if not success:
-            print_error(f"Failed to run {' '.join(cmd)}")
+            print_error(f"Failed to start MySQL service. Please check the logs with: sudo journalctl -xe")
             return False
+    
+    # Wait for MySQL to be ready
+    print_info("Waiting for MySQL to be ready...")
+    time.sleep(10)
     
     # Secure MySQL installation
     print_info("Securing MySQL installation...")
