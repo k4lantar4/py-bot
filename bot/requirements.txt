@@ -1,0 +1,20 @@
+# Core dependencies
+python-telegram-bot==20.7
+python-dotenv==1.0.1
+httpx==0.26.0
+emoji==2.10.1
+
+# API and data handling
+pydantic==2.6.1
+pydantic-settings==2.1.0
+
+# Internationalization
+python-i18n==0.3.9
+
+# Development and testing
+pytest==8.0.1
+pytest-asyncio==0.23.5
+pytest-cov==4.1.0
+black==24.2.0
+isort==5.13.2
+flake8==7.0.0 
