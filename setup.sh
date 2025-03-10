@@ -69,6 +69,10 @@ echo -e "\n${YELLOW}📚 Installing Python packages...${NC}"
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# Ensure email-validator is installed (critical for Pydantic)
+echo -e "\n${YELLOW}🔍 Ensuring critical dependencies are installed...${NC}"
+pip install email-validator==2.0.0
+
 # Create necessary directories
 echo -e "\n${YELLOW}📁 Creating necessary directories...${NC}"
 mkdir -p logs

@@ -145,6 +145,26 @@ chmod +x security.sh
    supervisorctl restart all
    ```
 
+### خطاهای رایج و راه‌حل آن‌ها
+
+#### 1. خطای `email-validator is not installed`
+
+**علائم خطا**:
+```
+ImportError: email-validator is not installed, run `pip install pydantic[email]`
+```
+
+**راه‌حل**:
+```bash
+# اجرای اسکریپت رفع وابستگی‌ها
+./fix_dependencies.sh
+
+# یا نصب دستی
+source venv/bin/activate
+pip install email-validator==2.0.0
+supervisorctl restart backend
+```
+
 ## 🔧 پشتیبان‌گیری و بازیابی
 
 **ایجاد پشتیبان**:
