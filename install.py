@@ -429,7 +429,6 @@ def install_prerequisites() -> bool:
         "php8.2": "php8.2",
         "php8.2-fpm": "php8.2-fpm",
         "php8.2-mysql": "php8.2-mysql",
-        "php8.2-json": "php8.2-json",
         "php8.2-mbstring": "php8.2-mbstring",
         "php8.2-zip": "php8.2-zip",
         "php8.2-gd": "php8.2-gd",
@@ -551,7 +550,7 @@ def install_prerequisites() -> bool:
 
 def install_mysql() -> bool:
     """
-    Install and configure MySQL database
+    Install and configure MySQL server
     
     Returns:
         Boolean indicating if MySQL installation was successful
@@ -560,155 +559,164 @@ def install_mysql() -> bool:
         print_success("MySQL already installed.")
         return True
         
-    print_step(3, 8, "Installing MySQL")
+    print_step(4, 8, "Installing MySQL")
     
-    # Set default root password non-interactively
-    mysql_root_password = get_user_input("MySQL root password", "mysql_root_password", password=True)
+    # Set a default MySQL root password
+    mysql_root_password = os.environ.get("MYSQL_ROOT_PASSWORD", "")
+    if not mysql_root_password:
+        mysql_root_password = get_user_input("Enter a password for MySQL root user", password=True)
+        while not mysql_root_password:
+            print_warning("Password cannot be empty!")
+            mysql_root_password = get_user_input("Enter a password for MySQL root user", password=True)
+        
+        # Confirm password
+        confirm_password = get_user_input("Confirm MySQL root password", password=True)
+        while mysql_root_password != confirm_password:
+            print_warning("Passwords do not match!")
+            mysql_root_password = get_user_input("Enter a password for MySQL root user", password=True)
+            confirm_password = get_user_input("Confirm MySQL root password", password=True)
     
-    # Pre-configure MySQL root password
-    print_info("Configuring MySQL root password...")
+    # Set environment variable for non-interactive installation
+    os.environ["DEBIAN_FRONTEND"] = "noninteractive"
+    
+    # Prepare MySQL installation with preset root password
+    print_info("Preparing MySQL installation...")
     debconf_settings = [
         f"mysql-server mysql-server/root_password password {mysql_root_password}",
         f"mysql-server mysql-server/root_password_again password {mysql_root_password}"
     ]
     
-    # Configure MySQL root password using debconf-set-selections
     for setting in debconf_settings:
-        success, _, _ = run_command(
+        success, stdout, stderr = run_command(
             ["sudo", "debconf-set-selections"],
-            f"Failed to set MySQL config",
+            "Failed to configure MySQL",
             input_data=setting.encode()
         )
         if not success:
+            print_error(f"Failed to set MySQL configuration: {stderr}")
             return False
     
-    # Ensure MySQL is properly removed first
-    print_info("Removing any existing MySQL installation...")
-    cleanup_commands = [
-        ["sudo", "systemctl", "stop", "mysql"],
-        ["sudo", "apt-get", "remove", "-y", "--purge", "mysql*"],
-        ["sudo", "apt-get", "autoremove", "-y"],
-        ["sudo", "apt-get", "autoclean"],
-        ["sudo", "rm", "-rf", "/var/lib/mysql"],
-        ["sudo", "rm", "-rf", "/etc/mysql"],
-        ["sudo", "rm", "-rf", "/var/run/mysqld"],
-        ["sudo", "rm", "-rf", "/var/log/mysql"],
-        ["sudo", "rm", "-rf", "/etc/apparmor.d/abstractions/mysql"],
-        ["sudo", "rm", "-rf", "/etc/apparmor.d/cache/usr.sbin.mysqld"]
-    ]
+    # Install MySQL
+    print_info("Installing MySQL server...")
+    success, stdout, stderr = run_command(
+        ["sudo", "apt-get", "install", "-y", "mysql-server"],
+        "Failed to install MySQL",
+        "MySQL installed successfully!"
+    )
     
-    for cmd in cleanup_commands:
-        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
-        if not success:
-            print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
+    if not success:
+        print_error(f"Failed to install MySQL: {stderr}")
+        return False
     
-    # Create necessary directories
-    print_info("Creating MySQL directories...")
-    directory_commands = [
-        ["sudo", "mkdir", "-p", "/var/run/mysqld"],
-        ["sudo", "mkdir", "-p", "/var/lib/mysql"],
-        ["sudo", "mkdir", "-p", "/var/log/mysql"]
-    ]
-    
-    for cmd in directory_commands:
-        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
-        if not success:
-            print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
-    
-    # Install MySQL server and client
-    print_info("Installing MySQL...")
-    mysql_install_commands = [
-        ["sudo", "apt-get", "update"],
-        ["sudo", "apt-get", "install", "-y", "mysql-server", "mysql-client"]
-    ]
-    
-    for cmd in mysql_install_commands:
-        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
-        if not success:
-            print_error(f"Failed to install MySQL. Please check the system logs.")
-            return False
-    
-    # Set proper permissions
-    print_info("Setting MySQL permissions...")
-    permission_commands = [
-        ["sudo", "chown", "-R", "mysql:mysql", "/var/run/mysqld"],
-        ["sudo", "chown", "-R", "mysql:mysql", "/var/lib/mysql"],
-        ["sudo", "chown", "-R", "mysql:mysql", "/var/log/mysql"]
-    ]
-    
-    for cmd in permission_commands:
-        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
-        if not success:
-            print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
-    
-    # Start and enable MySQL
+    # Start MySQL service
     print_info("Starting MySQL service...")
-    service_commands = [
+    success, stdout, stderr = run_command(
+        ["sudo", "systemctl", "start", "mysql"],
+        "Failed to start MySQL service",
+        "MySQL service started successfully!"
+    )
+    
+    if not success:
+        print_error(f"Failed to start MySQL service: {stderr}")
+        return False
+    
+    # Enable MySQL service to start on boot
+    print_info("Enabling MySQL service to start on boot...")
+    success, stdout, stderr = run_command(
         ["sudo", "systemctl", "enable", "mysql"],
-        ["sudo", "systemctl", "start", "mysql"]
-    ]
+        "Failed to enable MySQL service",
+        "MySQL service enabled successfully!"
+    )
     
-    for cmd in service_commands:
-        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
-        if not success:
-            print_error(f"Failed to start MySQL service. Please check the logs with: sudo journalctl -xe")
-            return False
-    
-    # Wait for MySQL to be ready
-    print_info("Waiting for MySQL to be ready...")
-    time.sleep(10)
+    if not success:
+        print_error(f"Failed to enable MySQL service: {stderr}")
+        return False
     
     # Secure MySQL installation
     print_info("Securing MySQL installation...")
     
-    # First try to set root password using ALTER USER
-    secure_commands = [
-        f"sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{mysql_root_password}';\"",
-        f"sudo mysql -e \"FLUSH PRIVILEGES;\"",
-    ]
+    # Check if MySQL is accessible without password (default in some installations)
+    no_password_access = False
+    password_check_cmd = ["mysql", "-u", "root", "-e", "SELECT 1"]
+    password_check_success, _, _ = run_command(
+        password_check_cmd, 
+        "Testing MySQL root access without password", 
+        "MySQL root has no password",
+        shell=False
+    )
     
-    for cmd in secure_commands:
-        success, _, _ = run_command(cmd, f"Failed to secure MySQL", shell=True)
-        if not success:
-            # If ALTER USER fails, try using SET PASSWORD
-            alt_cmd = f"sudo mysql -e \"SET PASSWORD FOR 'root'@'localhost' = PASSWORD('{mysql_root_password}');\""
-            success, _, _ = run_command(alt_cmd, "Failed to set MySQL root password", shell=True)
-            if not success:
-                print_warning("Failed to set MySQL root password. You may need to set it manually.")
+    if password_check_success:
+        no_password_access = True
+        print_warning("MySQL root user has no password. Setting up password...")
     
-    # Run mysql_secure_installation non-interactively
-    secure_installation = f"""
-    sudo mysql -u root -p{mysql_root_password} << EOF
+    # Create secure MySQL script
+    mysql_secure_script = """
+    ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{mysql_root_password}';
     DELETE FROM mysql.user WHERE User='';
     DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
     DROP DATABASE IF EXISTS test;
     DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
     FLUSH PRIVILEGES;
-    EOF
-    """
+    """.format(mysql_root_password=mysql_root_password)
     
-    success, _, _ = run_command(secure_installation, "Failed to secure MySQL installation", shell=True)
+    # Write script to temporary file
+    script_path = "/tmp/mysql_secure.sql"
+    try:
+        with open(script_path, "w") as f:
+            f.write(mysql_secure_script)
+    except Exception as e:
+        print_error(f"Failed to create MySQL secure script: {str(e)}")
+        return False
+        
+    # Execute script based on current authentication state
+    if no_password_access:
+        # No password set yet
+        secure_cmd = f"sudo mysql < {script_path}"
+        success, stdout, stderr = run_command(
+            secure_cmd,
+            "Failed to secure MySQL installation",
+            "MySQL installation secured successfully!",
+            shell=True
+        )
+    else:
+        # Password already set
+        secure_cmd = f"sudo mysql -u root -p'{mysql_root_password}' < {script_path}"
+        success, stdout, stderr = run_command(
+            secure_cmd,
+            "Failed to secure MySQL installation",
+            "MySQL installation secured successfully!",
+            shell=True
+        )
+    
+    # Remove temporary script file
+    try:
+        os.remove(script_path)
+    except:
+        pass
+        
     if not success:
-        print_warning("Failed to secure MySQL installation. You may need to run mysql_secure_installation manually.")
+        print_warning(f"Failed to fully secure MySQL installation: {stderr}")
+        print_warning("MySQL is installed but may not be properly secured.")
+        # Continue anyway since MySQL is installed
     
-    # Test MySQL connection
-    print_info("Testing MySQL connection...")
-    test_cmd = f"mysql -u root -p{mysql_root_password} -e 'SELECT VERSION();'"
-    success, _, _ = run_command(
+    # Verify MySQL is working properly with the new password
+    print_info("Verifying MySQL installation...")
+    test_cmd = f"mysql -u root -p'{mysql_root_password}' -e 'SELECT VERSION()'"
+    success, stdout, stderr = run_command(
         test_cmd,
-        "Failed to connect to MySQL",
-        "MySQL connection test successful!",
+        "Failed to verify MySQL installation",
+        "MySQL is working properly!",
         shell=True
     )
     
     if not success:
-        print_error("Failed to connect to MySQL. Please check the root password and try again.")
-        return False
+        print_warning(f"Failed to verify MySQL installation: {stderr}")
+        print_warning("MySQL is installed but may not be working properly.")
+        # Continue anyway
     
-    # Save MySQL root password for later use
+    # Save MySQL password to environment for later use
     os.environ["MYSQL_ROOT_PASSWORD"] = mysql_root_password
     
-    print_success("MySQL installed and configured successfully!")
     state.mysql_installed = True
     return True
 
@@ -723,231 +731,110 @@ def install_phpmyadmin() -> bool:
         print_success("phpMyAdmin already installed.")
         return True
         
-    print_step(4, 8, "Installing phpMyAdmin")
+    print_step(5, 8, "Installing phpMyAdmin")
     
-    # Set environment variable for non-interactive installation
-    os.environ["DEBIAN_FRONTEND"] = "noninteractive"
-    
-    # Get MySQL root password from environment or prompt
-    mysql_root_password = os.environ.get("MYSQL_ROOT_PASSWORD", "")
-    if not mysql_root_password:
-        mysql_root_password = get_user_input("MySQL root password", password=True)
-    
-    # Configure phpMyAdmin installation
-    print_info("Configuring phpMyAdmin installation...")
-    debconf_settings = [
-        "phpmyadmin phpmyadmin/dbconfig-install boolean true",
-        f"phpmyadmin phpmyadmin/mysql/admin-pass password {mysql_root_password}",
-        "phpmyadmin phpmyadmin/mysql/app-pass password ''",
-        "phpmyadmin phpmyadmin/app-password-confirm password ''",
-        "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2"
-    ]
-    
-    for setting in debconf_settings:
-        success, _, _ = run_command(
-            ["sudo", "debconf-set-selections"],
-            "Failed to configure phpMyAdmin",
-            input_data=setting.encode()
-        )
-        if not success:
-            print_warning("Failed to set some phpMyAdmin configurations, but continuing...")
-    
-    # Install phpMyAdmin
+    # Install phpMyAdmin package
     print_info("Installing phpMyAdmin...")
-    success, _, _ = run_command(
-        ["sudo", "apt-get", "install", "-y", "phpmyadmin"],
-        "Failed to install phpMyAdmin"
-    )
     
-    if not success:
-        print_error("Failed to install phpMyAdmin. You can try installing it manually later.")
-        return False
-    
-    # Configure Apache2 to run on port 8080
-    print_info("Configuring Apache2...")
-    apache_port_cmd = "sudo sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf"
-    run_command(apache_port_cmd, "Failed to change Apache port", shell=True)
-    
-    # Create Apache configuration
-    apache_conf = """
-# phpMyAdmin Apache configuration
-<VirtualHost *:8080>
-    ServerAdmin webmaster@localhost
-    DocumentRoot /var/www/html
-    
-    ErrorLog ${APACHE_LOG_DIR}/error.log
-    CustomLog ${APACHE_LOG_DIR}/access.log combined
-    
-    <Directory /var/www/html>
-        Options Indexes FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-    
-    Alias /phpmyadmin /usr/share/phpmyadmin
-    
-    <Directory /usr/share/phpmyadmin>
-        Options FollowSymLinks
-        DirectoryIndex index.php
-        AllowOverride All
-        
-        <IfModule mod_authz_core.c>
-            Require all granted
-        </IfModule>
-        
-        <IfModule mod_php.c>
-            php_value upload_max_filesize 64M
-            php_value post_max_size 64M
-            php_value max_execution_time 300
-            php_value memory_limit 128M
-        </IfModule>
-        
-        <IfModule mod_php8.c>
-            php_value upload_max_filesize 64M
-            php_value post_max_size 64M
-            php_value max_execution_time 300
-            php_value memory_limit 128M
-        </IfModule>
-    </Directory>
-    
-    # Disallow access to files
-    <Directory /usr/share/phpmyadmin/libraries>
-        Require all denied
-    </Directory>
-    <Directory /usr/share/phpmyadmin/templates>
-        Require all denied
-    </Directory>
-</VirtualHost>
-"""
-    
-    # Write Apache configuration
-    apache_conf_path = "/etc/apache2/sites-available/000-default.conf"
-    try:
-        with open("/tmp/phpmyadmin.conf", "w") as f:
-            f.write(apache_conf)
-        run_command(
-            ["sudo", "mv", "/tmp/phpmyadmin.conf", apache_conf_path],
-            "Failed to create Apache configuration"
-        )
-    except Exception as e:
-        print_warning(f"Failed to write Apache configuration: {str(e)}")
-    
-    # Enable Apache modules and restart
-    apache_commands = [
-        ["sudo", "a2enmod", "rewrite"],
-        ["sudo", "a2enmod", "php8.2"],
-        ["sudo", "systemctl", "restart", "apache2"]
-    ]
-    
-    for cmd in apache_commands:
-        success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
-        if not success:
-            print_warning(f"Failed to run {' '.join(cmd)}, but continuing...")
-    
-    # Configure Nginx as reverse proxy
-    print_info("Configuring Nginx as reverse proxy for phpMyAdmin...")
-    nginx_conf = """
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    
-    root /var/www/html;
-    index index.php index.html index.htm;
-    server_name _;
-
-    # Main application location
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    # phpMyAdmin configuration
-    location /phpmyadmin {
-        proxy_pass http://127.0.0.1:8080/phpmyadmin;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Pass PHP scripts to FastCGI server
-    location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
-    }
-
-    # Deny access to .htaccess files
-    location ~ /\.ht {
-        deny all;
-    }
-}
-"""
-    
-    try:
-        # Add configuration to Nginx
-        nginx_conf_path = "/etc/nginx/sites-available/default"
-        with open("/tmp/default", "w") as f:
-            f.write(nginx_conf)
-        run_command(
-            ["sudo", "mv", "/tmp/default", nginx_conf_path],
-            "Failed to create Nginx configuration"
+    # Debian/Ubuntu
+    if platform.system() == "Linux" and os.path.exists("/etc/debian_version"):
+        phpmyadmin_success, phpmyadmin_stdout, phpmyadmin_stderr = run_command(
+            ["sudo", "apt-get", "install", "-y", "phpmyadmin"],
+            "Failed to install phpMyAdmin",
+            "phpMyAdmin installed successfully!",
+            input_data=b"\n1\n\n\n"  # Automatically select Apache2 and say no to dbconfig-common
         )
         
-        # Test and reload Nginx
-        run_command(["sudo", "nginx", "-t"], "Nginx configuration test failed")
-        run_command(["sudo", "systemctl", "reload", "nginx"], "Failed to reload Nginx")
+        if not phpmyadmin_success:
+            print_error(f"Failed to install phpMyAdmin: {phpmyadmin_stderr}")
+            return False
+            
+        # Configure phpMyAdmin to work with Apache
+        print_info("Configuring phpMyAdmin for Apache...")
         
-    except Exception as e:
-        print_warning(f"Failed to configure Nginx: {str(e)}")
-    
-    # Create phpMyAdmin configuration override
-    print_info("Creating phpMyAdmin configuration override...")
-    config_inc_php = """<?php
-$cfg['Servers'][$i]['host'] = 'localhost';
-$cfg['Servers'][$i]['port'] = '';
-$cfg['Servers'][$i]['socket'] = '';
-$cfg['Servers'][$i]['connect_type'] = 'tcp';
-$cfg['Servers'][$i]['extension'] = 'mysqli';
-$cfg['Servers'][$i]['auth_type'] = 'cookie';
-$cfg['Servers'][$i]['AllowNoPassword'] = false;
-$cfg['UploadDir'] = '';
-$cfg['SaveDir'] = '';
-$cfg['TempDir'] = '/tmp';
-$cfg['MaxRows'] = 50;
-$cfg['SendErrorReports'] = 'never';
-$cfg['ShowDatabasesNavigationAsTree'] = true;
-$cfg['NavigationTreeEnableGrouping'] = true;
-$cfg['VersionCheck'] = false;
-"""
-    
-    config_path = "/etc/phpmyadmin/config.inc.php"
-    try:
-        with open("/tmp/config.inc.php", "w") as f:
-            f.write(config_inc_php)
-        run_command(
-            ["sudo", "mv", "/tmp/config.inc.php", config_path],
-            "Failed to create phpMyAdmin configuration"
+        # Ensure the Apache configuration includes phpMyAdmin config
+        apache_conf_file = "/etc/apache2/apache2.conf"
+        phpmyadmin_include = "Include /etc/phpmyadmin/apache.conf"
+        
+        # Check if phpMyAdmin is already included in Apache config
+        grep_success, grep_stdout, grep_stderr = run_command(
+            ["grep", "-q", phpmyadmin_include, apache_conf_file],
+            "Failed to check Apache configuration",
+            shell=False
         )
-        run_command(
-            ["sudo", "chmod", "644", config_path],
-            "Failed to set phpMyAdmin configuration permissions"
+        
+        # If not included, add it
+        if not grep_success:
+            append_success, append_stdout, append_stderr = run_command(
+                ["sudo", "bash", "-c", f'echo "{phpmyadmin_include}" >> {apache_conf_file}'],
+                "Failed to update Apache configuration",
+                "Apache configuration updated successfully!",
+                shell=False
+            )
+            
+            if not append_success:
+                print_error(f"Failed to update Apache configuration: {append_stderr}")
+                return False
+                
+        # Restart Apache with better error handling
+        print_info("Restarting Apache service...")
+        restart_success, restart_stdout, restart_stderr = run_command(
+            ["sudo", "systemctl", "restart", "apache2"],
+            "Failed to restart Apache service",
+            "Apache service restarted successfully!",
+            shell=False
         )
-    except Exception as e:
-        print_warning(f"Failed to create phpMyAdmin configuration: {str(e)}")
+        
+        if not restart_success:
+            print_error(f"Failed to restart Apache service: {restart_stderr}")
+            print_warning("Checking Apache configuration...")
+            
+            # Check Apache config
+            apache_check_success, apache_check_stdout, apache_check_stderr = run_command(
+                ["sudo", "apachectl", "configtest"],
+                "Failed to check Apache configuration",
+                shell=False
+            )
+            
+            if not apache_check_success:
+                print_error(f"Apache configuration error: {apache_check_stderr}")
+                
+                # Try to fix common configuration issues
+                print_info("Attempting to fix Apache configuration...")
+                
+                # Enable required modules
+                run_command(
+                    ["sudo", "a2enmod", "rewrite"],
+                    "Failed to enable rewrite module",
+                    "Rewrite module enabled successfully!",
+                    shell=False
+                )
+                
+                run_command(
+                    ["sudo", "a2enmod", "ssl"],
+                    "Failed to enable SSL module",
+                    "SSL module enabled successfully!",
+                    shell=False
+                )
+                
+                # Try restart again
+                print_info("Trying to restart Apache again...")
+                restart_again_success, restart_again_stdout, restart_again_stderr = run_command(
+                    ["sudo", "systemctl", "restart", "apache2"],
+                    "Failed to restart Apache service",
+                    "Apache service restarted successfully!",
+                    shell=False
+                )
+                
+                if not restart_again_success:
+                    print_warning("Apache could not be restarted. You may need to fix the configuration manually.")
+                    print_info("Check '/var/log/apache2/error.log' for more details.")
+                    # Continue with installation anyway
+            else:
+                print_info(f"Apache configuration seems correct, but service failed to restart: {restart_stderr}")
+                print_info("Check '/var/log/apache2/error.log' for more details.")
+                # Continue with installation anyway
     
-    # Restart services
-    print_info("Restarting services...")
-    service_commands = [
-        ["sudo", "systemctl", "restart", "php8.2-fpm"],
-        ["sudo", "systemctl", "restart", "apache2"],
-        ["sudo", "systemctl", "restart", "nginx"]
-    ]
-    
-    for cmd in service_commands:
-        success, _, _ = run_command(cmd, f"Failed to restart {cmd[2]}")
-        if not success:
-            print_warning(f"Failed to restart {cmd[2]}, but continuing...")
-    
-    print_success("phpMyAdmin installation completed!")
     state.phpmyadmin_installed = True
     return True
 
@@ -1283,9 +1170,38 @@ def install_backend() -> bool:
         print_error("requirements.txt not found in backend directory.")
         return False
     
+    # Install required build dependencies first
+    print_info("Installing build dependencies...")
+    build_deps_cmd = f"{python_bin} -m pip install --upgrade pip setuptools wheel"
+    success, stdout, stderr = run_command(
+        build_deps_cmd,
+        "Failed to install build dependencies",
+        "Build dependencies installed successfully!",
+        shell=True
+    )
+    
+    if not success:
+        print_error(f"Failed to install build dependencies: {stderr}")
+        return False
+        
+    # Install distutils if Python 3.12
+    if sys.version_info.major == 3 and sys.version_info.minor >= 12:
+        print_info("Installing distutils for Python 3.12+...")
+        distutils_cmd = f"{python_bin} -m pip install setuptools"
+        success, stdout, stderr = run_command(
+            distutils_cmd,
+            "Failed to install distutils",
+            "Distutils installed successfully!",
+            shell=True
+        )
+        
+        if not success:
+            print_error(f"Failed to install distutils: {stderr}")
+            return False
+    
     # Install dependencies using direct paths to Python and pip in the virtual environment
     print_info("Installing backend dependencies...")
-    cmd = f"{python_bin} -m pip install -r {requirements_path}"
+    cmd = f"{python_bin} -m pip install -r {requirements_path} --no-build-isolation"
     success, stdout, stderr = run_command(
         cmd,
         "Failed to install backend dependencies",
@@ -1295,8 +1211,29 @@ def install_backend() -> bool:
     
     if not success:
         print_error(f"Failed to install backend dependencies: {stderr}")
-        return False
-    
+        # Try installing packages one by one
+        print_info("Trying to install packages one by one...")
+        with open(requirements_path, 'r') as f:
+            requirements = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        
+        all_success = True
+        for req in requirements:
+            print_info(f"Installing {req}...")
+            req_cmd = f"{python_bin} -m pip install {req} --no-build-isolation"
+            req_success, req_stdout, req_stderr = run_command(
+                req_cmd,
+                f"Failed to install {req}",
+                f"{req} installed successfully!",
+                shell=True
+            )
+            if not req_success:
+                print_warning(f"Could not install {req}: {req_stderr}")
+                all_success = False
+        
+        if not all_success:
+            print_warning("Some packages could not be installed. The application may not function correctly.")
+            # Continue anyway to let the user decide whether to proceed
+        
     state.backend_installed = True
     return True
 
