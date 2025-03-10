@@ -31,35 +31,30 @@ logger = logging.getLogger("celery")
 
 # Create Celery app
 celery_app = Celery(
-    "worker",
-    backend=settings.REDIS_URL,
-    broker=settings.REDIS_URL
+    "app.worker",
+    broker=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}",
+    backend=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
 )
 
 # Configure Celery
 celery_app.conf.task_routes = {
-    "app.worker.test_celery": "main-queue",
-    "app.worker.monitor_server": "monitor-queue",
-    "app.worker.refresh_threexui_session": "session-queue",
-    "app.worker.send_email": "email-queue",
-    "app.worker.generate_reports": "report-queue",
-    "app.worker.send_bulk_messages": "messaging-queue",
+    "app.worker.*": {"queue": "default"}
 }
 
 # Configure periodic tasks
 celery_app.conf.beat_schedule = {
-    "monitor-servers-every-5-minutes": {
+    "monitor-all-servers-every-5-minutes": {
         "task": "app.worker.monitor_all_servers",
-        "schedule": crontab(minute=f"*/{settings.THREEXUI_PING_INTERVAL_MINUTES}"),
+        "schedule": 300.0  # 5 minutes
     },
-    "refresh-sessions-every-hour": {
+    "refresh-all-sessions-every-45-minutes": {
         "task": "app.worker.refresh_all_sessions",
-        "schedule": crontab(minute=0, hour=f"*/{settings.THREEXUI_SESSION_REFRESH_MINUTES // 60}"),
+        "schedule": 2700.0  # 45 minutes
     },
     "generate-daily-reports": {
         "task": "app.worker.generate_daily_reports",
-        "schedule": crontab(minute=0, hour=1),  # 1:00 AM every day
-    },
+        "schedule": crontab(hour=1, minute=0)  # 1:00 AM every day
+    }
 }
 
 

@@ -79,48 +79,41 @@ apiClient.interceptors.response.use(
 // Authentication API
 const authAPI = {
   /**
-   * Login user with username/email and password.
-   * 
-   * @param {string} usernameOrEmail - The username or email
-   * @param {string} password - The password
-   * @returns {Promise<Object>} User data and tokens
+   * Set authentication token for API calls
+   * @param {string} token - JWT token
    */
-  login: async (usernameOrEmail, password) => {
-    const formData = new FormData();
-    formData.append('username', usernameOrEmail);
-    formData.append('password', password);
-    
-    const response = await axios.post(
-      `${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/auth/login`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      }
-    );
-    
-    // Store tokens in localStorage
-    localStorage.setItem('accessToken', response.data.access_token);
-    localStorage.setItem('refreshToken', response.data.refresh_token);
-    
-    // Get user profile
-    const userResponse = await apiClient.get('/users/me');
-    
-    return {
-      user: userResponse.data,
-      tokens: {
-        accessToken: response.data.access_token,
-        refreshToken: response.data.refresh_token,
-      },
-    };
+  setAuthToken: (token) => {
+    if (token) {
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete apiClient.defaults.headers.common['Authorization'];
+    }
   },
   
   /**
-   * Register a new user.
-   * 
+   * Login user
+   * @param {string} usernameOrEmail - Username or email
+   * @param {string} password - User password
+   * @returns {Promise} - Response with user data and tokens
+   */
+  login: async (usernameOrEmail, password) => {
+    try {
+      const response = await apiClient.post('/auth/login', {
+        username_or_email: usernameOrEmail,
+        password: password
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Login API error:', error);
+      throw error;
+    }
+  },
+  
+  /**
+   * Register new user
    * @param {Object} userData - User registration data
-   * @returns {Promise<Object>} Created user data
+   * @returns {Promise} - Response with user data
    */
   register: async (userData) => {
     const response = await apiClient.post('/auth/register', userData);
@@ -128,60 +121,79 @@ const authAPI = {
   },
   
   /**
-   * Logout current user.
-   * 
-   * @returns {Promise<Object>} Success message
+   * Logout user
+   * @returns {Promise} - Logout response
    */
   logout: async () => {
     try {
       const response = await apiClient.post('/auth/logout');
-      // Clear tokens from localStorage
+      
+      // Clean up local storage regardless of response
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('tokenExpiry');
+      
+      // Remove auth header
+      delete apiClient.defaults.headers.common['Authorization'];
+      
       return response.data;
     } catch (error) {
-      // Still clear tokens on error
+      // Still clean up on error
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('tokenExpiry');
+      
+      // Remove auth header
+      delete apiClient.defaults.headers.common['Authorization'];
+      
       throw error;
     }
   },
   
   /**
-   * Verify auth token is valid.
-   * 
-   * @returns {Promise<Object>} User data if token is valid
-   */
-  verifyToken: async () => {
-    const response = await apiClient.get('/auth/verify-token');
-    return response.data;
-  },
-  
-  /**
-   * Request password reset email.
-   * 
+   * Reset password request
    * @param {string} email - User email
-   * @returns {Promise<Object>} Success message
+   * @returns {Promise} - Response data
    */
   requestPasswordReset: async (email) => {
-    const response = await apiClient.post('/auth/password-reset-request', { email });
+    const response = await apiClient.post('/auth/reset-password', { email });
     return response.data;
   },
   
   /**
-   * Reset password with token.
-   * 
+   * Confirm password reset with token
    * @param {string} token - Reset token
    * @param {string} newPassword - New password
-   * @returns {Promise<Object>} Success message
+   * @returns {Promise} - Response data
    */
-  resetPassword: async (token, newPassword) => {
-    const response = await apiClient.post('/auth/password-reset', {
+  confirmPasswordReset: async (token, newPassword) => {
+    const response = await apiClient.post('/auth/reset-password-confirm', {
       token,
-      new_password: newPassword,
+      new_password: newPassword
     });
     return response.data;
   },
+  
+  /**
+   * Get current user info
+   * @returns {Promise} - User data
+   */
+  me: async () => {
+    const response = await apiClient.get('/auth/me');
+    return response.data;
+  },
+  
+  /**
+   * Refresh access token
+   * @param {string} refreshToken - Refresh token
+   * @returns {Promise} - New tokens
+   */
+  refreshToken: async (refreshToken) => {
+    const response = await apiClient.post('/auth/refresh-token', { refresh_token: refreshToken });
+    return response.data;
+  }
 };
 
 // User API

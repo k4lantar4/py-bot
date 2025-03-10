@@ -136,22 +136,39 @@ export const AuthProvider = ({ children }) => {
   }, []);
   
   /**
-   * Login user with data from API.
-   * 
-   * @param {Object} user - User data
-   * @param {Object} tokens - Auth tokens
+   * Log in a user.
+   *
+   * @param {Object} user - User information
+   * @param {Object} tokens - Authentication tokens
    */
   const login = async (user, tokens) => {
-    // Store tokens
-    localStorage.setItem('accessToken', tokens.accessToken);
-    localStorage.setItem('refreshToken', tokens.refreshToken);
-    
-    dispatch({
-      type: ActionTypes.LOGIN,
-      payload: {
-        user,
-      },
-    });
+    try {
+      // Store tokens in localStorage
+      localStorage.setItem('accessToken', tokens.access_token);
+      localStorage.setItem('refreshToken', tokens.refresh_token);
+      localStorage.setItem('isAuthenticated', 'true');
+      
+      // Optional: Set token expiry
+      if (tokens.expires_at) {
+        localStorage.setItem('tokenExpiry', tokens.expires_at);
+      }
+      
+      // Update state
+      dispatch({
+        type: ActionTypes.LOGIN,
+        payload: {
+          user,
+        },
+      });
+      
+      // Set token for API calls
+      authAPI.setAuthToken(tokens.access_token);
+      
+      return true;
+    } catch (error) {
+      console.error('Login error in context:', error);
+      return false;
+    }
   };
   
   /**

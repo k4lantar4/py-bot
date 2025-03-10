@@ -1,29 +1,31 @@
 """
-Redis client module for caching and session management.
+Redis utilities for the 3X-UI Management System.
 
-This module initializes and manages the Redis connection for caching and
-session management in the 3X-UI Management System.
+This module provides utility functions for interacting with Redis cache.
 """
 
 import json
-from typing import Any, Dict, List, Optional, Union
+import logging
+from typing import Any, Dict, List, Optional, Set, Union
+
 import redis
-from redis.exceptions import RedisError
 from redis import Redis
+from redis.exceptions import RedisError
 
 from app.core.config import settings
-from app.utils.logger import logger
 
-# Create a Redis client instance
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Define key prefixes for different types of data
-USER_SESSION_PREFIX = "user_session:"
-THREEXUI_SESSION_PREFIX = "threexui_session:"
-SERVER_STATUS_PREFIX = "server_status:"
+# Redis key prefixes
 CACHE_PREFIX = "cache:"
+SESSION_PREFIX = "session:"
 RATE_LIMIT_PREFIX = "rate_limit:"
-NOTIFICATION_PREFIX = "notification:"
+SERVER_STATUS_PREFIX = "server_status:"
+
+# Initialize Redis client
+redis_client = None
 
 
 def format_key(prefix: str, key: str) -> str:
@@ -31,11 +33,11 @@ def format_key(prefix: str, key: str) -> str:
     Format a Redis key with the given prefix.
     
     Args:
-        prefix: The key prefix
-        key: The key to format
+        prefix: Key prefix
+        key: Key name
         
     Returns:
-        The formatted key with prefix
+        Formatted key
     """
     return f"{prefix}{key}"
 
@@ -45,21 +47,25 @@ def set_json(key: str, data: Any, prefix: str = CACHE_PREFIX, expire: Optional[i
     Set JSON data in Redis.
     
     Args:
-        key: The key to store the data under
-        data: The data to store
-        prefix: The key prefix to use
-        expire: Optional expiration time in seconds
+        key: Key name
+        data: Data to store
+        prefix: Key prefix
+        expire: Expiration time in seconds
         
     Returns:
         True if successful, False otherwise
     """
     formatted_key = format_key(prefix, key)
     try:
-        redis_client.set(formatted_key, json.dumps(data))
+        redis_client = get_redis_connection()
+        json_data = json.dumps(data)
         if expire:
-            redis_client.expire(formatted_key, expire)
+            redis_client.setex(formatted_key, expire, json_data)
+        else:
+            redis_client.set(formatted_key, json_data)
         return True
-    except RedisError:
+    except (RedisError, TypeError) as e:
+        logger.error(f"Error setting JSON in Redis: {str(e)} ❌")
         return False
 
 
@@ -68,19 +74,21 @@ def get_json(key: str, prefix: str = CACHE_PREFIX) -> Optional[Any]:
     Get JSON data from Redis.
     
     Args:
-        key: The key to retrieve data for
-        prefix: The key prefix to use
+        key: Key name
+        prefix: Key prefix
         
     Returns:
-        The data if found and valid JSON, None otherwise
+        Data if found, None otherwise
     """
     formatted_key = format_key(prefix, key)
     try:
+        redis_client = get_redis_connection()
         data = redis_client.get(formatted_key)
         if data:
             return json.loads(data)
         return None
-    except (RedisError, json.JSONDecodeError):
+    except (RedisError, json.JSONDecodeError, TypeError) as e:
+        logger.error(f"Error getting JSON from Redis: {str(e)} ❌")
         return None
 
 
@@ -89,85 +97,89 @@ def delete_key(key: str, prefix: str = CACHE_PREFIX) -> bool:
     Delete a key from Redis.
     
     Args:
-        key: The key to delete
-        prefix: The key prefix to use
+        key: Key name
+        prefix: Key prefix
         
     Returns:
         True if successful, False otherwise
     """
     formatted_key = format_key(prefix, key)
     try:
-        return bool(redis_client.delete(formatted_key))
-    except RedisError:
+        redis_client = get_redis_connection()
+        redis_client.delete(formatted_key)
+        return True
+    except RedisError as e:
+        logger.error(f"Error deleting key from Redis: {str(e)} ❌")
         return False
 
 
 def get_keys_pattern(pattern: str) -> List[str]:
     """
-    Get all keys matching a pattern.
+    Get keys matching a pattern.
     
     Args:
-        pattern: The pattern to match
+        pattern: Key pattern
         
     Returns:
-        A list of matching keys
+        List of matching keys
     """
     try:
-        return redis_client.keys(pattern)
-    except RedisError:
+        redis_client = get_redis_connection()
+        keys = redis_client.keys(pattern)
+        return [key.decode('utf-8') if isinstance(key, bytes) else key for key in keys]
+    except RedisError as e:
+        logger.error(f"Error getting keys from Redis: {str(e)} ❌")
         return []
 
 
-# 3X-UI session management functions
 def save_threexui_session(server_id: str, session_data: Dict[str, Any], expire_seconds: int = 3600) -> bool:
     """
-    Save a 3X-UI session for a server.
+    Save a 3X-UI session in Redis.
     
     Args:
-        server_id: The server ID
-        session_data: The session data to save
+        server_id: Server ID
+        session_data: Session data
         expire_seconds: Expiration time in seconds
         
     Returns:
         True if successful, False otherwise
     """
-    return set_json(server_id, session_data, THREEXUI_SESSION_PREFIX, expire_seconds)
+    return set_json(server_id, session_data, SESSION_PREFIX, expire_seconds)
 
 
 def get_threexui_session(server_id: str) -> Optional[Dict[str, Any]]:
     """
-    Get a 3X-UI session for a server.
+    Get a 3X-UI session from Redis.
     
     Args:
-        server_id: The server ID
+        server_id: Server ID
         
     Returns:
-        The session data if found, None otherwise
+        Session data if found, None otherwise
     """
-    return get_json(server_id, THREEXUI_SESSION_PREFIX)
+    return get_json(server_id, SESSION_PREFIX)
 
 
 def delete_threexui_session(server_id: str) -> bool:
     """
-    Delete a 3X-UI session for a server.
+    Delete a 3X-UI session from Redis.
     
     Args:
-        server_id: The server ID
+        server_id: Server ID
         
     Returns:
         True if successful, False otherwise
     """
-    return delete_key(server_id, THREEXUI_SESSION_PREFIX)
+    return delete_key(server_id, SESSION_PREFIX)
 
 
-# Server status functions
 def update_server_status(server_id: str, status_data: Dict[str, Any], expire_seconds: int = 600) -> bool:
     """
     Update server status in Redis.
     
     Args:
-        server_id: The server ID
-        status_data: The status data to save
+        server_id: Server ID
+        status_data: Status data
         expire_seconds: Expiration time in seconds
         
     Returns:
@@ -181,10 +193,10 @@ def get_server_status(server_id: str) -> Optional[Dict[str, Any]]:
     Get server status from Redis.
     
     Args:
-        server_id: The server ID
+        server_id: Server ID
         
     Returns:
-        The status data if found, None otherwise
+        Status data if found, None otherwise
     """
     return get_json(server_id, SERVER_STATUS_PREFIX)
 
@@ -194,53 +206,58 @@ def get_all_server_statuses() -> Dict[str, Any]:
     Get all server statuses from Redis.
     
     Returns:
-        A dictionary mapping server IDs to status data
+        Dictionary of server statuses
     """
     keys = get_keys_pattern(f"{SERVER_STATUS_PREFIX}*")
     result = {}
-    for key in keys:
-        server_id = key.replace(SERVER_STATUS_PREFIX, "")
+    
+    for full_key in keys:
+        server_id = full_key.replace(SERVER_STATUS_PREFIX, "")
         status = get_server_status(server_id)
         if status:
             result[server_id] = status
+    
     return result
 
 
-# Rate limiting functions
 def increment_rate_limit(key: str, window_seconds: int = 60) -> int:
     """
-    Increment rate limit counter for a key.
+    Increment a rate limit counter.
     
     Args:
-        key: The rate limit key
-        window_seconds: The time window in seconds
+        key: Key name
+        window_seconds: Time window in seconds
         
     Returns:
-        The new count
+        Current count
     """
     formatted_key = format_key(RATE_LIMIT_PREFIX, key)
     try:
-        pipe = redis_client.pipeline()
-        pipe.incr(formatted_key)
-        pipe.expire(formatted_key, window_seconds)
-        result = pipe.execute()
-        return result[0]
-    except RedisError:
+        redis_client = get_redis_connection()
+        current = redis_client.incr(formatted_key)
+        
+        # Set expiry if this is the first increment
+        if current == 1:
+            redis_client.expire(formatted_key, window_seconds)
+        
+        return current
+    except (RedisError, ValueError):
         return 0
 
 
 def get_rate_limit_count(key: str) -> int:
     """
-    Get rate limit count for a key.
+    Get the current rate limit count.
     
     Args:
-        key: The rate limit key
+        key: Key name
         
     Returns:
         The count if found, 0 otherwise
     """
     formatted_key = format_key(RATE_LIMIT_PREFIX, key)
     try:
+        redis_client = get_redis_connection()
         count = redis_client.get(formatted_key)
         return int(count) if count else 0
     except (RedisError, ValueError):
@@ -254,6 +271,11 @@ def get_redis_connection() -> Redis:
     Returns:
         Redis: Redis connection
     """
+    global redis_client
+    
+    if redis_client is not None:
+        return redis_client
+    
     try:
         redis_client = redis.Redis(
             host=settings.REDIS_HOST,
@@ -271,47 +293,66 @@ def get_redis_connection() -> Redis:
     except (RedisError, ConnectionError) as e:
         logger.error(f"Redis connection error: {str(e)} ❌")
         logger.warning("Using dummy Redis implementation ⚠️")
-        return DummyRedis()
+        redis_client = DummyRedis()
+        return redis_client
 
 
 class DummyRedis:
     """
-    Dummy Redis client for development.
-    
-    This class implements a subset of Redis methods for development purposes.
+    Dummy Redis implementation for development and testing.
     """
     
     def __init__(self):
-        """Initialize the dummy Redis client."""
-        self.data = {}
-        self.expiry = {}
+        """Initialize the dummy Redis store."""
+        self.store = {}
+        logger.warning("Using DummyRedis - data will not persist!")
     
     def ping(self):
-        """Ping the Redis server."""
+        """Ping the dummy Redis server."""
         return True
     
     def get(self, key):
-        """Get a value from Redis."""
-        return self.data.get(key)
+        """Get a value from the dummy Redis store."""
+        return self.store.get(key)
     
     def set(self, key, value, ex=None):
-        """Set a value in Redis."""
-        self.data[key] = value
-        if ex:
-            self.expiry[key] = ex
+        """Set a value in the dummy Redis store."""
+        self.store[key] = value
         return True
     
     def setex(self, key, time, value):
-        """Set a value in Redis with an expiry."""
-        self.data[key] = value
-        self.expiry[key] = time
+        """Set a value with an expiration time in the dummy Redis store."""
+        self.store[key] = value
         return True
     
     def delete(self, key):
-        """Delete a value from Redis."""
-        if key in self.data:
-            del self.data[key]
-            if key in self.expiry:
-                del self.expiry[key]
+        """Delete a key from the dummy Redis store."""
+        if key in self.store:
+            del self.store[key]
+        return True
+    
+    def keys(self, pattern):
+        """Get keys matching a pattern from the dummy Redis store."""
+        # Simple wildcard matching for keys
+        if pattern.endswith('*'):
+            prefix = pattern[:-1]
+            return [k for k in self.store.keys() if k.startswith(prefix)]
+        return [k for k in self.store.keys() if k == pattern]
+    
+    def incr(self, key):
+        """Increment a value in the dummy Redis store."""
+        if key not in self.store:
+            self.store[key] = "1"
             return 1
-        return 0 
+        
+        try:
+            value = int(self.store[key]) + 1
+            self.store[key] = str(value)
+            return value
+        except (ValueError, TypeError):
+            return 1
+    
+    def expire(self, key, seconds):
+        """Set an expiration time for a key in the dummy Redis store."""
+        # In dummy implementation, we don't actually expire keys
+        return True 

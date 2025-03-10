@@ -99,12 +99,10 @@ class Settings(BaseSettings):
     # Environment
     ENVIRONMENT: str = "production"
     
-    class Config:
-        """
-        Pydantic configuration.
-        """
-        case_sensitive = True
-        env_file = ".env"
+    model_config = {
+        "case_sensitive": True,
+        "env_file": ".env"
+    }
 
 
 settings = Settings() 
