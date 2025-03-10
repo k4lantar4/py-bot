@@ -46,12 +46,21 @@ apt install -y "${apt_packages[@]}"
 # Make sure Node.js and npm are installed and up to date (v16.x)
 echo -e "\n${YELLOW}📦 Setting up Node.js v16...${NC}"
 if ! command -v node &> /dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 16 ]]; then
-    echo -e "${YELLOW}Removing old Node.js version if exists...${NC}"
-    apt remove -y nodejs npm || true
+    echo -e "${YELLOW}Removing old Node.js version and related packages...${NC}"
+    apt remove -y nodejs npm node-gyp libnode-dev || true
+    apt autoremove -y
     
     echo -e "${YELLOW}Installing Node.js v16...${NC}"
     curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
-    apt install -y nodejs
+    
+    echo -e "${YELLOW}Forcing Node.js installation with overwrite permission...${NC}"
+    # If direct installation fails, use dpkg with force-overwrite
+    if ! apt install -y nodejs; then
+        cd /var/cache/apt/archives/
+        dpkg -i --force-overwrite nodejs_*.deb
+        apt-get -f install -y
+        cd - > /dev/null
+    fi
     
     echo -e "${GREEN}Node.js $(node -v) and npm $(npm -v) installed successfully${NC}"
 else
