@@ -292,6 +292,13 @@ def create_virtual_environment() -> bool:
         
     print_step(1, 8, "Creating Python virtual environment")
     
+    # Install Python venv package if not already installed
+    print_info("Ensuring Python venv package is installed...")
+    run_command(
+        ["sudo", "apt-get", "install", "-y", "python3-venv"],
+        "Failed to install python3-venv"
+    )
+    
     venv_path = os.path.join(os.getcwd(), "venv")
     if os.path.exists(venv_path):
         print_info("Virtual environment directory already exists. Checking if it's valid...")
@@ -312,7 +319,14 @@ def create_virtual_environment() -> bool:
     
     try:
         print_info("Creating virtual environment...")
-        venv.create(venv_path, with_pip=True)
+        # Use system Python to create venv
+        success, _, _ = run_command(
+            ["python3", "-m", "venv", venv_path],
+            "Failed to create virtual environment"
+        )
+        
+        if not success:
+            return False
         
         # Verify the venv was created correctly
         if platform.system() == "Windows":
@@ -321,6 +335,10 @@ def create_virtual_environment() -> bool:
             python_path = os.path.join(venv_path, "bin", "python")
             
         if os.path.exists(python_path):
+            # Upgrade pip in the virtual environment
+            upgrade_cmd = f"{python_path} -m pip install --upgrade pip"
+            run_command(upgrade_cmd, "Failed to upgrade pip", shell=True)
+            
             print_success("Virtual environment created successfully!")
             state.venv_created = True
             return True
@@ -438,11 +456,18 @@ def install_prerequisites() -> bool:
     for package_name, apt_name in required_packages.items():
         print_info(f"Installing {package_name}...")
         success, _, _ = run_command(
-            ["sudo", "apt-get", "install", "-y", apt_name],
+            ["sudo", "apt-get", "install", "-y", "--no-install-recommends", apt_name],
             f"Failed to install {package_name}"
         )
         if not success:
             print_warning(f"Failed to install {package_name}. Continuing anyway...")
+            
+        # Special handling for PHP 8.2
+        if apt_name.startswith("php8.2"):
+            run_command(
+                ["sudo", "update-alternatives", "--install", "/usr/bin/php", "php", f"/usr/bin/php8.2", "1"],
+                f"Failed to set PHP alternative for {apt_name}"
+            )
     
     # Install Node.js
     print_info("Setting up Node.js...")
@@ -475,18 +500,32 @@ def install_prerequisites() -> bool:
             print("2. sudo apt-get install -y nodejs")
             return False
     
-    # Configure PHP version
-    print_info("Configuring PHP...")
-    php_commands = [
+    # Configure PHP and Apache
+    print_info("Configuring PHP and Apache...")
+    apache_commands = [
+        ["sudo", "a2dismod", "mpm_event"],
+        ["sudo", "a2enmod", "mpm_prefork"],
+        ["sudo", "a2enmod", "php8.2"],
         ["sudo", "a2enmod", "rewrite"],
         ["sudo", "phpenmod", "mbstring"],
         ["sudo", "systemctl", "restart", "apache2"]
     ]
     
-    for cmd in php_commands:
+    for cmd in apache_commands:
         success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
         if not success:
             print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
+    
+    # Create Nginx directories if they don't exist
+    nginx_dirs = [
+        "/etc/nginx",
+        "/etc/nginx/sites-available",
+        "/etc/nginx/sites-enabled",
+        "/var/log/nginx"
+    ]
+    
+    for directory in nginx_dirs:
+        run_command(["sudo", "mkdir", "-p", directory], f"Creating {directory}")
     
     # Verify installations
     verifications = [
@@ -547,8 +586,6 @@ def install_mysql() -> bool:
     print_info("Removing any existing MySQL installation...")
     cleanup_commands = [
         ["sudo", "systemctl", "stop", "mysql"],
-        ["sudo", "killall", "-9", "mysql"],
-        ["sudo", "killall", "-9", "mysqld"],
         ["sudo", "apt-get", "remove", "-y", "--purge", "mysql*"],
         ["sudo", "apt-get", "autoremove", "-y"],
         ["sudo", "apt-get", "autoclean"],
@@ -557,9 +594,7 @@ def install_mysql() -> bool:
         ["sudo", "rm", "-rf", "/var/run/mysqld"],
         ["sudo", "rm", "-rf", "/var/log/mysql"],
         ["sudo", "rm", "-rf", "/etc/apparmor.d/abstractions/mysql"],
-        ["sudo", "rm", "-rf", "/etc/apparmor.d/cache/usr.sbin.mysqld"],
-        ["sudo", "deluser", "mysql"],
-        ["sudo", "delgroup", "mysql"]
+        ["sudo", "rm", "-rf", "/etc/apparmor.d/cache/usr.sbin.mysqld"]
     ]
     
     for cmd in cleanup_commands:
@@ -572,10 +607,7 @@ def install_mysql() -> bool:
     directory_commands = [
         ["sudo", "mkdir", "-p", "/var/run/mysqld"],
         ["sudo", "mkdir", "-p", "/var/lib/mysql"],
-        ["sudo", "mkdir", "-p", "/var/log/mysql"],
-        ["sudo", "chown", "-R", "mysql:mysql", "/var/run/mysqld"],
-        ["sudo", "chown", "-R", "mysql:mysql", "/var/lib/mysql"],
-        ["sudo", "chown", "-R", "mysql:mysql", "/var/log/mysql"]
+        ["sudo", "mkdir", "-p", "/var/log/mysql"]
     ]
     
     for cmd in directory_commands:
@@ -596,14 +628,15 @@ def install_mysql() -> bool:
             print_error(f"Failed to install MySQL. Please check the system logs.")
             return False
     
-    # Initialize MySQL data directory
-    print_info("Initializing MySQL data directory...")
-    init_commands = [
-        ["sudo", "mysqld", "--initialize-insecure"],
-        ["sudo", "chown", "-R", "mysql:mysql", "/var/lib/mysql"]
+    # Set proper permissions
+    print_info("Setting MySQL permissions...")
+    permission_commands = [
+        ["sudo", "chown", "-R", "mysql:mysql", "/var/run/mysqld"],
+        ["sudo", "chown", "-R", "mysql:mysql", "/var/lib/mysql"],
+        ["sudo", "chown", "-R", "mysql:mysql", "/var/log/mysql"]
     ]
     
-    for cmd in init_commands:
+    for cmd in permission_commands:
         success, _, _ = run_command(cmd, f"Failed to run {' '.join(cmd)}")
         if not success:
             print_warning(f"Failed to run {' '.join(cmd)}. Continuing anyway...")
@@ -627,16 +660,36 @@ def install_mysql() -> bool:
     
     # Secure MySQL installation
     print_info("Securing MySQL installation...")
+    
+    # First try to set root password using ALTER USER
     secure_commands = [
         f"sudo mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{mysql_root_password}';\"",
         f"sudo mysql -e \"FLUSH PRIVILEGES;\"",
-        "sudo mysql_secure_installation"
     ]
     
     for cmd in secure_commands:
         success, _, _ = run_command(cmd, f"Failed to secure MySQL", shell=True)
         if not success:
-            print_warning(f"Failed to run MySQL secure installation. Please run 'sudo mysql_secure_installation' manually.")
+            # If ALTER USER fails, try using SET PASSWORD
+            alt_cmd = f"sudo mysql -e \"SET PASSWORD FOR 'root'@'localhost' = PASSWORD('{mysql_root_password}');\""
+            success, _, _ = run_command(alt_cmd, "Failed to set MySQL root password", shell=True)
+            if not success:
+                print_warning("Failed to set MySQL root password. You may need to set it manually.")
+    
+    # Run mysql_secure_installation non-interactively
+    secure_installation = f"""
+    sudo mysql -u root -p{mysql_root_password} << EOF
+    DELETE FROM mysql.user WHERE User='';
+    DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+    DROP DATABASE IF EXISTS test;
+    DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+    FLUSH PRIVILEGES;
+    EOF
+    """
+    
+    success, _, _ = run_command(secure_installation, "Failed to secure MySQL installation", shell=True)
+    if not success:
+        print_warning("Failed to secure MySQL installation. You may need to run mysql_secure_installation manually.")
     
     # Test MySQL connection
     print_info("Testing MySQL connection...")
