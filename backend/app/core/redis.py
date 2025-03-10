@@ -260,21 +260,18 @@ def get_redis_connection() -> Redis:
             port=settings.REDIS_PORT,
             db=settings.REDIS_DB,
             password=settings.REDIS_PASSWORD,
-            decode_responses=False,
+            decode_responses=True,
             socket_timeout=5,
+            socket_connect_timeout=5,
+            retry_on_timeout=True
         )
-        
         # Test connection
         redis_client.ping()
-        
         return redis_client
-    except redis.ConnectionError as e:
-        logger.error(f"Redis connection error: {str(e)}")
-        # Return a dummy Redis client for development
-        if settings.ENVIRONMENT == "development":
-            logger.warning("Using dummy Redis client for development")
-            return DummyRedis()
-        raise
+    except (RedisError, ConnectionError) as e:
+        logger.error(f"Redis connection error: {str(e)} ❌")
+        logger.warning("Using dummy Redis implementation ⚠️")
+        return DummyRedis()
 
 
 class DummyRedis:

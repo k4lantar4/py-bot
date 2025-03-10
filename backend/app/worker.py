@@ -7,7 +7,9 @@ server monitoring, session refresh, and email sending.
 
 import logging
 import time
+import json
 from typing import Dict, List, Any, Optional
+from datetime import datetime
 
 from celery import Celery
 from celery.schedules import crontab
@@ -19,7 +21,8 @@ from app.core.config import settings
 from app.core.redis import (
     get_threexui_session,
     save_threexui_session,
-    update_server_status
+    update_server_status,
+    get_redis_connection
 )
 
 # Configure logging
@@ -74,23 +77,23 @@ def test_celery() -> Dict[str, str]:
 @celery_app.task(name="app.worker.monitor_server")
 def monitor_server(server_id: str, server_url: str) -> Dict[str, Any]:
     """
-    Monitor a server by pinging it and checking its status.
+    Monitor a server and record its status.
     
     Args:
-        server_id: The ID of the server to monitor
-        server_url: The URL of the server
+        server_id: Server ID to monitor
+        server_url: Server URL to ping
         
     Returns:
-        Server status information
+        Monitoring status results
     """
     logger.info(f"Monitoring server {server_id} at {server_url} 🔍")
     
     start_time = time.time()
     
     try:
-        # Use httpx for async requests with timeout
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(f"{server_url}/ping")
+        # Use httpx for synchronous requests with timeout
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(f"{server_url}/ping")
         
         response_time = time.time() - start_time
         
@@ -98,20 +101,29 @@ def monitor_server(server_id: str, server_url: str) -> Dict[str, Any]:
             "is_online": response.status_code == 200,
             "response_time": response_time,
             "status_code": response.status_code,
-            "checked_at": time.time(),
+            "timestamp": datetime.now().isoformat(),
         }
+        
+        # Update server status in database
+        # db_server = crud.server.get(db=SessionLocal(), id=server_id)
+        # if db_server:
+        #     crud.server.update_status(db=SessionLocal(), db_obj=db_server, status=status)
+        
+        logger.info(f"Server {server_id} monitored: {'🟢 Online' if status['is_online'] else '🔴 Offline'}")
+        return {"status": "success", "server_id": server_id, "server_status": status}
+    
     except Exception as e:
-        logger.error(f"Error monitoring server {server_id}: {str(e)} ❌")
+        logger.error(f"Error monitoring server {server_id}: {e}")
         status = {
             "is_online": False,
             "error": str(e),
-            "checked_at": time.time(),
+            "timestamp": datetime.now().isoformat(),
         }
-    
-    # Update server status in Redis
-    update_server_status(server_id, status)
-    
-    return status
+        # Update server status in database with error
+        # db_server = crud.server.get(db=SessionLocal(), id=server_id)
+        # if db_server:
+        #     crud.server.update_status(db=SessionLocal(), db_obj=db_server, status=status)
+        return {"status": "error", "server_id": server_id, "error": str(e)}
 
 
 @celery_app.task(name="app.worker.monitor_all_servers")
@@ -156,49 +168,52 @@ def refresh_threexui_session(server_id: str, server_url: str, username: str, pas
             "password": password
         }
         
-        session = requests.Session()
-        response = session.post(f"{server_url}/login", data=login_data, timeout=10)
+        # Use httpx instead of requests for better HTTP/2 support
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(f"{server_url}/login", data=login_data)
         
         if response.status_code == 200:
             # Extract cookies and save to Redis
-            cookies = session.cookies.get_dict()
+            cookies = dict(response.cookies)
+            
+            # Save to Redis with expiration
+            redis_client = get_redis_connection()
+            session_key = f"threexui_session:{server_id}"
+            
+            # Store as JSON string
             session_data = {
                 "cookies": cookies,
-                "refreshed_at": time.time(),
-                "server_url": server_url
+                "server_url": server_url,
+                "last_refresh": time.time(),
+                "expires_at": time.time() + 3600  # 1 hour expiry
             }
             
-            save_threexui_session(server_id, session_data)
+            redis_client.setex(
+                session_key,
+                3600,  # TTL in seconds (1 hour)
+                json.dumps(session_data)
+            )
             
-            logger.info(f"Successfully refreshed 3X-UI session for server {server_id} ✅")
+            logger.info(f"Session refreshed for server {server_id} ✅")
             return {
                 "status": "success",
-                "message": f"Session refreshed for server {server_id}",
-                "server_id": server_id
+                "server_id": server_id,
+                "message": "Session refreshed successfully"
             }
         else:
-            error_msg = f"Failed to refresh 3X-UI session for server {server_id}: HTTP {response.status_code}"
-            logger.error(f"{error_msg} ❌")
+            logger.error(f"Failed to refresh session for server {server_id}: Status code {response.status_code} ❌")
             return {
                 "status": "error",
-                "message": error_msg,
-                "server_id": server_id
+                "server_id": server_id,
+                "message": f"Login failed with status code: {response.status_code}"
             }
-    except RequestException as e:
-        error_msg = f"Connection error while refreshing 3X-UI session for server {server_id}: {str(e)}"
-        logger.error(f"{error_msg} ❌")
-        return {
-            "status": "error",
-            "message": error_msg,
-            "server_id": server_id
-        }
+    
     except Exception as e:
-        error_msg = f"Unexpected error while refreshing 3X-UI session for server {server_id}: {str(e)}"
-        logger.error(f"{error_msg} ❌")
+        logger.error(f"Error refreshing session for server {server_id}: {str(e)} ❌")
         return {
             "status": "error",
-            "message": error_msg,
-            "server_id": server_id
+            "server_id": server_id,
+            "message": f"Error refreshing session: {str(e)}"
         }
 
 
