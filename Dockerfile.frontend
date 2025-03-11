@@ -6,11 +6,16 @@ WORKDIR /app
 # Copy package files
 COPY frontend/package*.json ./
 
-# Install dependencies with legacy peer deps
-RUN npm install --legacy-peer-deps
+# Clear npm cache and install dependencies
+RUN npm cache clean --force
+RUN npm install --legacy-peer-deps --force
 
 # Copy project files
 COPY frontend .
+
+# Clear node_modules and reinstall
+RUN rm -rf node_modules
+RUN npm install --legacy-peer-deps --force
 
 # Build the app
 RUN npm run build
