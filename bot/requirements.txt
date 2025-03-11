@@ -1,4 +1,4 @@
-# Telegram Bot
+# Core Dependencies
 python-telegram-bot==20.7
 
 # Database
@@ -20,14 +20,11 @@ emoji==2.10.1
 jdatetime==4.1.1
 persiantools==3.0.1
 
-# Payment Integration
-zarinpal==1.5.0
+# Optional Dependencies
+zarinpal>=1.0.0; platform_system != "Windows"  # Optional: Payment Integration
+sentry-sdk>=1.32.0; platform_system != "Windows"  # Optional: Error Tracking
 
-# Monitoring & Logging
-sentry-sdk==1.32.0
-python-json-logger==2.0.7
-
-# Development
-pytest==7.4.3
-black==23.11.0
-flake8==6.1.0 
+# Development Tools (Optional)
+pytest>=7.4.3; python_version >= "3.7"  # Optional: Testing
+black>=23.11.0; python_version >= "3.7"  # Optional: Code Formatting
+flake8>=6.1.0; python_version >= "3.7"  # Optional: Code Linting 

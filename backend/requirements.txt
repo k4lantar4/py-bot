@@ -1,4 +1,4 @@
-# FastAPI Framework
+# Core Dependencies
 fastapi==0.109.2
 uvicorn==0.27.1
 pydantic==2.6.1
@@ -33,23 +33,20 @@ cryptography==42.0.2
 jdatetime==4.1.1
 persiantools==3.0.1
 
-# Payment Integration
-zarinpal==1.5.0
+# Optional Dependencies
+zarinpal>=1.0.0; platform_system != "Windows"  # Optional: Payment Integration
+sentry-sdk>=1.32.0; platform_system != "Windows"  # Optional: Error Tracking
+prometheus-client>=0.17.1; platform_system != "Windows"  # Optional: Monitoring
 
-# Monitoring & Logging
-sentry-sdk==1.32.0
-prometheus-client==0.17.1
-python-json-logger==2.0.7
-
-# Development
-pytest==7.4.3
-black==23.11.0
-flake8==6.1.0
-pytest-asyncio==0.23.5
-pytest-cov==4.1.0
+# Development Tools (Optional)
+pytest>=7.4.3; python_version >= "3.7"  # Optional: Testing
+black>=23.11.0; python_version >= "3.7"  # Optional: Code Formatting
+flake8>=6.1.0; python_version >= "3.7"  # Optional: Code Linting
+pytest-asyncio>=0.23.5; python_version >= "3.7"  # Optional: Async Testing
+pytest-cov>=4.1.0; python_version >= "3.7"  # Optional: Test Coverage
 
 # Additional Dependencies
-jinja2==3.1.3
-pillow==10.2.0
-python-i18n==0.3.9
-rich==13.7.0 
+jinja2>=3.1.3  # Optional: Template Engine
+pillow>=10.2.0  # Optional: Image Processing
+python-i18n>=0.3.9  # Optional: Internationalization
+rich>=13.7.0  # Optional: Console Output Formatting 
