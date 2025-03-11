@@ -7,9 +7,23 @@
 import axios from 'axios';
 import { handleAPIError } from '../utils/errorHandler';
 
+// Get the API URL from environment variables or construct it
+const getApiUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Get the current hostname (will be the public IP or domain in production)
+  const hostname = window.location.hostname;
+  const port = '8000';
+  const protocol = window.location.protocol;
+  
+  return `${protocol}//${hostname}:${port}/api/v1`;
+};
+
 // Create axios instance
 const apiClient = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://0.0.0.0:8000/api/v1',
+  baseURL: getApiUrl(),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -77,7 +91,7 @@ apiClient.interceptors.response.use(
 
       try {
         const response = await axios.post(
-          `${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/auth/refresh-token`,
+          `${getApiUrl()}/auth/refresh-token`,
           { refresh_token: refreshToken },
           { headers: { 'Content-Type': 'application/json' } }
         );

@@ -7,8 +7,10 @@ WORKDIR /app
 # Copy package files
 COPY frontend/package*.json ./
 
-# Install dependencies
-RUN npm install --legacy-peer-deps
+# Install dependencies with legacy peer deps and force
+RUN npm install --legacy-peer-deps --force && \
+    npm install ajv@8.12.0 --legacy-peer-deps --force && \
+    npm install ajv-keywords@5.1.0 --legacy-peer-deps --force
 
 # Copy source code
 COPY frontend/ .
@@ -17,6 +19,7 @@ COPY frontend/ .
 ENV NODE_ENV=production
 ENV INLINE_RUNTIME_CHUNK=false
 ENV GENERATE_SOURCEMAP=false
+ENV HOST=0.0.0.0
 
 # Build app
 RUN npm run build

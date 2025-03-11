@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     ports:
-      - "8000:8000"
+      - "${HOST:-0.0.0.0}:8000:8000"
     volumes:
       - ./backend:/app
       - ./data:/data
@@ -14,10 +14,11 @@ services:
       - PYTHONUNBUFFERED=1
       - DEBUG=1
       - SECRET_KEY=your-secret-key
-      - ALLOWED_HOSTS=0.0.0.0,127.0.0.1,backend
-      - CORS_ALLOWED_ORIGINS=http://0.0.0.0:3000,http://127.0.0.1:3000,http://frontend
+      - ALLOWED_HOSTS=${PUBLIC_IP:-0.0.0.0},127.0.0.1,backend,${DOMAIN:-*}
+      - CORS_ALLOWED_ORIGINS=http://${PUBLIC_IP:-0.0.0.0}:3000,http://127.0.0.1:3000,http://${DOMAIN:-*}
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
       - REDIS_URL=redis://redis:6379/0
+      - PUBLIC_URL=http://${PUBLIC_IP:-0.0.0.0}:8000
     depends_on:
       - db
       - redis
@@ -30,13 +31,15 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     ports:
-      - "3000:80"
+      - "${HOST:-0.0.0.0}:3000:80"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
       - NODE_ENV=production
-      - REACT_APP_API_URL=http://0.0.0.0:8000/api/v1
+      - REACT_APP_API_URL=http://${PUBLIC_IP:-0.0.0.0}:8000/api/v1
+      - HOST=0.0.0.0
+      - PUBLIC_URL=http://${PUBLIC_IP:-0.0.0.0}:3000
     depends_on:
       - backend
     restart: unless-stopped
@@ -55,6 +58,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - ENVIRONMENT=production
+      - PUBLIC_URL=http://${PUBLIC_IP:-0.0.0.0}:8000
     depends_on:
       - backend
       - db
@@ -66,7 +70,7 @@ services:
   db:
     image: postgres:15-alpine
     ports:
-      - "5432:5432"
+      - "${HOST:-0.0.0.0}:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -80,7 +84,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${HOST:-0.0.0.0}:6379:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -97,6 +101,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
       - REDIS_URL=redis://redis:6379/0
+      - PUBLIC_URL=http://${PUBLIC_IP:-0.0.0.0}:8000
     depends_on:
       - backend
       - db
