@@ -3,6 +3,7 @@ FROM node:18-alpine
 # Set environment variables
 ENV NODE_ENV=production
 ENV GENERATE_SOURCEMAP=false
+ENV PATH /app/node_modules/.bin:$PATH
 
 # Set work directory
 WORKDIR /app
@@ -11,13 +12,15 @@ WORKDIR /app
 COPY frontend/package*.json ./
 
 # Install dependencies with specific flags for production
-RUN npm ci --only=production --legacy-peer-deps
+RUN npm install --omit=dev --legacy-peer-deps
 
 # Copy project files
 COPY frontend .
 
-# Build the app
-RUN npm run build
+# Build the app with specific environment variables for Windows compatibility
+RUN set INLINE_RUNTIME_CHUNK=false && \
+    set GENERATE_SOURCEMAP=false && \
+    npm run build
 
 # Install serve
 RUN npm install -g serve
