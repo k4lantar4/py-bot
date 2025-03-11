@@ -6,8 +6,8 @@
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import Backend from 'i18next-http-backend';
 import LanguageDetector from 'i18next-browser-languagedetector';
+import moment from 'moment-jalaali';
 
 // English translations
 const enTranslations = {
@@ -43,29 +43,50 @@ const enTranslations = {
     refresh: 'Refresh',
     noData: 'No data available',
     welcomeBack: 'Welcome back',
+    back: 'Back',
+    noResults: 'No results found',
+    required: 'This field is required',
   },
   auth: {
-    login: 'Login',
-    register: 'Register',
-    forgotPassword: 'Forgot Password',
-    resetPassword: 'Reset Password',
-    emailAddress: 'Email Address',
-    username: 'Username',
-    password: 'Password',
-    confirmPassword: 'Confirm Password',
-    rememberMe: 'Remember Me',
-    dontHaveAccount: 'Don\'t have an account?',
-    alreadyHaveAccount: 'Already have an account?',
-    signUp: 'Sign Up',
-    signIn: 'Sign In',
-    createAccount: 'Create Account',
-    sendResetLink: 'Send Reset Link',
-    resetLinkSent: 'A password reset link has been sent to your email address.',
-    passwordsDontMatch: 'Passwords don\'t match',
-    enterNewPassword: 'Enter New Password',
-    loginFailed: 'Login failed. Please check your credentials.',
-    passwordReset: 'Your password has been reset successfully.',
-    passwordResetFailed: 'Password reset failed.',
+    login: {
+      title: 'Login',
+      submit: 'Login',
+      success: 'Successfully logged in',
+      error: 'Invalid username or password',
+      forgotPassword: 'Forgot password?',
+      noAccount: 'Don\'t have an account?',
+      register: 'Register',
+    },
+    register: {
+      title: 'Register',
+      submit: 'Register',
+      success: 'Successfully registered',
+      error: 'Registration failed',
+      haveAccount: 'Already have an account?',
+    },
+    forgotPassword: {
+      title: 'Forgot Password',
+      submit: 'Send Reset Link',
+      success: 'Password reset link sent to your email',
+      error: 'Failed to send reset link',
+      description: 'Enter your email and we\'ll send you a link to reset your password',
+      backToLogin: 'Back to login',
+    },
+    resetPassword: {
+      title: 'Reset Password',
+      submit: 'Reset Password',
+      success: 'Password successfully reset',
+      error: 'Failed to reset password',
+      invalidToken: 'Invalid reset link',
+      backToLogin: 'Back to login',
+    },
+    fields: {
+      username: 'Username',
+      email: 'Email',
+      password: 'Password',
+      confirmPassword: 'Confirm Password',
+      newPassword: 'New Password',
+    },
   },
   dashboard: {
     totalUsers: 'Total Users',
@@ -86,6 +107,13 @@ const enTranslations = {
     cpuUsage: 'CPU Usage',
     memoryUsage: 'Memory Usage',
     diskUsage: 'Disk Usage',
+    title: 'Dashboard',
+    welcome: 'Welcome',
+    stats: {
+      total: 'Total',
+      active: 'Active',
+      inactive: 'Inactive',
+    },
   },
   user: {
     fullName: 'Full Name',
@@ -113,12 +141,43 @@ const enTranslations = {
     userDeleted: 'User deleted successfully.',
   },
   validation: {
-    required: 'This field is required',
-    invalidEmail: 'Invalid email address',
-    minLength: 'Must be at least {{min}} characters',
-    maxLength: 'Must be at most {{max}} characters',
-    passwordMismatch: 'Passwords do not match',
-    invalidUsername: 'Username can only contain letters, numbers, and underscores',
+    username: {
+      required: 'Username is required',
+      min: 'Username must be at least 3 characters',
+      max: 'Username must be at most 20 characters',
+    },
+    email: {
+      required: 'Email is required',
+      valid: 'Invalid email address',
+    },
+    password: {
+      required: 'Password is required',
+      min: 'Password must be at least 8 characters',
+    },
+    confirmPassword: {
+      required: 'Confirm password is required',
+      match: 'Passwords do not match',
+    },
+  },
+  profile: {
+    title: 'Profile',
+    edit: 'Edit Profile',
+    changePassword: 'Change Password',
+    logout: 'Logout',
+  },
+  settings: {
+    title: 'Settings',
+    theme: {
+      title: 'Theme',
+      light: 'Light',
+      dark: 'Dark',
+      system: 'System',
+    },
+    language: {
+      title: 'Language',
+      fa: 'Persian',
+      en: 'English',
+    },
   },
 };
 
@@ -145,7 +204,7 @@ const faTranslations = {
     error: 'خطا',
     success: 'موفقیت',
     confirm: 'تایید',
-    cancel: 'لغو',
+    cancel: 'انصراف',
     save: 'ذخیره',
     add: 'افزودن',
     edit: 'ویرایش',
@@ -156,29 +215,50 @@ const faTranslations = {
     refresh: 'بازنشانی',
     noData: 'اطلاعاتی موجود نیست',
     welcomeBack: 'خوش آمدید',
+    back: 'بازگشت',
+    noResults: 'نتیجه‌ای یافت نشد',
+    required: 'این فیلد الزامی است',
   },
   auth: {
-    login: 'ورود',
-    register: 'ثبت نام',
-    forgotPassword: 'فراموشی رمز عبور',
-    resetPassword: 'بازنشانی رمز عبور',
-    emailAddress: 'آدرس ایمیل',
-    username: 'نام کاربری',
-    password: 'رمز عبور',
-    confirmPassword: 'تکرار رمز عبور',
-    rememberMe: 'مرا به خاطر بسپار',
-    dontHaveAccount: 'حساب کاربری ندارید؟',
-    alreadyHaveAccount: 'قبلاً حساب کاربری دارید؟',
-    signUp: 'ثبت نام',
-    signIn: 'ورود',
-    createAccount: 'ایجاد حساب کاربری',
-    sendResetLink: 'ارسال لینک بازنشانی',
-    resetLinkSent: 'لینک بازنشانی رمز عبور به آدرس ایمیل شما ارسال شد.',
-    passwordsDontMatch: 'رمزهای عبور مطابقت ندارند',
-    enterNewPassword: 'رمز عبور جدید را وارد کنید',
-    loginFailed: 'ورود ناموفق بود. لطفاً اطلاعات ورود خود را بررسی کنید.',
-    passwordReset: 'رمز عبور شما با موفقیت بازنشانی شد.',
-    passwordResetFailed: 'بازنشانی رمز عبور ناموفق بود.',
+    login: {
+      title: 'ورود به سیستم',
+      submit: 'ورود',
+      success: 'با موفقیت وارد شدید',
+      error: 'نام کاربری یا رمز عبور اشتباه است',
+      forgotPassword: 'رمز عبور خود را فراموش کرده‌اید؟',
+      noAccount: 'حساب کاربری ندارید؟',
+      register: 'ثبت نام',
+    },
+    register: {
+      title: 'ثبت نام',
+      submit: 'ثبت نام',
+      success: 'ثبت نام با موفقیت انجام شد',
+      error: 'خطا در ثبت نام',
+      haveAccount: 'قبلاً ثبت نام کرده‌اید؟',
+    },
+    forgotPassword: {
+      title: 'بازیابی رمز عبور',
+      submit: 'ارسال لینک بازیابی',
+      success: 'لینک بازیابی رمز عبور به ایمیل شما ارسال شد',
+      error: 'خطا در ارسال لینک بازیابی',
+      description: 'ایمیل خود را وارد کنید تا لینک بازیابی رمز عبور برای شما ارسال شود',
+      backToLogin: 'بازگشت به صفحه ورود',
+    },
+    resetPassword: {
+      title: 'تغییر رمز عبور',
+      submit: 'تغییر رمز عبور',
+      success: 'رمز عبور با موفقیت تغییر کرد',
+      error: 'خطا در تغییر رمز عبور',
+      invalidToken: 'لینک بازیابی نامعتبر است',
+      backToLogin: 'بازگشت به صفحه ورود',
+    },
+    fields: {
+      username: 'نام کاربری',
+      email: 'ایمیل',
+      password: 'رمز عبور',
+      confirmPassword: 'تکرار رمز عبور',
+      newPassword: 'رمز عبور جدید',
+    },
   },
   dashboard: {
     totalUsers: 'کل کاربران',
@@ -199,6 +279,13 @@ const faTranslations = {
     cpuUsage: 'مصرف CPU',
     memoryUsage: 'مصرف حافظه',
     diskUsage: 'مصرف دیسک',
+    title: 'داشبورد',
+    welcome: 'خوش آمدید',
+    stats: {
+      total: 'کل',
+      active: 'فعال',
+      inactive: 'غیرفعال',
+    },
   },
   user: {
     fullName: 'نام کامل',
@@ -226,41 +313,74 @@ const faTranslations = {
     userDeleted: 'کاربر با موفقیت حذف شد.',
   },
   validation: {
-    required: 'این فیلد الزامی است',
-    invalidEmail: 'آدرس ایمیل نامعتبر است',
-    minLength: 'باید حداقل {{min}} کاراکتر باشد',
-    maxLength: 'باید حداکثر {{max}} کاراکتر باشد',
-    passwordMismatch: 'رمزهای عبور مطابقت ندارند',
-    invalidUsername: 'نام کاربری فقط می‌تواند شامل حروف، اعداد و زیرخط باشد',
+    username: {
+      required: 'نام کاربری الزامی است',
+      min: 'نام کاربری باید حداقل ۳ کاراکتر باشد',
+      max: 'نام کاربری باید حداکثر ۲۰ کاراکتر باشد',
+    },
+    email: {
+      required: 'ایمیل الزامی است',
+      valid: 'ایمیل معتبر نیست',
+    },
+    password: {
+      required: 'رمز عبور الزامی است',
+      min: 'رمز عبور باید حداقل ۸ کاراکتر باشد',
+    },
+    confirmPassword: {
+      required: 'تکرار رمز عبور الزامی است',
+      match: 'رمز عبور و تکرار آن یکسان نیستند',
+    },
+  },
+  profile: {
+    title: 'پروفایل',
+    edit: 'ویرایش پروفایل',
+    changePassword: 'تغییر رمز عبور',
+    logout: 'خروج',
+  },
+  settings: {
+    title: 'تنظیمات',
+    theme: {
+      title: 'تم',
+      light: 'روشن',
+      dark: 'تیره',
+      system: 'سیستم',
+    },
+    language: {
+      title: 'زبان',
+      fa: 'فارسی',
+      en: 'English',
+    },
   },
 };
 
-// Initialize i18next
+// Translations
+const resources = {
+  fa: {
+    translation: faTranslations,
+  },
+  en: {
+    translation: enTranslations,
+  },
+};
+
+// Configure i18next
 i18n
-  // Load translation using http
-  .use(Backend)
-  // Detect user language
   .use(LanguageDetector)
-  // Pass the i18n instance to react-i18next
   .use(initReactI18next)
-  // Initialize configuration
   .init({
-    resources: {
-      en: enTranslations,
-      fa: faTranslations,
-    },
-    fallbackLng: 'en',
-    debug: process.env.NODE_ENV === 'development',
+    resources,
+    fallbackLng: 'fa',
+    supportedLngs: ['fa', 'en'],
     interpolation: {
-      escapeValue: false, // React already escapes values
+      escapeValue: false,
     },
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
     },
-    react: {
-      useSuspense: false,
-    },
   });
+
+// Configure moment-jalaali
+moment.loadPersian({ dialect: 'persian-modern', usePersianDigits: true });
 
 export default i18n; 

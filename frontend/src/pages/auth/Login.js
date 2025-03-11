@@ -4,245 +4,187 @@
  * This component provides a login form for authenticating users.
  */
 
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
   Button,
-  Checkbox,
   Container,
-  FormControlLabel,
+  Link,
   TextField,
   Typography,
-  Paper,
-  Grid,
-  Divider,
-  IconButton,
   InputAdornment,
-  Alert,
-  CircularProgress,
+  IconButton,
+  Paper,
+  Divider,
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import { Visibility, VisibilityOff, Login as LoginIcon } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
-import { authAPI } from '../../services/api';
-
-// Validation schema for login form
-const validationSchema = Yup.object({
-  usernameOrEmail: Yup.string().required('Username or email is required'),
-  password: Yup.string().required('Password is required'),
-});
+import { useSnackbar } from 'notistack';
+import LoadingButton from '@mui/lab/LoadingButton';
 
 /**
  * Login component for user authentication.
  */
 const Login = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const { login } = useAuth();
-  
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
-  /**
-   * Handle form submission.
-   * 
-   * @param {Object} values - Form values
-   */
-  const handleSubmit = async (values) => {
-    setLoading(true);
-    setError('');
-    
-    try {
-      // Call API to login
-      const data = await authAPI.login(
-        values.usernameOrEmail,
-        values.password
-      );
-      
-      // Update auth context
-      await login(data.user, data.tokens);
-      
-      // Redirect to dashboard
-      navigate('/dashboard');
-    } catch (error) {
-      console.error('Login error:', error);
-      
-      // Handle different error cases
-      if (error.response) {
-        if (error.response.status === 401) {
-          setError(t('auth.loginFailed'));
-        } else if (error.response.data?.detail) {
-          setError(error.response.data.detail);
-        } else {
-          setError(t('common.error'));
-        }
-      } else {
-        setError(t('common.error'));
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Form handling with Formik
+  const { enqueueSnackbar } = useSnackbar();
+  const navigate = useNavigate();
+  const [showPassword, setShowPassword] = React.useState(false);
+
   const formik = useFormik({
     initialValues: {
       usernameOrEmail: '',
       password: '',
-      rememberMe: false,
     },
-    validationSchema,
-    onSubmit: handleSubmit,
+    validationSchema: Yup.object({
+      usernameOrEmail: Yup.string()
+        .required(t('validation.email.required')),
+      password: Yup.string()
+        .required(t('validation.password.required')),
+    }),
+    onSubmit: async (values, { setSubmitting }) => {
+      try {
+        const response = await login(values.usernameOrEmail, values.password);
+        if (response) {
+          enqueueSnackbar(t('auth.login.success'), { variant: 'success' });
+          navigate('/dashboard');
+        }
+      } catch (error) {
+        enqueueSnackbar(
+          error.response?.data?.message || t('auth.login.error'),
+          { variant: 'error' }
+        );
+      } finally {
+        setSubmitting(false);
+      }
+    },
   });
-  
-  /**
-   * Toggle password visibility.
-   */
-  const handleTogglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-  
+
   return (
-    <Container component="main" maxWidth="xs">
-      <Paper 
-        elevation={3} 
+    <Container maxWidth="sm">
+      <Box
         sx={{
-          mt: 8,
-          p: 4,
+          marginTop: 8,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          borderRadius: 2,
         }}
       >
-        <Box
+        <Paper
+          elevation={3}
           sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            mb: 3,
+            p: 4,
+            width: '100%',
+            borderRadius: 2,
           }}
         >
-          <IconButton
+          <Box
             sx={{
-              bgcolor: 'primary.main',
-              color: 'white',
-              '&:hover': {
-                bgcolor: 'primary.dark',
-              },
-              mb: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              mb: 3,
             }}
-            disabled
           >
-            <LockOutlinedIcon />
-          </IconButton>
-          <Typography component="h1" variant="h5">
-            {t('auth.login')}
-          </Typography>
-        </Box>
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 2, width: '100%' }}>
-            {error}
-          </Alert>
-        )}
-        
-        <Box component="form" onSubmit={formik.handleSubmit} noValidate sx={{ mt: 1, width: '100%' }}>
-          <TextField
-            margin="normal"
-            fullWidth
-            id="usernameOrEmail"
-            label={t('auth.emailAddress')}
-            name="usernameOrEmail"
-            autoComplete="email"
-            autoFocus
-            value={formik.values.usernameOrEmail}
-            onChange={formik.handleChange}
-            onBlur={formik.handleBlur}
-            error={formik.touched.usernameOrEmail && Boolean(formik.errors.usernameOrEmail)}
-            helperText={formik.touched.usernameOrEmail && formik.errors.usernameOrEmail}
-            disabled={loading}
-          />
-          
-          <TextField
-            margin="normal"
-            fullWidth
-            name="password"
-            label={t('auth.password')}
-            type={showPassword ? 'text' : 'password'}
-            id="password"
-            autoComplete="current-password"
-            value={formik.values.password}
-            onChange={formik.handleChange}
-            onBlur={formik.handleBlur}
-            error={formik.touched.password && Boolean(formik.errors.password)}
-            helperText={formik.touched.password && formik.errors.password}
-            disabled={loading}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={handleTogglePasswordVisibility}
-                    edge="end"
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-          
-          <FormControlLabel
-            control={
-              <Checkbox 
-                color="primary" 
-                name="rememberMe" 
-                checked={formik.values.rememberMe}
-                onChange={formik.handleChange}
-                disabled={loading}
-              />
-            }
-            label={t('auth.rememberMe')}
-          />
-          
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2, py: 1.2 }}
-            disabled={loading}
+            <LoginIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography component="h1" variant="h5">
+              {t('auth.login.title')}
+            </Typography>
+          </Box>
+
+          <Box
+            component="form"
+            onSubmit={formik.handleSubmit}
+            noValidate
           >
-            {loading ? (
-              <CircularProgress size={24} color="inherit" />
-            ) : (
-              t('auth.signIn')
-            )}
-          </Button>
-          
-          <Grid container>
-            <Grid item xs>
-              <Link to="/auth/forgot-password" style={{ textDecoration: 'none' }}>
-                <Typography variant="body2" color="primary">
-                  {t('auth.forgotPassword')}
-                </Typography>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="usernameOrEmail"
+              label={t('auth.fields.email')}
+              name="usernameOrEmail"
+              autoComplete="email"
+              autoFocus
+              value={formik.values.usernameOrEmail}
+              onChange={formik.handleChange}
+              error={formik.touched.usernameOrEmail && Boolean(formik.errors.usernameOrEmail)}
+              helperText={formik.touched.usernameOrEmail && formik.errors.usernameOrEmail}
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              name="password"
+              label={t('auth.fields.password')}
+              type={showPassword ? 'text' : 'password'}
+              id="password"
+              autoComplete="current-password"
+              value={formik.values.password}
+              onChange={formik.handleChange}
+              error={formik.touched.password && Boolean(formik.errors.password)}
+              helperText={formik.touched.password && formik.errors.password}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 3 }}
+            />
+
+            <LoadingButton
+              type="submit"
+              fullWidth
+              variant="contained"
+              loading={formik.isSubmitting}
+              loadingPosition="start"
+              startIcon={<LoginIcon />}
+              sx={{ mb: 2 }}
+            >
+              {t('auth.login.submit')}
+            </LoadingButton>
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+              <Link component={RouterLink} to="/auth/forgot-password" variant="body2">
+                {t('auth.login.forgotPassword')}
               </Link>
-            </Grid>
-            <Grid item>
-              <Link to="/auth/register" style={{ textDecoration: 'none' }}>
-                <Typography variant="body2" color="primary">
-                  {t('auth.dontHaveAccount')} {t('auth.signUp')}
-                </Typography>
+              <Link component={RouterLink} to="/auth/register" variant="body2">
+                {t('auth.login.noAccount')}
               </Link>
-            </Grid>
-          </Grid>
-        </Box>
-      </Paper>
+            </Box>
+
+            <Divider sx={{ my: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                یا
+              </Typography>
+            </Divider>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              color="primary"
+              onClick={() => {/* Add social login handler */}}
+              sx={{ mt: 1 }}
+            >
+              ورود با گوگل
+            </Button>
+          </Box>
+        </Paper>
+      </Box>
     </Container>
   );
 };

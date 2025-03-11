@@ -5,16 +5,35 @@
  */
 
 import axios from 'axios';
+import { handleAPIError } from '../utils/errorHandler';
 
-// Create axios instance with base URL and default headers
+// Create axios instance
 const apiClient = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Accept-Language': localStorage.getItem('language') || 'fa',
   },
 });
 
-// Add request interceptor to include auth token in requests
+// Request queue for handling 401 errors
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
@@ -24,60 +43,71 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    return Promise.reject(error);
+    return Promise.reject(handleAPIError(error));
   }
 );
 
-// Add response interceptor to handle token refresh
+// Response interceptor
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => response.data,
   async (error) => {
     const originalRequest = error.config;
-    
-    // If error is 401 and not already retrying
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+
+    // Handle 401 errors
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(token => {
+            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+            return apiClient(originalRequest);
+          })
+          .catch(err => Promise.reject(err));
+      }
+
       originalRequest._retry = true;
-      
+      isRefreshing = true;
+
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        processQueue(new Error('No refresh token'));
+        return Promise.reject(handleAPIError(error));
+      }
+
       try {
-        // Try to refresh the token
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) {
-          // No refresh token available, redirect to login
-          window.location.href = '/auth/login';
-          return Promise.reject(error);
-        }
-        
-        // Call refresh token endpoint
         const response = await axios.post(
           `${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/auth/refresh-token`,
           { refresh_token: refreshToken },
           { headers: { 'Content-Type': 'application/json' } }
         );
-        
-        if (response.data) {
-          // Store new tokens
-          localStorage.setItem('accessToken', response.data.access_token);
-          localStorage.setItem('refreshToken', response.data.refresh_token);
-          
-          // Retry original request with new token
-          originalRequest.headers['Authorization'] = `Bearer ${response.data.access_token}`;
-          return apiClient(originalRequest);
-        }
-      } catch (refreshError) {
-        // Refresh token failed, redirect to login
+
+        const { access_token, refresh_token } = response.data;
+        localStorage.setItem('accessToken', access_token);
+        localStorage.setItem('refreshToken', refresh_token);
+
+        apiClient.defaults.headers['Authorization'] = `Bearer ${access_token}`;
+        originalRequest.headers['Authorization'] = `Bearer ${access_token}`;
+
+        processQueue(null, access_token);
+        isRefreshing = false;
+
+        return apiClient(originalRequest);
+      } catch (err) {
+        processQueue(err);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         window.location.href = '/auth/login';
-        return Promise.reject(refreshError);
+        return Promise.reject(handleAPIError(err));
       }
     }
-    
-    return Promise.reject(error);
+
+    return Promise.reject(handleAPIError(error));
   }
 );
 
-// Authentication API
-const authAPI = {
+// Auth API
+export const authAPI = {
   /**
    * Set authentication token for API calls
    * @param {string} token - JWT token
@@ -97,17 +127,10 @@ const authAPI = {
    * @returns {Promise} - Response with user data and tokens
    */
   login: async (usernameOrEmail, password) => {
-    try {
-      const response = await apiClient.post('/auth/login', {
-        username_or_email: usernameOrEmail,
-        password: password
-      });
-      
-      return response.data;
-    } catch (error) {
-      console.error('Login API error:', error);
-      throw error;
-    }
+    return apiClient.post('/auth/login', {
+      username_or_email: usernameOrEmail,
+      password,
+    });
   },
   
   /**
@@ -116,8 +139,7 @@ const authAPI = {
    * @returns {Promise} - Response with user data
    */
   register: async (userData) => {
-    const response = await apiClient.post('/auth/register', userData);
-    return response.data;
+    return apiClient.post('/auth/register', userData);
   },
   
   /**
@@ -125,31 +147,10 @@ const authAPI = {
    * @returns {Promise} - Logout response
    */
   logout: async () => {
-    try {
-      const response = await apiClient.post('/auth/logout');
-      
-      // Clean up local storage regardless of response
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('isAuthenticated');
-      localStorage.removeItem('tokenExpiry');
-      
-      // Remove auth header
-      delete apiClient.defaults.headers.common['Authorization'];
-      
-      return response.data;
-    } catch (error) {
-      // Still clean up on error
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('isAuthenticated');
-      localStorage.removeItem('tokenExpiry');
-      
-      // Remove auth header
-      delete apiClient.defaults.headers.common['Authorization'];
-      
-      throw error;
-    }
+    const response = await apiClient.post('/auth/logout');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    return response;
   },
   
   /**
@@ -158,8 +159,7 @@ const authAPI = {
    * @returns {Promise} - Response data
    */
   requestPasswordReset: async (email) => {
-    const response = await apiClient.post('/auth/reset-password', { email });
-    return response.data;
+    return apiClient.post('/auth/reset-password', { email });
   },
   
   /**
@@ -169,11 +169,10 @@ const authAPI = {
    * @returns {Promise} - Response data
    */
   confirmPasswordReset: async (token, newPassword) => {
-    const response = await apiClient.post('/auth/reset-password-confirm', {
+    return apiClient.post('/auth/reset-password-confirm', {
       token,
-      new_password: newPassword
+      new_password: newPassword,
     });
-    return response.data;
   },
   
   /**
@@ -181,8 +180,7 @@ const authAPI = {
    * @returns {Promise} - User data
    */
   me: async () => {
-    const response = await apiClient.get('/auth/me');
-    return response.data;
+    return apiClient.get('/auth/me');
   },
   
   /**
@@ -191,21 +189,38 @@ const authAPI = {
    * @returns {Promise} - New tokens
    */
   refreshToken: async (refreshToken) => {
-    const response = await apiClient.post('/auth/refresh-token', { refresh_token: refreshToken });
-    return response.data;
-  }
+    return apiClient.post('/auth/refresh-token', { refresh_token: refreshToken });
+  },
+
+  forgotPassword: async (email) => {
+    return apiClient.post('/auth/forgot-password', { email });
+  },
+
+  verifyEmail: async (token) => {
+    return apiClient.post('/auth/verify-email', { token });
+  },
+
+  resendVerification: async (email) => {
+    return apiClient.post('/auth/resend-verification', { email });
+  },
+
+  changePassword: async (oldPassword, newPassword) => {
+    return apiClient.post('/auth/change-password', {
+      old_password: oldPassword,
+      new_password: newPassword,
+    });
+  },
 };
 
 // User API
-const userAPI = {
+export const userAPI = {
   /**
    * Get current user profile.
    * 
    * @returns {Promise<Object>} User data
    */
   getProfile: async () => {
-    const response = await apiClient.get('/users/me');
-    return response.data;
+    return apiClient.get('/users/me');
   },
   
   /**
@@ -215,8 +230,7 @@ const userAPI = {
    * @returns {Promise<Object>} Updated user data
    */
   updateProfile: async (userData) => {
-    const response = await apiClient.put('/users/me', userData);
-    return response.data;
+    return apiClient.put('/users/me', userData);
   },
   
   /**
@@ -228,8 +242,7 @@ const userAPI = {
    */
   getUsers: async (page = 1, limit = 10) => {
     const skip = (page - 1) * limit;
-    const response = await apiClient.get(`/users?skip=${skip}&limit=${limit}`);
-    return response.data;
+    return apiClient.get(`/users?skip=${skip}&limit=${limit}`);
   },
   
   /**
@@ -239,8 +252,7 @@ const userAPI = {
    * @returns {Promise<Object>} User data
    */
   getUserById: async (userId) => {
-    const response = await apiClient.get(`/users/${userId}`);
-    return response.data;
+    return apiClient.get(`/users/${userId}`);
   },
   
   /**
@@ -250,8 +262,7 @@ const userAPI = {
    * @returns {Promise<Object>} Created user data
    */
   createUser: async (userData) => {
-    const response = await apiClient.post('/users', userData);
-    return response.data;
+    return apiClient.post('/users', userData);
   },
   
   /**
@@ -262,8 +273,7 @@ const userAPI = {
    * @returns {Promise<Object>} Updated user data
    */
   updateUser: async (userId, userData) => {
-    const response = await apiClient.put(`/users/${userId}`, userData);
-    return response.data;
+    return apiClient.put(`/users/${userId}`, userData);
   },
   
   /**
@@ -273,8 +283,7 @@ const userAPI = {
    * @returns {Promise<Object>} Deleted user data
    */
   deleteUser: async (userId) => {
-    const response = await apiClient.delete(`/users/${userId}`);
-    return response.data;
+    return apiClient.delete(`/users/${userId}`);
   },
   
   /**
@@ -285,8 +294,7 @@ const userAPI = {
    * @returns {Promise<Object>} Updated user data
    */
   updateUserRoles: async (userId, roles) => {
-    const response = await apiClient.put(`/users/${userId}/roles`, { roles });
-    return response.data;
+    return apiClient.put(`/users/${userId}/roles`, { roles });
   },
   
   /**
@@ -298,11 +306,10 @@ const userAPI = {
    * @returns {Promise<Object>} Updated user data
    */
   updateUserWallet: async (userId, amount, operation) => {
-    const response = await apiClient.put(`/users/${userId}/wallet`, { 
+    return apiClient.put(`/users/${userId}/wallet`, { 
       amount, 
       operation 
     });
-    return response.data;
   },
   
   /**
@@ -314,8 +321,29 @@ const userAPI = {
    */
   getMyClients: async (page = 1, limit = 10) => {
     const skip = (page - 1) * limit;
-    const response = await apiClient.get(`/users/me/clients?skip=${skip}&limit=${limit}`);
-    return response.data;
+    return apiClient.get(`/users/me/clients?skip=${skip}&limit=${limit}`);
+  },
+
+  uploadAvatar: async (file) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return apiClient.post('/users/me/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  deleteAvatar: async () => {
+    return apiClient.delete('/users/me/avatar');
+  },
+
+  getNotificationSettings: async () => {
+    return apiClient.get('/users/me/notifications');
+  },
+
+  updateNotificationSettings: async (settings) => {
+    return apiClient.put('/users/me/notifications', settings);
   },
 };
 
@@ -327,8 +355,7 @@ const roleAPI = {
    * @returns {Promise<Array>} List of roles
    */
   getRoles: async () => {
-    const response = await apiClient.get('/roles');
-    return response.data;
+    return apiClient.get('/roles');
   },
   
   /**
@@ -338,8 +365,7 @@ const roleAPI = {
    * @returns {Promise<Object>} Created role data
    */
   createRole: async (roleData) => {
-    const response = await apiClient.post('/roles', roleData);
-    return response.data;
+    return apiClient.post('/roles', roleData);
   },
   
   /**
@@ -350,8 +376,7 @@ const roleAPI = {
    * @returns {Promise<Object>} Updated role data
    */
   updateRole: async (roleId, roleData) => {
-    const response = await apiClient.put(`/roles/${roleId}`, roleData);
-    return response.data;
+    return apiClient.put(`/roles/${roleId}`, roleData);
   },
   
   /**
@@ -361,21 +386,46 @@ const roleAPI = {
    * @returns {Promise<Object>} Deleted role data
    */
   deleteRole: async (roleId) => {
-    const response = await apiClient.delete(`/roles/${roleId}`);
-    return response.data;
+    return apiClient.delete(`/roles/${roleId}`);
+  },
+};
+
+// Settings API
+const settingsAPI = {
+  getSettings: async () => {
+    return apiClient.get('/settings');
+  },
+
+  updateSettings: async (settings) => {
+    return apiClient.put('/settings', settings);
+  },
+
+  getTheme: async () => {
+    return apiClient.get('/settings/theme');
+  },
+
+  updateTheme: async (theme) => {
+    return apiClient.put('/settings/theme', { theme });
+  },
+
+  getLanguage: async () => {
+    return apiClient.get('/settings/language');
+  },
+
+  updateLanguage: async (language) => {
+    return apiClient.put('/settings/language', { language });
   },
 };
 
 // Dashboard API
-const dashboardAPI = {
+export const dashboardAPI = {
   /**
    * Get dashboard statistics.
    * 
    * @returns {Promise<Object>} Dashboard statistics
    */
   getStats: async () => {
-    const response = await apiClient.get('/dashboard/stats');
-    return response.data;
+    return apiClient.get('/dashboard/stats');
   },
   
   /**
@@ -385,13 +435,24 @@ const dashboardAPI = {
    * @returns {Promise<Array>} List of recent activities
    */
   getRecentActivities: async (limit = 10) => {
-    const response = await apiClient.get(`/dashboard/activities?limit=${limit}`);
-    return response.data;
+    return apiClient.get(`/dashboard/activities?limit=${limit}`);
+  },
+
+  getChartData: async (type, period) => {
+    return apiClient.get(`/dashboard/charts/${type}`, {
+      params: { period },
+    });
+  },
+
+  getActivities: async (page = 1, limit = 10) => {
+    return apiClient.get('/dashboard/activities', {
+      params: { page, limit },
+    });
   },
 };
 
 // Export all API services
-export { apiClient, authAPI, userAPI, roleAPI, dashboardAPI };
+export { apiClient, roleAPI, settingsAPI };
 
 // Default export is the raw axios instance
 export default apiClient; 
