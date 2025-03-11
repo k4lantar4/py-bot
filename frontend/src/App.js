@@ -22,17 +22,18 @@ import ServersList from './pages/servers/ServersList';
 import ServerDetails from './pages/servers/ServerDetails';
 import ServicesList from './pages/services/ServicesList';
 import ServiceDetails from './pages/services/ServiceDetails';
-import UsersList from './pages/users/UsersList';
-import UserDetails from './pages/users/UserDetails';
-import Profile from './pages/users/Profile';
-import OrdersList from './pages/orders/OrdersList';
-import OrderDetails from './pages/orders/OrderDetails';
-import DiscountsList from './pages/discounts/DiscountsList';
-import DiscountDetails from './pages/discounts/DiscountDetails';
-import MessagesList from './pages/messages/MessagesList';
-import MessageDetails from './pages/messages/MessageDetails';
-import Reports from './pages/reports/Reports';
-import Settings from './pages/settings/Settings';
+// These imports are commented out until the components are created
+// import UsersList from './pages/users/UsersList';
+// import UserDetails from './pages/users/UserDetails';
+// import Profile from './pages/users/Profile';
+// import OrdersList from './pages/orders/OrdersList';
+// import OrderDetails from './pages/orders/OrderDetails';
+// import DiscountsList from './pages/discounts/DiscountsList';
+// import DiscountDetails from './pages/discounts/DiscountDetails';
+// import MessagesList from './pages/messages/MessagesList';
+// import MessageDetails from './pages/messages/MessageDetails';
+// import Reports from './pages/reports/Reports';
+// import Settings from './pages/settings/Settings';
 
 // Contexts
 import { useAuth } from './contexts/AuthContext';
@@ -74,7 +75,7 @@ function App() {
           <Route index element={<Dashboard />} />
           
           {/* User Profile */}
-          <Route path="profile" element={<Profile />} />
+          {/* <Route path="profile" element={<Profile />} /> */}
           
           {/* Location Management */}
           <Route element={<RoleGuard roles={['admin', 'manager']} />}>
@@ -95,34 +96,34 @@ function App() {
           </Route>
           
           {/* User Management */}
-          <Route element={<RoleGuard roles={['admin', 'manager']} />}>
+          {/* <Route element={<RoleGuard roles={['admin', 'manager']} />}>
             <Route path="users" element={<UsersList />} />
             <Route path="users/:id" element={<UserDetails />} />
-          </Route>
+          </Route> */}
           
           {/* Order Management */}
-          <Route path="orders" element={<OrdersList />} />
-          <Route path="orders/:id" element={<OrderDetails />} />
+          {/* <Route path="orders" element={<OrdersList />} />
+          <Route path="orders/:id" element={<OrderDetails />} /> */}
           
           {/* Discount Management */}
-          <Route element={<RoleGuard roles={['admin', 'manager']} />}>
+          {/* <Route element={<RoleGuard roles={['admin', 'manager']} />}>
             <Route path="discounts" element={<DiscountsList />} />
             <Route path="discounts/:id" element={<DiscountDetails />} />
-          </Route>
+          </Route> */}
           
           {/* Messaging */}
-          <Route element={<RoleGuard roles={['admin', 'manager']} />}>
+          {/* <Route element={<RoleGuard roles={['admin', 'manager']} />}>
             <Route path="messages" element={<MessagesList />} />
             <Route path="messages/:id" element={<MessageDetails />} />
-          </Route>
+          </Route> */}
           
           {/* Reports */}
-          <Route element={<RoleGuard roles={['admin', 'manager']} />}>
+          {/* <Route element={<RoleGuard roles={['admin', 'manager']} />}>
             <Route path="reports" element={<Reports />} />
-          </Route>
+          </Route> */}
           
           {/* Settings */}
-          <Route path="settings" element={<Settings />} />
+          {/* <Route path="settings" element={<Settings />} /> */}
         </Route>
       </Route>
 
