@@ -9,7 +9,7 @@ import { handleAPIError } from '../utils/errorHandler';
 
 // Create axios instance
 const apiClient = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
+  baseURL: process.env.REACT_APP_API_URL || 'http://0.0.0.0:8000/api/v1',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
