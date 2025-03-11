@@ -1,201 +1,122 @@
 #!/bin/bash
 
-# Setup script for 3X-UI Management System
-set -e
-
 # Colors
-GREEN='\033[0;32m'
 RED='\033[0;31m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${BLUE}┌────────────────────────────────────────┐${NC}"
-echo -e "${BLUE}│     3X-UI Management System Setup      │${NC}"
-echo -e "${BLUE}└────────────────────────────────────────┘${NC}"
+# Print banner
+echo -e "${GREEN}"
+echo "Virtual Account Bot & Dashboard Setup"
+echo "==================================="
+echo -e "${NC}"
 
 # Check if running as root
-if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${RED}❌ This script must be run as root${NC}"
-    exit 1
+if [ "$EUID" -ne 0 ]; then 
+  echo -e "${RED}Please run as root${NC}"
+  exit 1
 fi
 
-# System dependencies
-apt_packages=(
-    python3-pip
-    python3-venv
-    redis-server
-    supervisor
+# Update system
+echo -e "${YELLOW}Updating system...${NC}"
+apt-get update
+apt-get upgrade -y
+
+# Install dependencies
+echo -e "${YELLOW}Installing dependencies...${NC}"
+apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
     git
-    build-essential
-    libssl-dev
-    libffi-dev
-    python3-dev
-    postgresql
-    postgresql-contrib
-    nginx
-    curl
-)
 
-# Install system dependencies
-echo -e "\n${YELLOW}📦 Installing system packages...${NC}"
-apt update
-apt install -y "${apt_packages[@]}"
-
-# Make sure Node.js and npm are installed and up to date (v16.x)
-echo -e "\n${YELLOW}📦 Setting up Node.js v16...${NC}"
-if ! command -v node &> /dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 16 ]]; then
-    echo -e "${YELLOW}Removing old Node.js version and related packages...${NC}"
-    apt remove -y nodejs npm node-gyp libnode-dev || true
-    apt autoremove -y
-    
-    echo -e "${YELLOW}Installing Node.js v16...${NC}"
-    curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
-    
-    echo -e "${YELLOW}Forcing Node.js installation with overwrite permission...${NC}"
-    # If direct installation fails, use dpkg with force-overwrite
-    if ! apt install -y nodejs; then
-        cd /var/cache/apt/archives/
-        dpkg -i --force-overwrite nodejs_*.deb
-        apt-get -f install -y
-        cd - > /dev/null
-    fi
-    
-    echo -e "${GREEN}Node.js $(node -v) and npm $(npm -v) installed successfully${NC}"
+# Install Docker
+echo -e "${YELLOW}Installing Docker...${NC}"
+if ! command -v docker &> /dev/null; then
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    systemctl enable docker
+    systemctl start docker
 else
-    echo -e "${GREEN}Using existing Node.js $(node -v) and npm $(npm -v)${NC}"
+    echo -e "${GREEN}Docker already installed${NC}"
 fi
 
-# Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-    echo -e "\n${YELLOW}🐍 Creating new Python virtual environment...${NC}"
-    python3 -m venv venv
+# Install Docker Compose
+echo -e "${YELLOW}Installing Docker Compose...${NC}"
+if ! command -v docker-compose &> /dev/null; then
+    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
 else
-    echo -e "\n${GREEN}✅ Using existing virtual environment${NC}"
+    echo -e "${GREEN}Docker Compose already installed${NC}"
 fi
 
-# Activate virtual environment
-echo -e "\n${YELLOW}🔌 Activating virtual environment...${NC}"
-source venv/bin/activate
+# Clone repository if not exists
+echo -e "${YELLOW}Setting up project...${NC}"
+if [ ! -d "virtual-account-bot" ]; then
+    git clone https://github.com/yourusername/virtual-account-bot.git
+    cd virtual-account-bot
+else
+    cd virtual-account-bot
+    git pull
+fi
 
-# Install Python dependencies
-echo -e "\n${YELLOW}📚 Installing Python packages...${NC}"
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# Ensure email-validator is installed (critical for Pydantic)
-echo -e "\n${YELLOW}🔍 Ensuring critical dependencies are installed...${NC}"
-pip install email-validator==2.0.0 pydantic-settings==2.0.3
-
-# Create necessary directories
-echo -e "\n${YELLOW}📁 Creating necessary directories...${NC}"
-mkdir -p logs
-mkdir -p data
-mkdir -p backups
-
-# Create .env file if it doesn't exist
+# Create .env file
+echo -e "${YELLOW}Creating environment file...${NC}"
 if [ ! -f ".env" ]; then
-    echo -e "\n${YELLOW}⚙️ Creating initial .env configuration...${NC}"
     cp .env.example .env
-    
-    # Generate a random secret key
-    SECRET_KEY=$(openssl rand -hex 32)
-    sed -i "s/your_secret_key_here/$SECRET_KEY/g" .env
-    
-    echo -e "${GREEN}✅ Created .env file${NC}"
-    echo -e "${YELLOW}⚠️ Please update the .env file with your actual configuration values${NC}"
+    echo -e "${GREEN}Created .env file. Please edit it with your settings${NC}"
+    echo -e "${YELLOW}Press any key to edit .env file...${NC}"
+    read -n 1 -s
+    nano .env
 fi
 
-# Setup PostgreSQL - Using proper naming convention (not starting with number)
-echo -e "\n${YELLOW}🐘 Setting up PostgreSQL...${NC}"
-if sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "xui_db"; then
-    echo -e "${GREEN}✅ PostgreSQL database already exists${NC}"
-else
-    echo -e "${YELLOW}Creating PostgreSQL user and database...${NC}"
-    sudo -u postgres psql -c "CREATE USER xui_user WITH PASSWORD 'password';" || true
-    sudo -u postgres psql -c "CREATE DATABASE xui_db OWNER xui_user;" || true
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE xui_db TO xui_user;" || true
+# Setup SSL with Certbot
+echo -e "${YELLOW}Do you want to setup SSL with Let's Encrypt? (y/n)${NC}"
+read -r setup_ssl
+if [ "$setup_ssl" = "y" ]; then
+    echo -e "${YELLOW}Installing Certbot...${NC}"
+    apt-get install -y certbot python3-certbot-nginx
     
-    # Update .env file with the correct database settings
-    sed -i 's/POSTGRES_USER=3xui/POSTGRES_USER=xui_user/g' .env
-    sed -i 's/POSTGRES_DB=3xui/POSTGRES_DB=xui_db/g' .env
-    sed -i 's/postgresql:\/\/3xui:password@localhost\/3xui/postgresql:\/\/xui_user:password@localhost\/xui_db/g' .env
+    echo -e "${YELLOW}Enter your domain name:${NC}"
+    read -r domain_name
     
-    echo -e "${GREEN}✅ PostgreSQL database created${NC}"
+    certbot --nginx -d "$domain_name"
 fi
 
-# Update database connection in backend code if necessary
-echo -e "\n${YELLOW}🔄 Checking backend config files...${NC}"
-if [ -f "backend/app/core/config.py" ]; then
-    # Make a backup of the original file
-    cp backend/app/core/config.py backend/app/core/config.py.bak
-    
-    # Fix BaseSettings import
-    echo -e "${YELLOW}Fixing Pydantic BaseSettings import...${NC}"
-    sed -i 's/from pydantic import AnyHttpUrl, BaseSettings/from pydantic import AnyHttpUrl\nfrom pydantic_settings import BaseSettings/g' backend/app/core/config.py
-    
-    echo -e "${GREEN}✅ Backend config fixed${NC}"
+# Start services
+echo -e "${YELLOW}Starting services...${NC}"
+docker-compose up -d
+
+# Print success message
+echo -e "${GREEN}"
+echo "Setup completed successfully!"
+echo "============================"
+echo "Your services are now running:"
+echo "- Dashboard: http://localhost:3000"
+echo "- API: http://localhost:8000"
+if [ "$setup_ssl" = "y" ]; then
+    echo "- Dashboard: https://$domain_name"
+    echo "- API: https://$domain_name/api"
 fi
+echo -e "${NC}"
 
-# Setup supervisor configs
-echo -e "\n${YELLOW}👮 Setting up Supervisor configurations...${NC}"
-cp supervisor/*.conf /etc/supervisor/conf.d/
-supervisorctl reread
-supervisorctl update
+# Print next steps
+echo -e "${YELLOW}"
+echo "Next steps:"
+echo "1. Configure your Telegram bot token in .env file"
+echo "2. Set up your Zarinpal merchant ID"
+echo "3. Configure your admin Telegram IDs"
+echo "4. Update your domain settings if using SSL"
+echo -e "${NC}"
 
-# Setup Nginx if it's installed
-if command -v nginx &> /dev/null; then
-    echo -e "\n${YELLOW}🌐 Setting up Nginx...${NC}"
-    cat > /etc/nginx/sites-available/3xui << 'NGINXEOF'
-server {
-    listen 80;
-    server_name _;
-
-    # API
-    location /api {
-        proxy_pass http://localhost:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # Frontend
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-NGINXEOF
-
-    ln -sf /etc/nginx/sites-available/3xui /etc/nginx/sites-enabled/
-    rm -f /etc/nginx/sites-enabled/default
-    nginx -t && systemctl restart nginx
-    echo -e "${GREEN}✅ Nginx configured${NC}"
-fi
-
-# Setup frontend if it exists
-if [ -d "frontend" ]; then
-    echo -e "\n${YELLOW}🌐 Setting up frontend...${NC}"
-    cd frontend
-    npm install
-    cd ..
-    echo -e "${GREEN}✅ Frontend dependencies installed${NC}"
-fi
-
-echo -e "\n${GREEN}✅ Setup completed successfully!${NC}"
-echo -e "\n${YELLOW}ℹ️ Next steps:${NC}"
-echo -e "1. Update the .env file with your actual configuration: ${BLUE}nano .env${NC}"
-echo -e "2. Run database initialization: ${BLUE}./fix_db_init.sh${NC}"
-echo -e "3. Start all services: ${BLUE}./start_services.sh${NC}"
-echo -e "4. Check status of all services: ${BLUE}supervisorctl status${NC}"
-echo -e "5. Access the API at: ${BLUE}http://your_server_ip/api${NC}"
-echo -e "6. Access the frontend at: ${BLUE}http://your_server_ip${NC}" 
+# Print maintenance commands
+echo -e "${YELLOW}"
+echo "Useful commands:"
+echo "- View logs: docker-compose logs -f"
+echo "- Restart services: docker-compose restart"
+echo "- Stop services: docker-compose down"
+echo "- Update services: ./update.sh"
+echo -e "${NC}" 

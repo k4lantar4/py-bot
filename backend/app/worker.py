@@ -30,35 +30,58 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("celery")
 
 # Create Celery app
-celery_app = Celery(
-    "app.worker",
-    broker=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}",
-    backend=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
+celery = Celery(
+    "app",
+    broker=str(settings.REDIS_URL),
+    backend=str(settings.REDIS_URL),
 )
 
 # Configure Celery
-celery_app.conf.task_routes = {
-    "app.worker.*": {"queue": "default"}
+celery.conf.update(
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="Asia/Tehran",
+    enable_utc=True,
+    task_track_started=True,
+    task_time_limit=30 * 60,  # 30 minutes
+    worker_max_tasks_per_child=1000,
+    broker_connection_retry_on_startup=True,
+)
+
+# Configure scheduled tasks
+celery.conf.beat_schedule = {
+    "check-expired-accounts": {
+        "task": "app.tasks.accounts.check_expired_accounts",
+        "schedule": crontab(minute="0", hour="*/1"),  # Every hour
+    },
+    "process-pending-orders": {
+        "task": "app.tasks.orders.process_pending_orders",
+        "schedule": crontab(minute="*/5"),  # Every 5 minutes
+    },
+    "sync-account-usage": {
+        "task": "app.tasks.accounts.sync_account_usage",
+        "schedule": crontab(minute="*/15"),  # Every 15 minutes
+    },
+    "send-expiry-notifications": {
+        "task": "app.tasks.notifications.send_expiry_notifications",
+        "schedule": crontab(minute="0", hour="9"),  # Every day at 9 AM
+    },
 }
 
-# Configure periodic tasks
-celery_app.conf.beat_schedule = {
-    "monitor-all-servers-every-5-minutes": {
-        "task": "app.worker.monitor_all_servers",
-        "schedule": 300.0  # 5 minutes
-    },
-    "refresh-all-sessions-every-45-minutes": {
-        "task": "app.worker.refresh_all_sessions",
-        "schedule": 2700.0  # 45 minutes
-    },
-    "generate-daily-reports": {
-        "task": "app.worker.generate_daily_reports",
-        "schedule": crontab(hour=1, minute=0)  # 1:00 AM every day
-    }
-}
+# Import tasks
+from .tasks import accounts, notifications, orders, payments
 
+# Register tasks
+celery.tasks.register(accounts.check_expired_accounts)
+celery.tasks.register(accounts.sync_account_usage)
+celery.tasks.register(orders.process_pending_orders)
+celery.tasks.register(notifications.send_expiry_notifications)
+celery.tasks.register(payments.process_payment)
+celery.tasks.register(payments.verify_payment)
+celery.tasks.register(payments.process_refund)
 
-@celery_app.task(name="app.worker.test_celery")
+@celery.task(name="app.worker.test_celery")
 def test_celery() -> Dict[str, str]:
     """
     Test task to verify Celery is working.
@@ -69,7 +92,7 @@ def test_celery() -> Dict[str, str]:
     return {"status": "ok", "message": "Celery worker is working correctly! 🎉"}
 
 
-@celery_app.task(name="app.worker.monitor_server")
+@celery.task(name="app.worker.monitor_server")
 def monitor_server(server_id: str, server_url: str) -> Dict[str, Any]:
     """
     Monitor a server and record its status.
@@ -121,7 +144,7 @@ def monitor_server(server_id: str, server_url: str) -> Dict[str, Any]:
         return {"status": "error", "server_id": server_id, "error": str(e)}
 
 
-@celery_app.task(name="app.worker.monitor_all_servers")
+@celery.task(name="app.worker.monitor_all_servers")
 def monitor_all_servers() -> Dict[str, Any]:
     """
     Monitor all servers in the database.
@@ -140,7 +163,7 @@ def monitor_all_servers() -> Dict[str, Any]:
     return {"status": "ok", "message": "Server monitoring triggered for all servers"}
 
 
-@celery_app.task(name="app.worker.refresh_threexui_session")
+@celery.task(name="app.worker.refresh_threexui_session")
 def refresh_threexui_session(server_id: str, server_url: str, username: str, password: str) -> Dict[str, Any]:
     """
     Refresh a 3X-UI panel session.
@@ -212,7 +235,7 @@ def refresh_threexui_session(server_id: str, server_url: str, username: str, pas
         }
 
 
-@celery_app.task(name="app.worker.refresh_all_sessions")
+@celery.task(name="app.worker.refresh_all_sessions")
 def refresh_all_sessions() -> Dict[str, Any]:
     """
     Refresh all 3X-UI panel sessions.
@@ -231,7 +254,7 @@ def refresh_all_sessions() -> Dict[str, Any]:
     return {"status": "ok", "message": "Session refresh triggered for all servers"}
 
 
-@celery_app.task(name="app.worker.send_email")
+@celery.task(name="app.worker.send_email")
 def send_email(
     email_to: str,
     subject: str,
@@ -268,7 +291,7 @@ def send_email(
     }
 
 
-@celery_app.task(name="app.worker.send_bulk_messages")
+@celery.task(name="app.worker.send_bulk_messages")
 def send_bulk_messages(
     user_ids: List[str],
     message: str,
@@ -303,7 +326,7 @@ def send_bulk_messages(
     }
 
 
-@celery_app.task(name="app.worker.generate_reports")
+@celery.task(name="app.worker.generate_reports")
 def generate_reports(report_type: str, date_range: Dict[str, str]) -> Dict[str, Any]:
     """
     Generate reports for various system aspects.
@@ -333,7 +356,7 @@ def generate_reports(report_type: str, date_range: Dict[str, str]) -> Dict[str, 
     }
 
 
-@celery_app.task(name="app.worker.generate_daily_reports")
+@celery.task(name="app.worker.generate_daily_reports")
 def generate_daily_reports() -> Dict[str, Any]:
     """
     Generate daily reports for the system.

@@ -7,6 +7,7 @@ This module provides the SQLAlchemy session for the application.
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import QueuePool
 import os
 
 from ..core.config import settings
@@ -21,6 +22,9 @@ engine = create_engine(
     pool_size=10,
     max_overflow=20,
     pool_recycle=3600,
+    poolclass=QueuePool,
+    pool_timeout=settings.DATABASE_POOL_TIMEOUT,
+    echo=settings.DEBUG,
 )
 
 # Create session factory
@@ -45,4 +49,12 @@ def get_db() -> Session:
     try:
         yield db
     finally:
-        db.close() 
+        db.close()
+
+
+def setup_database():
+    """Set up database tables and initial data."""
+    from ..models.base import Base
+
+    # Create all tables
+    Base.metadata.create_all(bind=engine) 

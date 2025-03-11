@@ -1,92 +1,113 @@
+version: '3.8'
+
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    restart: always
-    depends_on:
-      - db
-      - redis
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app/backend
+      - ./backend:/app
+      - ./data:/data
     environment:
-      - DATABASE_URL=mysql+pymysql://user:password@db/threexui
+      - DATABASE_URL=postgresql://user:password@db:5432/virtualbot
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=your-secret-key-change-in-production
-      - ACCESS_TOKEN_EXPIRE_MINUTES=30
-      - REFRESH_TOKEN_EXPIRE_DAYS=7
-      - ALGORITHM=HS256
-      - BACKEND_CORS_ORIGINS=["http://localhost:3000"]
-      - ENVIRONMENT=development
-      - SERVER_IP=localhost
-      - USE_SSL=false
-      - ENABLE_BOT=false
-      - ENABLE_FRONTEND=true
+      - SECRET_KEY=${SECRET_KEY}
+      - ENVIRONMENT=production
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ZARINPAL_MERCHANT=${ZARINPAL_MERCHANT}
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    networks:
+      - app-network
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    volumes:
-      - './frontend:/app'
-      - '/app/node_modules'
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     environment:
-      - NODE_ENV=development
-      - REACT_APP_API_URL=http://localhost:8000/api
+      - REACT_APP_API_URL=http://localhost:8000
+      - NODE_ENV=production
     depends_on:
       - backend
+    restart: unless-stopped
+    networks:
+      - app-network
 
   bot:
     build:
       context: .
       dockerfile: Dockerfile.bot
-    restart: always
+    volumes:
+      - ./bot:/app
+      - ./data:/data
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/virtualbot
+      - REDIS_URL=redis://redis:6379/0
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ENVIRONMENT=production
     depends_on:
       - backend
-    volumes:
-      - ./bot:/app/bot
-    environment:
-      - BACKEND_API_URL=http://backend:8000/api
-      - BOT_TOKEN=your-telegram-bot-token
-      - ENABLE_BOT=false
+      - db
+      - redis
+    restart: unless-stopped
+    networks:
+      - app-network
 
   db:
-    image: mysql:8.0
-    restart: always
-    environment:
-      MYSQL_DATABASE: threexui
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
-      MYSQL_ROOT_PASSWORD: rootpassword
-    volumes:
-      - mysql_data:/var/lib/mysql
+    image: postgres:15-alpine
     ports:
-      - "3307:3306"
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=virtualbot
+    restart: unless-stopped
+    networks:
+      - app-network
 
   redis:
-    image: redis:7.0-alpine
-    restart: always
+    image: redis:7-alpine
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - app-network
 
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    restart: always
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.worker.celery worker --loglevel=info
+    volumes:
+      - ./backend:/app
     environment:
-      PMA_HOST: db
-      PMA_USER: root
-      PMA_PASSWORD: rootpassword
-    ports:
-      - "8080:80"
+      - DATABASE_URL=postgresql://user:password@db:5432/virtualbot
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
+      - backend
       - db
+      - redis
+    restart: unless-stopped
+    networks:
+      - app-network
 
 volumes:
-  mysql_data:
-  redis_data: 
+  postgres_data:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge 

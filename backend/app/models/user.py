@@ -5,9 +5,9 @@ This module defines the User model for the database.
 """
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, ForeignKey, func
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, ForeignKey, func, Text, BigInteger
 from sqlalchemy.orm import relationship
 
 from ..db.base_class import Base
@@ -21,18 +21,29 @@ class User(Base):
     """
     
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    username = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    full_name = Column(String, index=True)
+    email = Column(String(100), unique=True, index=True, nullable=True)
+    username = Column(String(50), unique=True, index=True)
+    hashed_password = Column(String(255), nullable=True)
+    full_name = Column(String(100), nullable=True)
+    phone = Column(String(20), nullable=True)
+    language = Column(String(2), default="fa")
+    timezone = Column(String(50), default="Asia/Tehran")
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False)
+    balance = Column(Integer, default=0)
+    avatar_url = Column(String(255), nullable=True)
+    bio = Column(Text, nullable=True)
     last_login = Column(DateTime, nullable=True)
-    telegram_id = Column(String, unique=True, nullable=True)
+    telegram_id = Column(BigInteger, unique=True, index=True, nullable=True)
     wallet_balance = Column(Float, default=0.0)
     
     # Relationships
     roles = relationship("Role", secondary="user_role", back_populates="users")
+    orders = relationship("Order", back_populates="user")
+    payments = relationship("Payment", back_populates="user")
+    accounts = relationship("VirtualAccount", back_populates="user")
+    tickets = relationship("Ticket", back_populates="user")
     
     @property
     def role_names(self) -> List[str]:
@@ -43,6 +54,24 @@ class User(Base):
             List[str]: List of role names
         """
         return [role.name for role in self.roles]
+
+    @property
+    def is_authenticated(self) -> bool:
+        """Check if user is authenticated."""
+        return True if self.telegram_id or self.hashed_password else False
+
+    @property
+    def display_name(self) -> str:
+        """Get user's display name."""
+        return self.full_name or self.username or f"User {self.id}"
+
+    def get_id(self) -> str:
+        """Get user ID as string."""
+        return str(self.id)
+
+    def __str__(self) -> str:
+        """String representation of user."""
+        return f"{self.display_name} ({self.id})"
 
 
 class UserClient(Base):

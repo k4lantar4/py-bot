@@ -1,27 +1,28 @@
 FROM python:3.11-slim
 
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Set work directory
 WORKDIR /app
 
-# نصب پکیج‌های مورد نیاز سیستم
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    gcc \
-    && apt-get clean \
+# Install system dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# کپی فایل‌های وابستگی
-COPY requirements.txt .
-
-# نصب وابستگی‌ها
+# Install Python dependencies
+COPY bot/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# کپی کردن فایل‌های بات
-COPY ./bot/ /app/bot/
+# Copy project
+COPY bot .
 
-# تنظیم متغیرهای محیطی برای داکر
-ENV PYTHONPATH=/app
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Create data directory
+RUN mkdir -p /data
 
-# کامند شروع بات
-CMD ["python", "/app/bot/bot.py"] 
+# Run the bot
+CMD ["python", "bot.py"] 

@@ -1,15 +1,22 @@
 FROM node:18-alpine
 
+# Set work directory
 WORKDIR /app
 
-# کپی کردن فایل‌های فرانت‌اند
-COPY ./frontend/ ./
+# Copy package files
+COPY frontend/package*.json ./
 
-# نصب وابستگی‌ها
+# Install dependencies
 RUN npm install
 
-# اکسپوز کردن پورت
-EXPOSE 3000
+# Copy project files
+COPY frontend .
 
-# کامند شروع برنامه در محیط توسعه
-CMD ["npm", "start"] 
+# Build the app
+RUN npm run build
+
+# Install serve
+RUN npm install -g serve
+
+# Start the app
+CMD ["serve", "-s", "build", "-l", "3000"] 

@@ -1,56 +1,135 @@
-# Changes and Development Notes
+# Project Changes and Improvements
 
-## Development Decisions
+## Major Changes
 
-### Architecture
-- Implemented a modular architecture with clear separation between backend, frontend, and Telegram bot components
-- Used FastAPI for backend due to its performance, type hinting, and automatic documentation generation
-- Chose React with MUI for frontend to provide a responsive, modern UI with minimal development effort
-- Implemented a microservices-like approach with separate modules for each feature that can be toggled via configuration
+1. **Architecture Modernization**
+   - Switched to Docker-based deployment
+   - Migrated from MySQL to PostgreSQL for better JSON support
+   - Implemented containerized microservices architecture
+   - Added Celery for background task processing
 
-### Database Design
-- Used PostgreSQL with SQLAlchemy ORM for robust data storage with transaction support
-- Implemented separate tables for locations, servers, services, users, discounts, orders, and payments
-- Added foreign key constraints to maintain data integrity
-- Used Redis for caching and session management to improve performance
+2. **Technology Stack Updates**
+   - Updated FastAPI to latest version (0.109.2)
+   - Upgraded Python dependencies to latest stable versions
+   - Updated React to v18 with TypeScript support
+   - Added modern frontend libraries (MUI v5, React Query)
 
-### Security Considerations
-- Implemented JWT authentication with refresh token mechanism
-- Added role-based access control (RBAC) with customizable permissions
-- Used Pydantic models for request validation to prevent injection attacks
-- Stored credentials and sensitive data in environment variables
-- Implemented rate limiting for API endpoints to prevent abuse
-- Added 2FA support for enhanced security
+3. **Feature Enhancements**
+   - Added comprehensive payment system with Zarinpal integration
+   - Implemented multi-language support (Persian/English)
+   - Added Jalali calendar support
+   - Enhanced security with rate limiting and input validation
+   - Added real-time notifications via Telegram
 
-### Integration with 3X-UI
-- Used async/await for API calls to 3X-UI panels
-- Stored session cookies in Redis with automatic refresh mechanism
-- Implemented fallback mechanisms for when 3X-UI panels are unreachable
-- Added periodic health checks for server status monitoring
+4. **Development Improvements**
+   - Added TypeScript for better type safety
+   - Implemented proper error handling and logging
+   - Added Sentry integration for error tracking
+   - Enhanced development tools (ESLint, Prettier)
 
-## Assumptions
+5. **Security Enhancements**
+   - Implemented proper JWT authentication
+   - Added rate limiting
+   - Enhanced input validation
+   - Added SQL injection protection
+   - Implemented secure file handling
 
-### 3X-UI Integration
-- Assumed 3X-UI panels are accessible via HTTP/HTTPS
-- Assumed 3X-UI API stays compatible with our implementation
-- Assumed each server has a unique domain/IP address
+6. **UI/UX Improvements**
+   - Added dark/light theme support
+   - Implemented responsive design
+   - Added RTL support for Persian
+   - Enhanced dashboard with real-time updates
+   - Improved mobile experience
 
-### User Management
-- Assumed users will have unique email addresses and usernames
-- Assumed a hierarchical role system (admin > vendor > user)
-- Assumed email notifications are required for important actions
+7. **Deployment Enhancements**
+   - Added Docker Compose for easy deployment
+   - Implemented SSL support with Let's Encrypt
+   - Added automated setup script
+   - Enhanced logging and monitoring
+   - Added backup system
 
-### Performance
-- Assumed moderate user load (up to 10,000 users)
-- Assumed up to 100 concurrent API requests
-- Designed Redis caching to handle high-traffic scenarios
+## Removed Features
+- Removed phpMyAdmin (replaced with direct database management)
+- Removed unnecessary machine learning dependencies
+- Removed unused email templates
+- Cleaned up redundant scripts
 
-### Deployment
-- Assumed deployment on Ubuntu 22.04+ servers
-- Assumed availability of PostgreSQL, Redis, and Node.js on the deployment server
-- Assumed the system will run behind a reverse proxy (like Nginx)
+## New Features
+- Added virtual account management system
+- Implemented automated account delivery
+- Added order tracking system
+- Added support ticket system
+- Implemented payment verification system
+- Added inventory management
+- Added user profile management
 
-### AI Features
-- Implemented basic ML models for user behavior analysis and plan suggestions
-- Assumed periodic batch processing for AI model training
-- Used scikit-learn for ML implementations due to its simplicity and effectiveness 
+---
+
+<div dir="rtl">
+
+# تغییرات و بهبودهای پروژه
+
+## تغییرات اصلی
+
+1. **مدرن‌سازی معماری**
+   - انتقال به استقرار مبتنی بر Docker
+   - مهاجرت از MySQL به PostgreSQL برای پشتیبانی بهتر از JSON
+   - پیاده‌سازی معماری میکروسرویس کانتینری
+   - افزودن Celery برای پردازش وظایف پس‌زمینه
+
+2. **به‌روزرسانی تکنولوژی‌ها**
+   - به‌روزرسانی FastAPI به آخرین نسخه (0.109.2)
+   - ارتقاء وابستگی‌های Python به آخرین نسخه‌های پایدار
+   - به‌روزرسانی React به نسخه 18 با پشتیبانی TypeScript
+   - افزودن کتابخانه‌های مدرن فرانت‌اند (MUI v5, React Query)
+
+3. **بهبود قابلیت‌ها**
+   - افزودن سیستم جامع پرداخت با یکپارچه‌سازی زرین‌پال
+   - پیاده‌سازی پشتیبانی چند زبانه (فارسی/انگلیسی)
+   - افزودن پشتیبانی تقویم جلالی
+   - بهبود امنیت با محدودیت نرخ و اعتبارسنجی ورودی
+   - افزودن اعلان‌های بلادرنگ از طریق تلگرام
+
+4. **بهبودهای توسعه**
+   - افزودن TypeScript برای ایمنی بیشتر تایپ‌ها
+   - پیاده‌سازی مدیریت خطای مناسب و ثبت وقایع
+   - افزودن یکپارچه‌سازی Sentry برای پیگیری خطاها
+   - بهبود ابزارهای توسعه (ESLint, Prettier)
+
+5. **بهبودهای امنیتی**
+   - پیاده‌سازی احراز هویت مناسب JWT
+   - افزودن محدودیت نرخ
+   - بهبود اعتبارسنجی ورودی
+   - افزودن محافظت در برابر SQL injection
+   - پیاده‌سازی مدیریت امن فایل‌ها
+
+6. **بهبودهای رابط کاربری**
+   - افزودن پشتیبانی از تم تاریک/روشن
+   - پیاده‌سازی طراحی واکنش‌گرا
+   - افزودن پشتیبانی RTL برای فارسی
+   - بهبود داشبورد با به‌روزرسانی‌های بلادرنگ
+   - بهبود تجربه موبایل
+
+7. **بهبودهای استقرار**
+   - افزودن Docker Compose برای استقرار آسان
+   - پیاده‌سازی پشتیبانی SSL با Let's Encrypt
+   - افزودن اسکریپت نصب خودکار
+   - بهبود ثبت وقایع و نظارت
+   - افزودن سیستم پشتیبان‌گیری
+
+## قابلیت‌های حذف شده
+- حذف phpMyAdmin (جایگزین با مدیریت مستقیم پایگاه داده)
+- حذف وابستگی‌های غیرضروری یادگیری ماشین
+- حذف قالب‌های ایمیل بلااستفاده
+- پاکسازی اسکریپت‌های تکراری
+
+## قابلیت‌های جدید
+- افزودن سیستم مدیریت اکانت مجازی
+- پیاده‌سازی تحویل خودکار اکانت
+- افزودن سیستم پیگیری سفارش
+- افزودن سیستم تیکت پشتیبانی
+- پیاده‌سازی سیستم تأیید پرداخت
+- افزودن مدیریت موجودی
+- افزودن مدیریت پروفایل کاربر
+
+</div> 

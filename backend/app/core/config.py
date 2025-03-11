@@ -1,103 +1,98 @@
 """
-Configuration settings for the 3X-UI Management System.
+Core configuration settings for the Virtual Account Bot & Dashboard.
 
-This module defines the application settings loaded from environment variables.
+This module uses pydantic-settings for type-safe configuration management.
 """
 
-import secrets
-from typing import Any, Dict, List, Optional, Union
-
-from pydantic import AnyHttpUrl, EmailStr, field_validator
+from typing import List, Optional, Union
+from pydantic import AnyHttpUrl, PostgresDsn, RedisDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """
-    Application settings.
-    
-    These settings are loaded from environment variables.
-    """
-    # API settings
-    API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
-    PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 24
-    SESSION_LIFETIME_SECONDS: int = 60 * 60 * 24 * 7  # 7 days
-    
-    # CORS settings
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    """Application settings with validation."""
 
-    @field_validator("BACKEND_CORS_ORIGINS", mode='before')
+    # Application Settings
+    PROJECT_NAME: str = "Virtual Account Bot"
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = True
+    SECRET_KEY: str
+    API_V1_STR: str = "/api/v1"
+    SERVER_HOST: str = "0.0.0.0"
+    SERVER_PORT: int = 8000
+
+    # Security Settings
+    JWT_SECRET_KEY: str
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ALLOWED_HOSTS: List[str] = ["*"]
+
+    # Database Settings
+    DATABASE_URL: PostgresDsn
+    DATABASE_POOL_SIZE: int = 32
+    DATABASE_MAX_OVERFLOW: int = 64
+    DATABASE_POOL_TIMEOUT: int = 30
+
+    # Redis Settings
+    REDIS_URL: RedisDsn
+    REDIS_MAX_CONNECTIONS: int = 10
+    CACHE_TTL: int = 3600
+
+    # Telegram Bot Settings
+    TELEGRAM_BOT_TOKEN: SecretStr
+    TELEGRAM_WEBHOOK_URL: Optional[AnyHttpUrl] = None
+    TELEGRAM_ADMIN_IDS: List[int] = []
+    ENABLE_TELEGRAM_NOTIFICATIONS: bool = True
+    NOTIFICATION_CHANNEL_ID: Optional[int] = None
+
+    # Payment Settings
+    ZARINPAL_MERCHANT: SecretStr
+    ZARINPAL_SANDBOX: bool = True
+
+    # Frontend Settings
+    CORS_ORIGINS: List[AnyHttpUrl] = []
+    FRONTEND_URL: AnyHttpUrl
+
+    # Localization Settings
+    DEFAULT_LANGUAGE: str = "fa"
+    AVAILABLE_LANGUAGES: List[str] = ["fa", "en"]
+    JALALI_DATE: bool = True
+
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_PER_SECOND: int = 10
+
+    # Development Tools
+    ENABLE_DOCS: bool = True
+    ENABLE_REDOC: bool = True
+
+    # Monitoring & Logging
+    LOG_LEVEL: str = "INFO"
+    SENTRY_DSN: Optional[AnyHttpUrl] = None
+
+    @field_validator("CORS_ORIGINS", mode="before")
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        """
-        Validate CORS origins.
-        
-        Args:
-            v: CORS origins as string or list
-            
-        Returns:
-            List of CORS origins
-        """
+        """Validate and process CORS origins."""
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, (list, str)):
             return v
         raise ValueError(v)
-    
-    # Database settings
-    POSTGRES_SERVER: str = "db"
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"
-    POSTGRES_DB: str = "app"
-    SQLALCHEMY_DATABASE_URI: Optional[str] = None
 
-    @field_validator("SQLALCHEMY_DATABASE_URI", mode='before')
-    def assemble_db_connection(cls, v: Optional[str], info) -> Any:
-        """
-        Assemble database connection string.
-        
-        Args:
-            v: Database connection string
-            info: Validation context information
-            
-        Returns:
-            Database connection string
-        """
+    @field_validator("TELEGRAM_ADMIN_IDS", mode="before")
+    def assemble_admin_ids(cls, v: Union[str, List[int]]) -> List[int]:
+        """Validate and process admin IDs."""
         if isinstance(v, str):
-            return v
-            
-        values = info.data
-        return f"postgresql://{values.get('POSTGRES_USER')}:{values.get('POSTGRES_PASSWORD')}@{values.get('POSTGRES_SERVER')}/{values.get('POSTGRES_DB')}"
-    
-    # Redis settings
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_DB: int = 0
-    REDIS_PASSWORD: Optional[str] = None
-    
-    # Email settings
-    SMTP_TLS: bool = True
-    SMTP_PORT: Optional[int] = None
-    SMTP_HOST: Optional[str] = None
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAILS_FROM_EMAIL: Optional[EmailStr] = None
-    EMAILS_FROM_NAME: Optional[str] = None
-    
-    # First superuser
-    FIRST_SUPERUSER_USERNAME: str = "admin"
-    FIRST_SUPERUSER_EMAIL: EmailStr = "admin@example.com"
-    FIRST_SUPERUSER_PASSWORD: str = "admin"
-    
-    # Environment
-    ENVIRONMENT: str = "development"
-    
-    model_config = {
-        "env_file": ".env",
-        "env_file_encoding": "utf-8",
-        "case_sensitive": True,
-    }
+            return [int(i.strip()) for i in v.split(",")]
+        return v
+
+    class Config:
+        """Pydantic configuration."""
+        case_sensitive = True
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 
+# Create global settings object
 settings = Settings() 

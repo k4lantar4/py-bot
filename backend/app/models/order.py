@@ -8,7 +8,7 @@ in the system.
 import enum
 from typing import List, Optional
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, Enum, func
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, Enum, func, JSON
 from sqlalchemy.orm import relationship
 
 from ..db.session import Base
@@ -20,12 +20,13 @@ class OrderStatus(str, enum.Enum):
     Enumeration of order statuses.
     """
     PENDING = "pending"
+    AWAITING_PAYMENT = "awaiting_payment"
     PAID = "paid"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
     CANCELLED = "cancelled"
     REFUNDED = "refunded"
     FAILED = "failed"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
 
 
 # Payment method enumeration
@@ -33,13 +34,9 @@ class PaymentMethod(str, enum.Enum):
     """
     Enumeration of payment methods.
     """
-    WALLET = "wallet"
-    STRIPE = "stripe"
-    PAYPAL = "paypal"
-    CRYPTO = "crypto"
-    BANK_TRANSFER = "bank_transfer"
-    CASH = "cash"
-    OTHER = "other"
+    CARD = "card"  # Card to card
+    ZARINPAL = "zarinpal"
+    WALLET = "wallet"  # User's wallet balance
 
 
 class Order(Base):
@@ -54,7 +51,7 @@ class Order(Base):
     discount_id = Column(Integer, ForeignKey("discounts.id"), nullable=True)
     
     # Order details
-    order_number = Column(String, unique=True, index=True, nullable=False)
+    order_number = Column(String(20), unique=True, index=True, nullable=False)
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
     amount = Column(Float, nullable=False)  # Original amount
     discount_amount = Column(Float, default=0.0)  # Discount amount
@@ -72,6 +69,14 @@ class Order(Base):
     service = relationship("Service", back_populates="orders")
     discount = relationship("Discount", back_populates="orders")
     payments = relationship("Payment", back_populates="order")
+    
+    # Additional information
+    metadata = Column(JSON, nullable=True)
+    is_test = Column(Boolean, default=False)
+    
+    def __str__(self) -> str:
+        """String representation of order."""
+        return f"Order {self.order_number} ({self.status})"
     
     @property
     def is_paid(self) -> bool:
@@ -104,6 +109,33 @@ class Order(Base):
         if not self.expires_at:
             return False
         return self.expires_at < func.now() and self.status == OrderStatus.PENDING
+
+    @property
+    def is_completed(self) -> bool:
+        """Check if order is completed."""
+        return self.status == OrderStatus.COMPLETED
+
+    @property
+    def is_cancelled(self) -> bool:
+        """Check if order is cancelled."""
+        return self.status == OrderStatus.CANCELLED
+
+    @property
+    def can_be_cancelled(self) -> bool:
+        """Check if order can be cancelled."""
+        return self.status in [
+            OrderStatus.PENDING,
+            OrderStatus.AWAITING_PAYMENT,
+        ]
+
+    @property
+    def can_be_refunded(self) -> bool:
+        """Check if order can be refunded."""
+        return self.status in [
+            OrderStatus.PAID,
+            OrderStatus.PROCESSING,
+            OrderStatus.COMPLETED,
+        ]
 
 
 class Payment(Base):
