@@ -12,7 +12,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .api.api_v1.api import api_router
-from .core.config import settings
+from .core.config import settings, get_allowed_hosts
 from .core.security import setup_security
 from .core.i18n import setup_i18n
 from .db.session import setup_database
@@ -51,7 +51,7 @@ if settings.CORS_ORIGINS:
     )
 
 # Add security middleware
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=get_allowed_hosts())
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 

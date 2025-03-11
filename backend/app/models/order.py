@@ -71,7 +71,7 @@ class Order(Base):
     payments = relationship("Payment", back_populates="order")
     
     # Additional information
-    metadata = Column(JSON, nullable=True)
+    order_metadata = Column(JSON, nullable=True)
     is_test = Column(Boolean, default=False)
     
     def __str__(self) -> str:

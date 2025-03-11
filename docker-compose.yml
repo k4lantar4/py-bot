@@ -4,7 +4,8 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.backend
+      dockerfile: Dockerfile
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "${HOST:-0.0.0.0}:8000:8000"
     volumes:
@@ -50,6 +51,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.bot
+    command: python /app/bot.py
     volumes:
       - ./bot:/app
       - ./data:/data
@@ -87,25 +89,6 @@ services:
       - "${HOST:-0.0.0.0}:6379:6379"
     volumes:
       - redis_data:/data
-    restart: unless-stopped
-    networks:
-      - app-network
-
-  celery:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: celery -A app.worker.celery worker --loglevel=info
-    volumes:
-      - ./backend:/app
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-      - REDIS_URL=redis://redis:6379/0
-      - PUBLIC_URL=http://${PUBLIC_IP:-0.0.0.0}:8000
-    depends_on:
-      - backend
-      - db
-      - redis
     restart: unless-stopped
     networks:
       - app-network

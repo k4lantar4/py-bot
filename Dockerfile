@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir --upgrade pip pip-tools
 # Install Python dependencies
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt || true
+RUN pip install --no-cache-dir uvicorn fastapi itsdangerous sqlalchemy psycopg2-binary redis email-validator pydantic-settings python-jose
 
 # Create data directory
 RUN mkdir -p /data
