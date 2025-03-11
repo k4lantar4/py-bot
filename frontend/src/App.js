@@ -142,6 +142,9 @@ function App() {
           )
         }
       />
+
+      {/* NotFound Route - Should be last */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

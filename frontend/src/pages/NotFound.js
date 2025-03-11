@@ -3,7 +3,7 @@ import { Box, Typography, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-const NotFound: React.FC = () => {
+const NotFound = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
