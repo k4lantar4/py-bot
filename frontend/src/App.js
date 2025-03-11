@@ -56,11 +56,6 @@ function App() {
     }
   }, [settings.language, i18n]);
 
-  // Show loading screen while auth is initializing
-  if (!isInitialized) {
-    return <div>Loading...</div>;
-  }
-
   return (
     <Routes>
       {/* Auth Routes */}
@@ -131,20 +126,19 @@ function App() {
         </Route>
       </Route>
 
-      {/* Redirect to dashboard if authenticated, otherwise to login */}
+      {/* NotFound and Redirect Route */}
       <Route
         path="*"
         element={
-          isAuthenticated ? (
+          !isInitialized ? (
+            <div>Loading...</div>
+          ) : isAuthenticated ? (
             <Navigate to="/" replace />
           ) : (
-            <Navigate to="/auth/login" replace />
+            <NotFound />
           )
         }
       />
-
-      {/* NotFound Route - Should be last */}
-      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
