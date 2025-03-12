@@ -1,30 +1,29 @@
-# Core Dependencies
-python-telegram-bot==20.7
+# Telegram Bot
+python-telegram-bot==20.6
+
+# HTTP and API
+requests==2.31.0
+httpx==0.25.1
+pyzarinpal==1.0.0
 
 # Database
-sqlalchemy==2.0.27
-psycopg2-binary==2.9.9
-alembic==1.13.1
-
-# Cache
-redis==5.0.1
-
-# HTTP Client
-aiohttp==3.9.3
-requests==2.31.0
+aiosqlite==0.19.0
 
 # Utilities
-python-dotenv==1.0.1
-pytz==2023.3.post1
-emoji==2.10.1
+python-dotenv==1.0.0
+pytz==2023.3
+pydantic==2.4.2
+python-dateutil==2.8.2
 jdatetime==4.1.1
 persiantools==3.0.1
+emoji==2.8.0
 
-# Optional Dependencies
-zarinpal>=1.0.0; platform_system != "Windows"  # Optional: Payment Integration
-sentry-sdk>=1.32.0; platform_system != "Windows"  # Optional: Error Tracking
+# Monitoring and Logging
+sentry-sdk==1.32.0
 
-# Development Tools (Optional)
-pytest>=7.4.3; python_version >= "3.7"  # Optional: Testing
-black>=23.11.0; python_version >= "3.7"  # Optional: Code Formatting
-flake8>=6.1.0; python_version >= "3.7"  # Optional: Code Linting 
+# Development
+black==23.10.1
+isort==5.12.0
+flake8==6.1.0
+pytest==7.4.3
+coverage==7.3.2 
