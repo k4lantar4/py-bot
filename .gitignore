@@ -20,16 +20,6 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-media/
-staticfiles/
-
-# Virtual Environment
 .env
 .venv
 env/
@@ -38,35 +28,90 @@ ENV/
 env.bak/
 venv.bak/
 
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDEs and editors
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+*.sqlite3
+media/
+static/
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Temporary files
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+*.temp
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
 # VS Code
 .vscode/
 *.code-workspace
 .history/
 
 # PyCharm
-.idea/
 *.iml
 *.iws
 .idea_modules/
 
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnp/
-.pnp.js
-
 # React
 /frontend/build
-/frontend/.env.local
-/frontend/.env.development.local
-/frontend/.env.test.local
-/frontend/.env.production.local
 
 # Testing
-.coverage
-htmlcov/
 .tox/
 .nox/
 .coverage.*
@@ -76,24 +121,13 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
-.pytest_cache/
-cover/
 
 # Logs
-logs/
-*.log
 .ubuntu.log
 
 # Environment variables
 .env*
 !.env.example
-
-# Docker
-docker-compose.override.yml
-
-# System Files
-.DS_Store
-Thumbs.db
 
 # Security
 *.pem
@@ -122,7 +156,6 @@ celerybeat.pid
 *.pyc
 *.pyo
 *.pyd
-.Python
 *.so
 *.egg
 *.egg-info
@@ -145,7 +178,6 @@ __pycache__
 
 # Mr Developer
 .mr.developer.cfg
-.project
 .pydevproject
 
 # Rope
@@ -155,7 +187,6 @@ __pycache__
 /site
 
 # mypy
-.mypy_cache/
 .dmypy.json
 dmypy.json
 

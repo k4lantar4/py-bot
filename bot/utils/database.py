@@ -1,158 +1,193 @@
 """
 Database utilities for the Telegram bot.
 
-This module provides functions for interacting with the SQLite database for
+This module provides functions for interacting with the PostgreSQL database for
 account management, orders, payments, and other related data.
 """
 
 import os
-import sqlite3
 import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
+import psycopg2
+from psycopg2.extras import DictCursor
+from psycopg2.pool import SimpleConnectionPool
 
 # Configure logging
 logger = logging.getLogger("telegram_bot")
 
-# Database file path
-DB_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bot.db")
+# Database configuration
+DB_CONFIG = {
+    "dbname": os.getenv("DB_NAME", "v2ray_bot"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD", ""),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "5432"),
+    "min_conn": 1,
+    "max_conn": 10
+}
 
-# Ensure data directory exists
-os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
-
+# Create connection pool
+pool = None
 
 def setup_database() -> None:
     """Set up the database by creating tables if they don't exist."""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
+    global pool
     
-    # Create users table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        username TEXT,
-        first_name TEXT,
-        last_name TEXT,
-        language_code TEXT DEFAULT 'en',
-        is_admin BOOLEAN DEFAULT 0,
-        balance INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-    
-    # Create accounts table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS accounts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        service_id INTEGER,
-        server_id INTEGER,
-        name TEXT,
-        config TEXT,
-        status TEXT DEFAULT 'active',
-        expiry_date TIMESTAMP,
-        traffic_limit INTEGER,
-        traffic_used INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-    ''')
-    
-    # Create orders table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        service_id INTEGER,
-        amount INTEGER,
-        status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-    ''')
-    
-    # Create payments table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS payments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_id INTEGER,
-        user_id INTEGER,
-        amount INTEGER,
-        payment_method TEXT,
-        status TEXT DEFAULT 'pending',
-        transaction_id TEXT,
-        details TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (order_id) REFERENCES orders (id),
-        FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-    ''')
-    
-    # Create tickets table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS tickets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        subject TEXT,
-        status TEXT DEFAULT 'open',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-    ''')
-    
-    # Create ticket_messages table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS ticket_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticket_id INTEGER,
-        user_id INTEGER,
-        message TEXT,
-        is_from_admin BOOLEAN DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ticket_id) REFERENCES tickets (id),
-        FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-    ''')
-    
-    # Create settings table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        description TEXT
-    )
-    ''')
-    
-    # Insert default settings if they don't exist
-    default_settings = [
-        ('card_payment_details', json.dumps({
-            'card_number': '',
-            'card_holder': ''
-        }), 'Card payment details'),
-        ('zarinpal_payment_details', json.dumps({
-            'merchant_id': ''
-        }), 'Zarinpal payment details'),
-        ('admin_user_ids', json.dumps([]), 'Admin user IDs'),
-        ('zarinpal_merchant', '', 'ZarinPal merchant ID'),
-        ('card_number', '', 'Card number for card-to-card payments'),
-        ('card_holder', '', 'Card holder name for card-to-card payments'),
-    ]
-    
-    for key, value, description in default_settings:
-        cursor.execute('INSERT OR IGNORE INTO settings (key, value, description) VALUES (?, ?, ?)',
-                      (key, value, description))
-    
-    conn.commit()
-    conn.close()
-    
-    logger.info("Database setup complete")
+    try:
+        # Create connection pool
+        pool = SimpleConnectionPool(**DB_CONFIG)
+        conn = pool.getconn()
+        cursor = conn.cursor()
+        
+        # Create users table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id BIGINT PRIMARY KEY,
+            username TEXT,
+            first_name TEXT,
+            last_name TEXT,
+            language_code TEXT DEFAULT 'en',
+            is_admin BOOLEAN DEFAULT FALSE,
+            balance INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # Create accounts table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS accounts (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            service_id INTEGER,
+            server_id INTEGER,
+            name TEXT,
+            config JSONB,
+            status TEXT DEFAULT 'active',
+            expiry_date TIMESTAMP,
+            traffic_limit BIGINT,
+            traffic_used BIGINT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+        ''')
+        
+        # Create orders table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS orders (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            service_id INTEGER,
+            amount INTEGER,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+        ''')
+        
+        # Create payments table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS payments (
+            id SERIAL PRIMARY KEY,
+            order_id INTEGER,
+            user_id BIGINT,
+            amount INTEGER,
+            payment_method TEXT,
+            status TEXT DEFAULT 'pending',
+            transaction_id TEXT,
+            details JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES orders (id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+        ''')
+        
+        # Create tickets table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tickets (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            subject TEXT,
+            status TEXT DEFAULT 'open',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+        ''')
+        
+        # Create ticket_messages table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ticket_messages (
+            id SERIAL PRIMARY KEY,
+            ticket_id INTEGER,
+            user_id BIGINT,
+            message TEXT,
+            is_from_admin BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (ticket_id) REFERENCES tickets (id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+        ''')
+        
+        # Create settings table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value JSONB,
+            description TEXT
+        )
+        ''')
+        
+        # Insert default settings if they don't exist
+        default_settings = [
+            ('card_payment_details', json.dumps({
+                'card_number': '',
+                'card_holder': ''
+            }), 'Card payment details'),
+            ('zarinpal_payment_details', json.dumps({
+                'merchant_id': ''
+            }), 'Zarinpal payment details'),
+            ('admin_user_ids', json.dumps([]), 'Admin user IDs'),
+            ('zarinpal_merchant', '', 'ZarinPal merchant ID'),
+            ('card_number', '', 'Card number for card-to-card payments'),
+            ('card_holder', '', 'Card holder name for card-to-card payments'),
+        ]
+        
+        for key, value, description in default_settings:
+            cursor.execute(
+                'INSERT INTO settings (key, value, description) VALUES (%s, %s, %s) ON CONFLICT (key) DO NOTHING',
+                (key, value, description)
+            )
+        
+        conn.commit()
+        logger.info("Database setup complete")
+        
+    except Exception as e:
+        logger.error(f"Error setting up database: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            pool.putconn(conn)
 
+def get_db_connection():
+    """Get a database connection from the pool."""
+    if not pool:
+        setup_database()
+    return pool.getconn()
+
+def release_db_connection(conn):
+    """Release a database connection back to the pool."""
+    if conn and pool:
+        pool.putconn(conn)
 
 # User functions
 
@@ -168,18 +203,18 @@ def create_user_if_not_exists(user_id: int, username: Optional[str], first_name:
         last_name: User's last name
         language_code: User's language code
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
         # Check if user exists
-        cursor.execute('SELECT id FROM users WHERE id = ?', (user_id,))
+        cursor.execute('SELECT id FROM users WHERE id = %s', (user_id,))
         user = cursor.fetchone()
         
         if not user:
             # Create user
             cursor.execute(
-                'INSERT INTO users (id, username, first_name, last_name, language_code) VALUES (?, ?, ?, ?, ?)',
+                'INSERT INTO users (id, username, first_name, last_name, language_code) VALUES (%s, %s, %s, %s, %s)',
                 (user_id, username, first_name, last_name, language_code)
             )
             conn.commit()
@@ -187,7 +222,7 @@ def create_user_if_not_exists(user_id: int, username: Optional[str], first_name:
         else:
             # Update user information
             cursor.execute(
-                'UPDATE users SET username = ?, first_name = ?, last_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                'UPDATE users SET username = %s, first_name = %s, last_name = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s',
                 (username, first_name, last_name, user_id)
             )
             conn.commit()
@@ -195,7 +230,8 @@ def create_user_if_not_exists(user_id: int, username: Optional[str], first_name:
         logger.error(f"Error creating/updating user: {e}")
         conn.rollback()
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def get_user(user_id: int) -> Optional[Dict[str, Any]]:
@@ -208,22 +244,23 @@ def get_user(user_id: int) -> Optional[Dict[str, Any]]:
     Returns:
         User data as dictionary or None if not found
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+        cursor.execute('SELECT * FROM users WHERE id = %s', (user_id,))
         user = cursor.fetchone()
         
         if user:
-            return dict(user)
+            return user
         return None
     except Exception as e:
         logger.error(f"Error getting user: {e}")
         return None
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def get_user_language(user_id: int) -> str:
@@ -236,21 +273,23 @@ def get_user_language(user_id: int) -> str:
     Returns:
         Language code (default: 'en')
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT language_code FROM users WHERE id = ?', (user_id,))
+        cursor.execute('SELECT language_code FROM users WHERE id = %s', (user_id,))
         result = cursor.fetchone()
         
-        if result and result[0]:
-            return result[0]
+        if result and result['language_code']:
+            return result['language_code']
         return 'en'
     except Exception as e:
         logger.error(f"Error getting user language: {e}")
         return 'en'
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def update_user_language(user_id: int, language_code: str) -> bool:
@@ -264,12 +303,12 @@ def update_user_language(user_id: int, language_code: str) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
         cursor.execute(
-            'UPDATE users SET language_code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            'UPDATE users SET language_code = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s',
             (language_code, user_id)
         )
         conn.commit()
@@ -279,7 +318,8 @@ def update_user_language(user_id: int, language_code: str) -> bool:
         conn.rollback()
         return False
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 # Settings functions
@@ -294,21 +334,23 @@ def get_setting(key: str) -> Optional[str]:
     Returns:
         Setting value or None if not found
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT value FROM settings WHERE key = ?', (key,))
+        cursor.execute('SELECT value FROM settings WHERE key = %s', (key,))
         result = cursor.fetchone()
         
         if result:
-            return result[0]
+            return result['value']
         return None
     except Exception as e:
         logger.error(f"Error getting setting: {e}")
         return None
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def update_setting(key: str, value: str) -> bool:
@@ -322,11 +364,11 @@ def update_setting(key: str, value: str) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
-        cursor.execute('UPDATE settings SET value = ? WHERE key = ?', (value, key))
+        cursor.execute('UPDATE settings SET value = %s WHERE key = %s', (value, key))
         conn.commit()
         return True
     except Exception as e:
@@ -334,7 +376,8 @@ def update_setting(key: str, value: str) -> bool:
         conn.rollback()
         return False
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 # Order and payment functions
@@ -351,33 +394,30 @@ def create_order(user_id: int, service_id: int, amount: int) -> Optional[Dict[st
     Returns:
         Order data as dictionary or None if failed
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
         # Create order
         cursor.execute(
-            'INSERT INTO orders (user_id, service_id, amount) VALUES (?, ?, ?)',
+            'INSERT INTO orders (user_id, service_id, amount) VALUES (%s, %s, %s) RETURNING *',
             (user_id, service_id, amount)
         )
         conn.commit()
         
-        order_id = cursor.lastrowid
-        
-        # Get created order
-        cursor.execute('SELECT * FROM orders WHERE id = ?', (order_id,))
         order = cursor.fetchone()
         
         if order:
-            return dict(order)
+            return order
         return None
     except Exception as e:
         logger.error(f"Error creating order: {e}")
         conn.rollback()
         return None
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def create_payment(order_id: int, user_id: int, amount: int, payment_method: str, details: Optional[str] = None) -> Optional[Dict]:
@@ -394,8 +434,8 @@ def create_payment(order_id: int, user_id: int, amount: int, payment_method: str
     Returns:
         Payment data as dictionary or None if failed
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
@@ -403,26 +443,23 @@ def create_payment(order_id: int, user_id: int, amount: int, payment_method: str
         
         # Create payment
         cursor.execute(
-            'INSERT INTO payments (order_id, user_id, amount, payment_method, status, details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO payments (order_id, user_id, amount, payment_method, status, details, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING *',
             (order_id, user_id, amount, payment_method, 'pending', details, current_time, current_time)
         )
         conn.commit()
         
-        payment_id = cursor.lastrowid
-        
-        # Get created payment
-        cursor.execute('SELECT * FROM payments WHERE id = ?', (payment_id,))
         payment = cursor.fetchone()
         
         if payment:
-            return dict(payment)
+            return payment
         return None
     except Exception as e:
         logger.error(f"Error creating payment: {e}")
         conn.rollback()
         return None
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def update_payment_status(payment_id: int, status: str, transaction_id: Optional[str] = None, details: Optional[str] = None) -> bool:
@@ -438,7 +475,7 @@ def update_payment_status(payment_id: int, status: str, transaction_id: Optional
     Returns:
         True if successful, False otherwise
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
@@ -447,22 +484,22 @@ def update_payment_status(payment_id: int, status: str, transaction_id: Optional
         # Update payment
         if transaction_id and details:
             cursor.execute(
-                'UPDATE payments SET status = ?, transaction_id = ?, details = ?, updated_at = ? WHERE id = ?',
+                'UPDATE payments SET status = %s, transaction_id = %s, details = %s, updated_at = %s WHERE id = %s',
                 (status, transaction_id, details, current_time, payment_id)
             )
         elif transaction_id:
             cursor.execute(
-                'UPDATE payments SET status = ?, transaction_id = ?, updated_at = ? WHERE id = ?',
+                'UPDATE payments SET status = %s, transaction_id = %s, updated_at = %s WHERE id = %s',
                 (status, transaction_id, current_time, payment_id)
             )
         elif details:
             cursor.execute(
-                'UPDATE payments SET status = ?, details = ?, updated_at = ? WHERE id = ?',
+                'UPDATE payments SET status = %s, details = %s, updated_at = %s WHERE id = %s',
                 (status, details, current_time, payment_id)
             )
         else:
             cursor.execute(
-                'UPDATE payments SET status = ?, updated_at = ? WHERE id = ?',
+                'UPDATE payments SET status = %s, updated_at = %s WHERE id = %s',
                 (status, current_time, payment_id)
             )
         
@@ -470,13 +507,13 @@ def update_payment_status(payment_id: int, status: str, transaction_id: Optional
         
         # If payment is completed, update order status
         if status == 'completed':
-            cursor.execute('SELECT order_id FROM payments WHERE id = ?', (payment_id,))
+            cursor.execute('SELECT order_id FROM payments WHERE id = %s', (payment_id,))
             result = cursor.fetchone()
             
             if result:
-                order_id = result[0]
+                order_id = result['order_id']
                 cursor.execute(
-                    'UPDATE orders SET status = ?, updated_at = ? WHERE id = ?',
+                    'UPDATE orders SET status = %s, updated_at = %s WHERE id = %s',
                     ('completed', current_time, order_id)
                 )
                 conn.commit()
@@ -487,7 +524,8 @@ def update_payment_status(payment_id: int, status: str, transaction_id: Optional
         conn.rollback()
         return False
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 # Account functions
@@ -509,8 +547,8 @@ def create_account(user_id: int, service_id: int, server_id: int, name: str, con
     Returns:
         Account data as dictionary or None if failed
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
@@ -518,26 +556,23 @@ def create_account(user_id: int, service_id: int, server_id: int, name: str, con
         
         # Create account
         cursor.execute(
-            'INSERT INTO accounts (user_id, service_id, server_id, name, config, expiry_date, traffic_limit, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO accounts (user_id, service_id, server_id, name, config, expiry_date, traffic_limit, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *',
             (user_id, service_id, server_id, name, config, expiry_date, traffic_limit, current_time, current_time)
         )
         conn.commit()
         
-        account_id = cursor.lastrowid
-        
-        # Get created account
-        cursor.execute('SELECT * FROM accounts WHERE id = ?', (account_id,))
         account = cursor.fetchone()
         
         if account:
-            return dict(account)
+            return account
         return None
     except Exception as e:
         logger.error(f"Error creating account: {e}")
         conn.rollback()
         return None
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def get_account(account_id: int) -> Optional[Dict[str, Any]]:
@@ -550,22 +585,23 @@ def get_account(account_id: int) -> Optional[Dict[str, Any]]:
     Returns:
         Account data as dictionary or None if not found
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM accounts WHERE id = ?', (account_id,))
+        cursor.execute('SELECT * FROM accounts WHERE id = %s', (account_id,))
         account = cursor.fetchone()
         
         if account:
-            return dict(account)
+            return account
         return None
     except Exception as e:
         logger.error(f"Error getting account: {e}")
         return None
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def get_user_accounts(user_id: int) -> List[Dict[str, Any]]:
@@ -578,12 +614,12 @@ def get_user_accounts(user_id: int) -> List[Dict[str, Any]]:
     Returns:
         List of account data dictionaries
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM accounts WHERE user_id = ? ORDER BY created_at DESC', (user_id,))
+        cursor.execute('SELECT * FROM accounts WHERE user_id = %s ORDER BY created_at DESC', (user_id,))
         accounts = cursor.fetchall()
         
         return [dict(account) for account in accounts]
@@ -591,7 +627,8 @@ def get_user_accounts(user_id: int) -> List[Dict[str, Any]]:
         logger.error(f"Error getting user accounts: {e}")
         return []
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def update_account_status(account_id: int, status: str) -> bool:
@@ -605,14 +642,14 @@ def update_account_status(account_id: int, status: str) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         cursor.execute(
-            'UPDATE accounts SET status = ?, updated_at = ? WHERE id = ?',
+            'UPDATE accounts SET status = %s, updated_at = %s WHERE id = %s',
             (status, current_time, account_id)
         )
         conn.commit()
@@ -622,7 +659,8 @@ def update_account_status(account_id: int, status: str) -> bool:
         conn.rollback()
         return False
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def update_account_traffic(account_id: int, traffic_used: int) -> bool:
@@ -636,14 +674,14 @@ def update_account_traffic(account_id: int, traffic_used: int) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         cursor.execute(
-            'UPDATE accounts SET traffic_used = ?, updated_at = ? WHERE id = ?',
+            'UPDATE accounts SET traffic_used = %s, updated_at = %s WHERE id = %s',
             (traffic_used, current_time, account_id)
         )
         conn.commit()
@@ -653,7 +691,8 @@ def update_account_traffic(account_id: int, traffic_used: int) -> bool:
         conn.rollback()
         return False
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 # Support ticket functions
@@ -669,8 +708,8 @@ def create_ticket(user_id: int, subject: str) -> Optional[Dict[str, Any]]:
     Returns:
         Ticket data as dictionary or None if failed
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
@@ -678,26 +717,23 @@ def create_ticket(user_id: int, subject: str) -> Optional[Dict[str, Any]]:
         
         # Create ticket
         cursor.execute(
-            'INSERT INTO tickets (user_id, subject, created_at, updated_at) VALUES (?, ?, ?, ?)',
+            'INSERT INTO tickets (user_id, subject, created_at, updated_at) VALUES (%s, %s, %s, %s) RETURNING *',
             (user_id, subject, current_time, current_time)
         )
         conn.commit()
         
-        ticket_id = cursor.lastrowid
-        
-        # Get created ticket
-        cursor.execute('SELECT * FROM tickets WHERE id = ?', (ticket_id,))
         ticket = cursor.fetchone()
         
         if ticket:
-            return dict(ticket)
+            return ticket
         return None
     except Exception as e:
         logger.error(f"Error creating ticket: {e}")
         conn.rollback()
         return None
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def add_ticket_message(ticket_id: int, user_id: int, message: str, is_from_admin: bool = False) -> Optional[Dict[str, Any]]:
@@ -713,8 +749,8 @@ def add_ticket_message(ticket_id: int, user_id: int, message: str, is_from_admin
     Returns:
         Message data as dictionary or None if failed
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
@@ -722,33 +758,30 @@ def add_ticket_message(ticket_id: int, user_id: int, message: str, is_from_admin
         
         # Add message
         cursor.execute(
-            'INSERT INTO ticket_messages (ticket_id, user_id, message, is_from_admin, created_at) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO ticket_messages (ticket_id, user_id, message, is_from_admin, created_at) VALUES (%s, %s, %s, %s, %s) RETURNING *',
             (ticket_id, user_id, message, 1 if is_from_admin else 0, current_time)
         )
         
         # Update ticket updated_at
         cursor.execute(
-            'UPDATE tickets SET updated_at = ? WHERE id = ?',
+            'UPDATE tickets SET updated_at = %s WHERE id = %s',
             (current_time, ticket_id)
         )
         
         conn.commit()
         
-        message_id = cursor.lastrowid
-        
-        # Get created message
-        cursor.execute('SELECT * FROM ticket_messages WHERE id = ?', (message_id,))
         message = cursor.fetchone()
         
         if message:
-            return dict(message)
+            return message
         return None
     except Exception as e:
         logger.error(f"Error adding ticket message: {e}")
         conn.rollback()
         return None
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def get_user_tickets(user_id: int) -> List[Dict[str, Any]]:
@@ -761,12 +794,12 @@ def get_user_tickets(user_id: int) -> List[Dict[str, Any]]:
     Returns:
         List of ticket data dictionaries
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM tickets WHERE user_id = ? ORDER BY updated_at DESC', (user_id,))
+        cursor.execute('SELECT * FROM tickets WHERE user_id = %s ORDER BY updated_at DESC', (user_id,))
         tickets = cursor.fetchall()
         
         return [dict(ticket) for ticket in tickets]
@@ -774,7 +807,8 @@ def get_user_tickets(user_id: int) -> List[Dict[str, Any]]:
         logger.error(f"Error getting user tickets: {e}")
         return []
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def get_ticket_messages(ticket_id: int) -> List[Dict[str, Any]]:
@@ -787,12 +821,12 @@ def get_ticket_messages(ticket_id: int) -> List[Dict[str, Any]]:
     Returns:
         List of message data dictionaries
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
+    conn.row_factory = DictCursor
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC', (ticket_id,))
+        cursor.execute('SELECT * FROM ticket_messages WHERE ticket_id = %s ORDER BY created_at ASC', (ticket_id,))
         messages = cursor.fetchall()
         
         return [dict(message) for message in messages]
@@ -800,7 +834,8 @@ def get_ticket_messages(ticket_id: int) -> List[Dict[str, Any]]:
         logger.error(f"Error getting ticket messages: {e}")
         return []
     finally:
-        conn.close()
+        cursor.close()
+        release_db_connection(conn)
 
 
 def update_ticket_status(ticket_id: int, status: str) -> bool:
@@ -814,14 +849,14 @@ def update_ticket_status(ticket_id: int, status: str) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         cursor.execute(
-            'UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?',
+            'UPDATE tickets SET status = %s, updated_at = %s WHERE id = %s',
             (status, current_time, ticket_id)
         )
         conn.commit()
@@ -831,4 +866,5 @@ def update_ticket_status(ticket_id: int, status: str) -> bool:
         conn.rollback()
         return False
     finally:
-        conn.close() 
+        cursor.close()
+        release_db_connection(conn) 

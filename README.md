@@ -1,135 +1,131 @@
 # V2Ray Account Management System
 
-A comprehensive system for managing V2Ray accounts through a Telegram bot and web dashboard, with multi-panel 3x-UI integration.
+A comprehensive Telegram bot and web dashboard for managing V2Ray accounts, integrated with multiple 3x-UI panels. Built with Python, Django, and React.
 
 ## Features
 
-### Telegram Bot
-- 🤖 User-friendly Telegram bot interface
-- 🌐 Multi-language support (Persian and English)
-- 💳 Multiple payment methods (Card-to-Card, Zarinpal)
-- 🔄 Automatic account creation and renewal
-- 📊 Usage statistics and notifications
-- 🎫 Support ticket system
+- 🤖 **Telegram Bot**
+  - Sell and manage V2Ray accounts
+  - Card-to-card and Zarinpal payment integration
+  - Multi-language support (Persian/English)
+  - Real-time notifications
+  - User management and support
 
-### Web Dashboard
-- 🔐 Secure authentication system
-- 🖥️ Admin panel for accounts, payments, and settings
-- 📱 Responsive design with RTL support
-- 🌙 Dark mode with modern UI (Dark gray, Deep blue color scheme)
-- 📈 Detailed analytics and reporting
+- 🌐 **Web Dashboard**
+  - Modern, responsive UI with dark theme
+  - RTL support for Persian language
+  - Admin panel for system management
+  - User dashboard for account management
+  - Real-time traffic monitoring
 
-### Server Management
-- 🔌 Integration with multiple 3x-UI panels
-- 🔄 Real-time account data synchronization
-- 📊 Traffic monitoring and management
-- 🔔 Automatic notifications for expiring accounts
-- 🛡️ Server health monitoring
+- 🔄 **3x-UI Integration**
+  - Multiple panel support
+  - Real-time account synchronization
+  - Traffic monitoring
+  - Automatic account creation
+  - Error handling and recovery
 
-### Payment Processing
-- 💳 Card-to-Card payment with verification
-- 🔄 Zarinpal payment gateway integration
-- 💰 User wallet system
-- 🏷️ Discount code support
-- 📜 Transaction history and reporting
-
-## Technology Stack
-
-- **Backend**: Django 5.1+ with Django REST Framework
-- **Frontend**: React with Material-UI
-- **Bot**: python-telegram-bot (v20+)
-- **Database**: PostgreSQL
-- **Cache**: Redis
-- **Task Queue**: Celery
-- **Deployment**: Docker, Nginx
+- 💳 **Payment System**
+  - Card-to-card payment processing
+  - Zarinpal gateway integration
+  - Wallet system
+  - Transaction history
+  - Payment verification
 
 ## Prerequisites
 
+- Ubuntu 22.04 LTS
 - Docker and Docker Compose
-- Git
+- Domain name (for SSL)
+- Telegram Bot Token
+- 3x-UI panel credentials
 
 ## Quick Start
 
 1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/v2ray_bot.git
-cd v2ray_bot
-```
+   ```bash
+   git clone https://github.com/k4lantar4/py-bot.git
+   cd py-bot
+   ```
 
-2. Configure environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your settings
-```
+2. Run the installation script:
+   ```bash
+   sudo chmod +x install.sh
+   sudo ./install.sh
+   ```
 
-3. Start the application:
-```bash
-./install.sh
-```
+3. Configure your environment:
+   - Edit `.env` file with your settings
+   - Set up your Telegram bot token
+   - Configure 3x-UI panel credentials
+   - Set up payment gateway details
+
+4. Access the system:
+   - Web Dashboard: `https://your-domain.com`
+   - Admin Panel: `https://your-domain.com/admin`
+   - Telegram Bot: Start with `/start` command
 
 ## Development Setup
 
-### Backend
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
+1. Create virtual environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   cd frontend && npm install
+   ```
+
+3. Run development servers:
+   ```bash
+   # Backend
+   python manage.py runserver
+   
+   # Frontend
+   cd frontend && npm start
+   ```
+
+## Docker Deployment
+
+1. Build and start containers:
+   ```bash
+   docker compose build
+   docker compose up -d
+   ```
+
+2. Check logs:
+   ```bash
+   docker compose logs -f
+   ```
+
+3. Stop services:
+   ```bash
+   docker compose down
+   ```
+
+## Project Structure
+
 ```
-
-### Frontend
-```bash
-cd frontend
-npm install
-npm start
+v2ray-bot/
+├── backend/           # Django backend
+├── frontend/         # React frontend
+├── bot/             # Telegram bot
+├── nginx/           # Nginx configuration
+├── docs/            # Documentation
+├── scripts/         # Utility scripts
+└── docker/          # Docker configurations
 ```
-
-### Bot
-```bash
-cd bot
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
-```
-
-## Testing
-
-Run the test suite:
-```bash
-# Backend tests
-cd backend
-pytest
-
-# Frontend tests
-cd frontend
-npm test
-```
-
-## Security Features
-
-- 🔒 JWT authentication
-- 🛡️ CSRF protection
-- 🚫 Rate limiting
-- 🔐 Content Security Policy (CSP)
-- 🛑 DDoS protection
-- 📝 Security headers
-- 🔑 Password validation
-- 🚦 IP blacklisting
-
-## API Documentation
-
-API documentation is available at `/api/docs/` when running in development mode.
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
@@ -137,4 +133,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-For support, please open an issue or contact us through the support channels listed in the documentation.
+For support, please:
+1. Check the [documentation](docs/)
+2. Open an issue
+3. Contact via Telegram: @your_support_username
+
+## Acknowledgments
+
+- [3x-UI](https://github.com/MHSanaei/3x-ui) for the panel integration
+- [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) for the bot framework
+- [Django](https://www.djangoproject.com/) for the backend framework
+- [React](https://reactjs.org/) for the frontend framework

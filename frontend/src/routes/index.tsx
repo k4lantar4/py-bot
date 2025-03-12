@@ -2,12 +2,17 @@ import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { CircularProgress, Box } from '@mui/material';
 import ResponsiveLayout from '../layouts/ResponsiveLayout';
+import Dashboard from '../pages/Dashboard';
+import Accounts from '../pages/Accounts';
+import Settings from '../pages/Settings';
+import Help from '../pages/Help';
+import Login from '../pages/Login';
+import Register from '../pages/Register';
+import NotFound from '../pages/NotFound';
 
 // Lazy load components
-const Dashboard = React.lazy(() => import('../components/Dashboard/AnalyticsDashboard'));
 const UserManagement = React.lazy(() => import('../components/Users/UserManagement'));
 const ServerManagement = React.lazy(() => import('../components/Servers/ServerManagement'));
-const Settings = React.lazy(() => import('../components/Settings/Settings'));
 const AccessibilitySettings = React.lazy(() => import('../components/Settings/AccessibilitySettings'));
 const KeyboardShortcuts = React.lazy(() => import('../components/Settings/KeyboardShortcuts'));
 const TutorialGuide = React.lazy(() => import('../components/Tutorial/TutorialGuide'));
@@ -38,6 +43,46 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/accounts"
+          element={
+            <ResponsiveLayout title="Accounts">
+              <Accounts />
+            </ResponsiveLayout>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ResponsiveLayout title="Settings">
+              <Settings />
+            </ResponsiveLayout>
+          }
+        />
+        <Route
+          path="/help"
+          element={
+            <ResponsiveLayout title="Help">
+              <Help />
+            </ResponsiveLayout>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <ResponsiveLayout title="Login">
+              <Login />
+            </ResponsiveLayout>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <ResponsiveLayout title="Register">
+              <Register />
+            </ResponsiveLayout>
+          }
+        />
+        <Route
           path="/users"
           element={
             <ResponsiveLayout title="User Management">
@@ -50,14 +95,6 @@ const AppRoutes = () => {
           element={
             <ResponsiveLayout title="Server Management">
               <ServerManagement />
-            </ResponsiveLayout>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ResponsiveLayout title="Settings">
-              <Settings />
             </ResponsiveLayout>
           }
         />
@@ -82,6 +119,14 @@ const AppRoutes = () => {
           element={
             <ResponsiveLayout title="Tutorial">
               <TutorialGuide />
+            </ResponsiveLayout>
+          }
+        />
+        <Route
+          path="*"
+          element={
+            <ResponsiveLayout title="Not Found">
+              <NotFound />
             </ResponsiveLayout>
           }
         />

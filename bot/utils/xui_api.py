@@ -7,27 +7,33 @@ API Documentation: https://www.postman.com/hsanaei/3x-ui/documentation/q1l5l0u/3
 
 import logging
 import json
+import os
 import requests
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+from requests.exceptions import RequestException
 
 logger = logging.getLogger(__name__)
 
 class XUIClient:
     """Client for interacting with 3x-UI API."""
     
-    def __init__(self, base_url: str, username: str, password: str):
+    def __init__(self, base_url: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None):
         """
         Initialize the XUI client.
         
         Args:
-            base_url: Base URL of the 3x-UI panel
-            username: Admin username
-            password: Admin password
+            base_url: Base URL of the 3x-UI panel (optional, defaults to env var)
+            username: Admin username (optional, defaults to env var)
+            password: Admin password (optional, defaults to env var)
         """
-        self.base_url = base_url.rstrip("/")
-        self.username = username
-        self.password = password
+        self.base_url = base_url or os.getenv("XUI_PANEL_URL", "").rstrip("/")
+        self.username = username or os.getenv("XUI_PANEL_USERNAME", "")
+        self.password = password or os.getenv("XUI_PANEL_PASSWORD", "")
+        
+        if not all([self.base_url, self.username, self.password]):
+            raise ValueError("Missing required XUI panel credentials. Set XUI_PANEL_URL, XUI_PANEL_USERNAME, and XUI_PANEL_PASSWORD environment variables.")
+        
         self.session = requests.Session()
         self._login()
     
@@ -39,7 +45,8 @@ class XUIClient:
                 json={
                     "username": self.username,
                     "password": self.password
-                }
+                },
+                timeout=10
             )
             
             if response.status_code != 200:
@@ -47,6 +54,9 @@ class XUIClient:
                 
             logger.info("Successfully logged in to 3x-UI panel")
             
+        except RequestException as e:
+            logger.error(f"Network error while logging in to 3x-UI panel: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error logging in to 3x-UI panel: {e}")
             raise
@@ -62,24 +72,34 @@ class XUIClient:
             
         Returns:
             API response data
+            
+        Raises:
+            Exception: If the request fails or returns an error
         """
         try:
             url = f"{self.base_url}/{endpoint.lstrip('/')}"
-            response = self.session.request(method, url, **kwargs)
+            response = self.session.request(method, url, timeout=10, **kwargs)
             
             if response.status_code == 401:
                 # Session expired, try to login again
                 self._login()
-                response = self.session.request(method, url, **kwargs)
+                response = self.session.request(method, url, timeout=10, **kwargs)
             
             if response.status_code != 200:
-                raise Exception(f"API request failed: {response.text}")
+                error_msg = f"API request failed: {response.text}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
             
             return response.json()
             
+        except RequestException as e:
+            error_msg = f"Network error while making API request: {e}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
         except Exception as e:
-            logger.error(f"Error making API request: {e}")
-            raise
+            error_msg = f"Error making API request: {e}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
     
     def get_inbounds(self) -> List[Dict[str, Any]]:
         """Get all inbound configurations."""
