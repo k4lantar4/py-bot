@@ -17,6 +17,11 @@ const AccessibilitySettings = React.lazy(() => import('../components/Settings/Ac
 const KeyboardShortcuts = React.lazy(() => import('../components/Settings/KeyboardShortcuts'));
 const TutorialGuide = React.lazy(() => import('../components/Tutorial/TutorialGuide'));
 
+// Lazy load our new components
+const UserDashboard = React.lazy(() => import('../components/Dashboard'));
+const AccountManagement = React.lazy(() => import('../pages/AccountManagement'));
+const AdminDashboard = React.lazy(() => import('../pages/AdminDashboard'));
+
 // Loading component
 const LoadingFallback = () => (
   <Box
@@ -39,6 +44,30 @@ const AppRoutes = () => {
           element={
             <ResponsiveLayout title="Dashboard">
               <Dashboard />
+            </ResponsiveLayout>
+          }
+        />
+        <Route
+          path="/user-dashboard"
+          element={
+            <ResponsiveLayout title="User Dashboard">
+              <UserDashboard />
+            </ResponsiveLayout>
+          }
+        />
+        <Route
+          path="/account-management"
+          element={
+            <ResponsiveLayout title="Account Management">
+              <AccountManagement />
+            </ResponsiveLayout>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ResponsiveLayout title="Admin Dashboard">
+              <AdminDashboard />
             </ResponsiveLayout>
           }
         />
