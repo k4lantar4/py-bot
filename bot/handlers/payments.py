@@ -30,6 +30,7 @@ from utils.database import (
     get_user_transactions,
     get_transaction,
     update_transaction,
+    get_all_users,
 )
 from utils.zarinpal import create_payment, verify_payment
 from utils.decorators import require_auth
@@ -110,13 +111,18 @@ async def payments_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 @require_auth
 async def card_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show card payment information."""
+    """Handle card payment selection."""
     query = update.callback_query
     await query.answer()
     
+    user_id = update.effective_user.id
     language_code = context.user_data.get("language", "en")
     
-    text = get_text("card_payment_info", language_code).format(
+    # Setup payment information in context
+    context.user_data["payment_method"] = "card"
+    
+    # Display card payment information
+    message = get_text("card_payment_info", language_code).format(
         card_number=CARD_NUMBER,
         card_holder=CARD_HOLDER,
         bank_name=BANK_NAME
@@ -125,43 +131,65 @@ async def card_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     keyboard = [
         [
             InlineKeyboardButton(
-                get_text("submit_receipt", language_code),
-                callback_data=VERIFY_PAYMENT
+                get_text("enter_amount", language_code),
+                callback_data=f"{PAYMENTS_CB}_enter_amount"
             )
         ],
         [
             InlineKeyboardButton(
-                get_text("cancel_payment", language_code),
-                callback_data=CANCEL_PAYMENT
+                get_text("back_to_payments", language_code),
+                callback_data=PAYMENTS_CB
             )
-        ],
+        ]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text=text, reply_markup=reply_markup)
     
-    return ENTERING_RECEIPT
+    await query.edit_message_text(
+        text=message,
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN
+    )
+    
+    return ENTERING_AMOUNT
 
 @require_auth
 async def zarinpal_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Start Zarinpal payment process."""
+    """Handle Zarinpal payment selection."""
     query = update.callback_query
     await query.answer()
     
+    user_id = update.effective_user.id
     language_code = context.user_data.get("language", "en")
     
-    text = get_text("enter_payment_amount", language_code)
+    # Setup payment information in context
+    context.user_data["payment_method"] = "zarinpal"
+    
+    # Display Zarinpal payment information
+    message = get_text("zarinpal_payment_info", language_code)
+    
     keyboard = [
         [
             InlineKeyboardButton(
-                get_text("cancel_payment", language_code),
-                callback_data=CANCEL_PAYMENT
+                get_text("enter_amount", language_code),
+                callback_data=f"{PAYMENTS_CB}_enter_amount"
             )
         ],
+        [
+            InlineKeyboardButton(
+                get_text("back_to_payments", language_code),
+                callback_data=PAYMENTS_CB
+            )
+        ]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text=text, reply_markup=reply_markup)
+    
+    await query.edit_message_text(
+        text=message,
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN
+    )
     
     return ENTERING_AMOUNT
 
@@ -170,21 +198,159 @@ async def process_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """Process the entered payment amount."""
     user_id = update.effective_user.id
     language_code = context.user_data.get("language", "en")
-    amount_text = update.message.text
     
+    # Check if coming from callback query or message
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        
+        # Ask for amount
+        message = get_text("enter_payment_amount", language_code)
+        
+        await query.edit_message_text(
+            text=message,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        return ENTERING_AMOUNT
+    
+    # If message, process the amount
     try:
-        amount = int(amount_text)
-        if amount < 10000:  # Minimum amount in Tomans
-            text = get_text("amount_too_small", language_code)
+        amount = int(update.message.text.strip())
+        
+        # Validate amount (minimum 10,000 Tomans)
+        if amount < 10000:
+            await update.message.reply_text(
+                get_text("min_payment_amount_error", language_code).format(min_amount=10000),
+                parse_mode=ParseMode.MARKDOWN
+            )
             return ENTERING_AMOUNT
         
-        # Create Zarinpal payment
-        payment_url = create_payment(amount, user_id)
-        if not payment_url:
-            text = get_text("payment_creation_failed", language_code)
-            return SELECTING_METHOD
+        # Store amount in context
+        context.user_data["payment_amount"] = amount
+        payment_method = context.user_data.get("payment_method")
         
-        text = get_text("payment_link_info", language_code)
+        # Confirm payment
+        message = get_text("confirm_payment", language_code).format(
+            amount=format_number(amount, language_code),
+            method=get_text(f"{payment_method}_payment_name", language_code)
+        )
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    get_text("confirm", language_code),
+                    callback_data=f"{PAYMENTS_CB}_confirm"
+                ),
+                InlineKeyboardButton(
+                    get_text("cancel", language_code),
+                    callback_data=CANCEL_PAYMENT
+                )
+            ]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        return CONFIRMING_PAYMENT
+        
+    except ValueError:
+        # Invalid amount
+        await update.message.reply_text(
+            get_text("invalid_amount", language_code),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return ENTERING_AMOUNT
+
+@require_auth
+async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Process payment confirmation."""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id
+    language_code = context.user_data.get("language", "en")
+    payment_method = context.user_data.get("payment_method")
+    amount = context.user_data.get("payment_amount")
+    
+    # Process payment based on method
+    if payment_method == "card":
+        # Create card payment transaction
+        transaction_id = create_transaction(
+            user_id=user_id,
+            amount=amount,
+            payment_method="card",
+            description="Card payment from Telegram bot"
+        )
+        
+        if not transaction_id:
+            await query.edit_message_text(
+                get_text("payment_creation_error", language_code),
+                parse_mode=ParseMode.MARKDOWN
+            )
+            return ConversationHandler.END
+        
+        # Store transaction ID in context
+        context.user_data["transaction_id"] = transaction_id
+        
+        # Ask user to upload receipt
+        message = get_text("card_payment_instructions", language_code).format(
+            amount=format_number(amount, language_code),
+            card_number=CARD_NUMBER,
+            card_holder=CARD_HOLDER,
+            bank_name=BANK_NAME
+        )
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    get_text("cancel_payment", language_code),
+                    callback_data=CANCEL_PAYMENT
+                )
+            ]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        return ENTERING_RECEIPT
+        
+    elif payment_method == "zarinpal":
+        # Create Zarinpal payment
+        result = create_payment(
+            user_id=user_id,
+            amount=amount,
+            description="Zarinpal payment from Telegram bot"
+        )
+        
+        if not result or not result.get("success"):
+            error_message = result.get("error_message", "Unknown error") if result else "Payment creation failed"
+            await query.edit_message_text(
+                get_text("payment_creation_error", language_code) + f"\n\n{error_message}",
+                parse_mode=ParseMode.MARKDOWN
+            )
+            return ConversationHandler.END
+        
+        # Get payment link and transaction ID
+        payment_url = result.get("payment_url")
+        transaction_id = result.get("transaction_id")
+        
+        # Store transaction ID in context
+        context.user_data["transaction_id"] = transaction_id
+        
+        # Send payment link
+        message = get_text("zarinpal_payment_link", language_code)
+        
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -203,87 +369,100 @@ async def process_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     get_text("cancel_payment", language_code),
                     callback_data=CANCEL_PAYMENT
                 )
-            ],
-        ]
-        
-    except ValueError:
-        text = get_text("invalid_amount", language_code)
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    get_text("try_again", language_code),
-                    callback_data=ZARINPAL_PAYMENT
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    get_text("cancel_payment", language_code),
-                    callback_data=CANCEL_PAYMENT
-                )
-            ],
-        ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(text=text, reply_markup=reply_markup)
-    
-    return VERIFYING_PAYMENT
-
-@require_auth
-async def process_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Process the submitted payment receipt."""
-    user_id = update.effective_user.id
-    language_code = context.user_data.get("language", "en")
-    
-    # Check if a photo was sent
-    if not update.message.photo:
-        text = get_text("receipt_photo_required", language_code)
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    get_text("try_again", language_code),
-                    callback_data=CARD_PAYMENT
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    get_text("cancel_payment", language_code),
-                    callback_data=CANCEL_PAYMENT
-                )
-            ],
+            ]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(text=text, reply_markup=reply_markup)
+        
+        await query.edit_message_text(
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        return VERIFYING_PAYMENT
+    
+    else:
+        # Unsupported payment method
+        await query.edit_message_text(
+            get_text("unsupported_payment_method", language_code),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return ConversationHandler.END
+
+@require_auth
+async def process_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Process the receipt information for card payments."""
+    user_id = update.effective_user.id
+    language_code = context.user_data.get("language", "en")
+    transaction_id = context.user_data.get("transaction_id")
+    
+    if not update.message:
+        # Expecting a text message with receipt information
+        await update.callback_query.edit_message_text(
+            get_text("enter_receipt_info", language_code),
+            parse_mode=ParseMode.MARKDOWN
+        )
         return ENTERING_RECEIPT
     
-    # Get the largest photo (best quality)
-    photo = update.message.photo[-1]
+    # Get receipt information (tracking number)
+    tracking_number = update.message.text.strip()
     
-    # Create a pending transaction
-    transaction = create_transaction(
-        user_id=user_id,
-        amount=0,  # Will be updated by admin
-        payment_method="card",
-        status="pending",
-        receipt_id=photo.file_id
+    # Validate tracking number
+    if not tracking_number or len(tracking_number) < 4:
+        await update.message.reply_text(
+            get_text("invalid_receipt", language_code),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return ENTERING_RECEIPT
+    
+    # Update transaction with receipt information
+    success = update_transaction(
+        transaction_id,
+        receipt_number=tracking_number,
+        status="pending_verification"
     )
     
-    # Notify admin about new receipt (implement in admin handler)
+    if not success:
+        await update.message.reply_text(
+            get_text("receipt_update_error", language_code),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return ENTERING_RECEIPT
     
-    text = get_text("receipt_submitted", language_code)
+    # Send confirmation to user
+    message = get_text("receipt_submitted", language_code).format(
+        transaction_id=transaction_id,
+        tracking_number=tracking_number
+    )
+    
     keyboard = [
+        [
+            InlineKeyboardButton(
+                get_text("check_payment_status", language_code),
+                callback_data=f"{PAYMENTS_CB}_check:{transaction_id}"
+            )
+        ],
         [
             InlineKeyboardButton(
                 get_text("back_to_payments", language_code),
                 callback_data=PAYMENTS_CB
             )
-        ],
+        ]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(text=text, reply_markup=reply_markup)
     
-    return SELECTING_METHOD
+    await update.message.reply_text(
+        text=message,
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN
+    )
+    
+    # Notify admins about the new payment
+    await notify_admins_new_payment(context.bot, transaction_id, "card", user_id)
+    
+    return ConversationHandler.END
 
 @require_auth
 async def verify_zarinpal_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -293,58 +472,113 @@ async def verify_zarinpal_payment(update: Update, context: ContextTypes.DEFAULT_
     
     user_id = update.effective_user.id
     language_code = context.user_data.get("language", "en")
+    transaction_id = context.user_data.get("transaction_id")
     
-    # Get the latest pending Zarinpal transaction
-    transaction = get_transaction(user_id, "zarinpal", "pending")
+    if not transaction_id:
+        await query.edit_message_text(
+            get_text("no_transaction_id", language_code),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return ConversationHandler.END
+    
+    # Check transaction status
+    transaction = get_transaction(transaction_id)
+    
     if not transaction:
-        text = get_text("no_pending_payment", language_code)
+        await query.edit_message_text(
+            get_text("transaction_not_found", language_code),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return ConversationHandler.END
+    
+    status = transaction.get("status")
+    
+    if status == "completed":
+        # Payment successful
+        message = get_text("payment_successful", language_code).format(
+            amount=format_number(transaction.get("amount"), language_code),
+            transaction_id=transaction_id,
+            date=format_date(transaction.get("updated_at"), language_code)
+        )
+        
         keyboard = [
             [
                 InlineKeyboardButton(
                     get_text("back_to_payments", language_code),
                     callback_data=PAYMENTS_CB
                 )
-            ],
+            ]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=text, reply_markup=reply_markup)
-        return SELECTING_METHOD
-    
-    # Verify payment with Zarinpal
-    if verify_payment(transaction["payment_id"]):
-        # Update transaction status
-        update_transaction(transaction["id"], {"status": "completed"})
         
-        # Update user's wallet balance
-        user = get_user(user_id)
-        new_balance = user.get("wallet_balance", 0) + transaction["amount"]
-        update_user(user_id, {"wallet_balance": new_balance})
-        
-        text = get_text("payment_successful", language_code).format(
-            amount=format_number(transaction["amount"], language_code),
-            balance=format_number(new_balance, language_code)
+        await query.edit_message_text(
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
         )
+        
+        return ConversationHandler.END
+        
+    elif status == "failed":
+        # Payment failed
+        message = get_text("payment_failed", language_code).format(
+            transaction_id=transaction_id
+        )
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    get_text("try_again", language_code),
+                    callback_data=PAYMENTS_CB
+                )
+            ]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        return ConversationHandler.END
+        
     else:
-        text = get_text("payment_verification_failed", language_code)
-    
-    keyboard = [
-        [
-            InlineKeyboardButton(
-                get_text("back_to_payments", language_code),
-                callback_data=PAYMENTS_CB
-            )
-        ],
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text=text, reply_markup=reply_markup)
-    
-    return SELECTING_METHOD
+        # Payment still processing
+        message = get_text("payment_processing", language_code).format(
+            transaction_id=transaction_id
+        )
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    get_text("check_again", language_code),
+                    callback_data=VERIFY_PAYMENT
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    get_text("back_to_payments", language_code),
+                    callback_data=PAYMENTS_CB
+                )
+            ]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        return VERIFYING_PAYMENT
 
 @require_auth
 async def transaction_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show user's transaction history."""
+    """Show the user's transaction history."""
     query = update.callback_query
     await query.answer()
     
@@ -352,19 +586,44 @@ async def transaction_history(update: Update, context: ContextTypes.DEFAULT_TYPE
     language_code = context.user_data.get("language", "en")
     
     # Get user's transactions
-    transactions = get_user_transactions(user_id)
+    transactions = get_user_transactions(user_id, limit=10)
     
     if not transactions:
-        text = get_text("no_transactions", language_code)
-    else:
-        text = get_text("transaction_history_header", language_code) + "\n\n"
-        for tx in transactions:
-            text += get_text("transaction_item", language_code).format(
-                date=format_date(tx["created_at"], language_code),
-                amount=format_number(tx["amount"], language_code),
-                method=get_text(f"payment_method_{tx['payment_method']}", language_code),
-                status=get_text(f"payment_status_{tx['status']}", language_code)
-            ) + "\n"
+        # No transactions
+        message = get_text("no_transactions", language_code)
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    get_text("add_funds", language_code),
+                    callback_data=PAYMENTS_CB
+                )
+            ]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        return SELECTING_ACTION
+    
+    # Format transactions
+    transaction_text = get_text("transaction_history_header", language_code)
+    transaction_text += "\n\n"
+    
+    for i, tx in enumerate(transactions, 1):
+        status_text = get_text(f"status_{tx.get('status', 'pending')}", language_code)
+        tx_type = tx.get("type", "deposit")
+        type_text = get_text(f"transaction_type_{tx_type}", language_code)
+        
+        transaction_text += f"{i}. *{type_text}* - {format_number(tx.get('amount'), language_code)} Toman\n"
+        transaction_text += f"   📅 {format_date(tx.get('created_at'), language_code)}\n"
+        transaction_text += f"   🔖 ID: `{tx.get('id')}`\n"
+        transaction_text += f"   📊 {status_text}\n\n"
     
     keyboard = [
         [
@@ -372,13 +631,18 @@ async def transaction_history(update: Update, context: ContextTypes.DEFAULT_TYPE
                 get_text("back_to_payments", language_code),
                 callback_data=PAYMENTS_CB
             )
-        ],
+        ]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text=text, reply_markup=reply_markup)
     
-    return SELECTING_METHOD
+    await query.edit_message_text(
+        text=transaction_text,
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN
+    )
+    
+    return SELECTING_ACTION
 
 @require_auth
 async def cancel_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -403,34 +667,103 @@ async def cancel_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     return SELECTING_METHOD
 
+async def notify_admins_new_payment(bot, transaction_id, payment_method, user_id):
+    """Notify admins about a new payment."""
+    try:
+        # Get admin users
+        admins = get_all_users(limit=100, offset=0)
+        admins = [admin for admin in admins if admin.get("is_admin", False)]
+        
+        if not admins:
+            logger.warning("No admin users found to notify about new payment")
+            return
+        
+        # Get transaction details
+        transaction = get_transaction(transaction_id)
+        if not transaction:
+            logger.error(f"Transaction {transaction_id} not found for admin notification")
+            return
+        
+        # Get user details
+        user = get_user(user_id)
+        if not user:
+            logger.error(f"User {user_id} not found for admin notification")
+            return
+        
+        # Create notification message
+        method_name = "Card-to-Card" if payment_method == "card" else "Zarinpal"
+        
+        message = f"🔔 *New {method_name} Payment*\n\n"
+        message += f"👤 User: {user.get('username') or user.get('first_name')} (ID: {user_id})\n"
+        message += f"💰 Amount: {format_number(transaction.get('amount'), 'fa')} Toman\n"
+        message += f"🆔 Transaction ID: `{transaction_id}`\n"
+        message += f"⏱ Created at: {format_date(transaction.get('created_at'), 'fa')}\n\n"
+        
+        if payment_method == "card":
+            message += f"📝 Tracking Number: {transaction.get('receipt_number')}\n\n"
+        
+        message += "Please verify this payment in the admin panel."
+        
+        # Send notification to all admins
+        for admin in admins:
+            admin_id = admin.get("user_id")
+            if admin_id:
+                try:
+                    await bot.send_message(
+                        chat_id=admin_id,
+                        text=message,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to notify admin {admin_id}: {str(e)}")
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error notifying admins about new payment: {str(e)}")
+        return False
+
 def get_payments_handler() -> ConversationHandler:
-    """Create and return the payments conversation handler."""
+    """Get the payments conversation handler."""
     return ConversationHandler(
         entry_points=[
             CallbackQueryHandler(payments_menu, pattern=f"^{PAYMENTS_CB}$")
         ],
         states={
-            SELECTING_METHOD: [
+            SELECTING_ACTION: [
                 CallbackQueryHandler(card_payment, pattern=f"^{CARD_PAYMENT}$"),
                 CallbackQueryHandler(zarinpal_payment, pattern=f"^{ZARINPAL_PAYMENT}$"),
                 CallbackQueryHandler(transaction_history, pattern=f"^{TRANSACTION_HISTORY}$"),
             ],
+            SELECTING_METHOD: [
+                CallbackQueryHandler(card_payment, pattern=f"^{CARD_PAYMENT}$"),
+                CallbackQueryHandler(zarinpal_payment, pattern=f"^{ZARINPAL_PAYMENT}$"),
+                CallbackQueryHandler(payments_menu, pattern=f"^{PAYMENTS_CB}$"),
+            ],
             ENTERING_AMOUNT: [
+                CallbackQueryHandler(process_amount, pattern=f"^{PAYMENTS_CB}_enter_amount$"),
+                CallbackQueryHandler(payments_menu, pattern=f"^{PAYMENTS_CB}$"),
+                CallbackQueryHandler(card_payment, pattern=f"^{CARD_PAYMENT}$"),
+                CallbackQueryHandler(zarinpal_payment, pattern=f"^{ZARINPAL_PAYMENT}$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, process_amount),
+            ],
+            CONFIRMING_PAYMENT: [
+                CallbackQueryHandler(confirm_payment, pattern=f"^{PAYMENTS_CB}_confirm$"),
                 CallbackQueryHandler(cancel_payment, pattern=f"^{CANCEL_PAYMENT}$"),
             ],
             ENTERING_RECEIPT: [
-                MessageHandler(filters.PHOTO, process_receipt),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, process_receipt),
                 CallbackQueryHandler(cancel_payment, pattern=f"^{CANCEL_PAYMENT}$"),
             ],
             VERIFYING_PAYMENT: [
                 CallbackQueryHandler(verify_zarinpal_payment, pattern=f"^{VERIFY_PAYMENT}$"),
                 CallbackQueryHandler(cancel_payment, pattern=f"^{CANCEL_PAYMENT}$"),
+                CallbackQueryHandler(payments_menu, pattern=f"^{PAYMENTS_CB}$"),
             ],
         },
         fallbacks=[
-            CallbackQueryHandler(payments_menu, pattern="^menu$"),
+            CallbackQueryHandler(cancel_payment, pattern=f"^{CANCEL_PAYMENT}$"),
+            CallbackQueryHandler(payments_menu, pattern=f"^{PAYMENTS_CB}$"),
         ],
-        name="payments",
-        persistent=False
+        name="payments_conversation",
+        persistent=False,
     ) 

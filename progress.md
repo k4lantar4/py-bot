@@ -156,45 +156,87 @@
 
 ## Progress Tracking
 
-### Phase 1: Core Components Development
-- [x] Backend Models
-- [x] 3x-UI API Client
-- [x] Payment Processing
-- [x] API Endpoints
-  - [x] Serializers
-  - [x] ViewSets
-  - [x] URL Routing
-  - [x] Authentication
-  - [x] Permissions
-- [x] Telegram Bot Implementation
-  - [x] Bot Core Structure
-  - [x] Language Selection
-  - [x] User Management
-  - [x] Account Management
-  - [x] Card-to-Card Payment
-  - [x] Profile Management
-  - [x] Support System
-  - [x] Message Templates
-- [ ] Frontend UI components - Status: Not started
+### Backend API
+- ✅ User Authentication
+- ✅ User Management
+- ✅ Account Management
+- ✅ Server Management
+- ✅ Payment Processing
+- ✅ Wallet Management
+- ✅ Transaction History
 
-### Phase 2: Bot Functionality
-- [ ] Task: Complete Telegram bot handlers - Status: Not started
-- [ ] Task: Integrate bot with backend API - Status: Not started
-- [ ] Task: Add error handling and logging - Status: Not started
-- [ ] Task: Test bot functionality - Status: Not started
+### Telegram Bot
+- ✅ Bot Setup & Configuration
+- ✅ User Authentication (Login/Registration)
+- ✅ Main Menu Structure
+- ✅ Multi-language Support
+- ✅ Payment Handlers
+  - ✅ Card Payment
+  - ✅ Zarinpal Payment
+  - ✅ Transaction History
+- ✅ Account Handlers
+  - ✅ View Accounts
+  - ✅ View Account Details
+  - ✅ Create Account
+  - ✅ Renew Account
+  - ✅ Show Configuration (with QR code)
+- ✅ Profile Handlers
+  - ✅ View Profile
+  - ✅ Edit Profile
+  - ✅ Transaction History
+- ✅ Admin Handlers
+  - ✅ User Management
+  - ✅ Server Management
+  - ✅ Payment Verification
+  - ✅ System Settings
+- ⏳ Server Management
+- ✅ Notification System
+  - ✅ User Preferences
+  - ✅ Account Expiry Notifications
+  - ✅ Traffic Usage Alerts
+  - ✅ Payment Status Updates
+  - ✅ Server Status Notifications
 
-### Phase 3: Backend & Frontend
-- [ ] Task: Complete API endpoints and views - Status: Not started
-- [ ] Task: Implement frontend UI components - Status: Not started
-- [ ] Task: Integrate frontend with backend API - Status: Not started
-- [ ] Task: Add internationalization support - Status: Not started
+### Web Dashboard
+- ⏳ User Dashboard
+- ⏳ Admin Dashboard
+- ⏳ Account Management UI
+- ⏳ Payment Processing UI
+- ⏳ Server Management UI
 
-### Phase 4: Testing and Deployment
-- [ ] Task: Test entire system with simulated users - Status: Not started
-- [ ] Task: Test payment processing - Status: Not started
-- [ ] Task: Test 3x-UI integration - Status: Not started
-- [ ] Task: Verify Docker deployment - Status: Not started
-- [ ] Task: Update documentation and guides - Status: Not started
+### 3x-UI Integration
+- ✅ API Client
+- ✅ Session Management
+- ✅ Account Creation
+- ✅ Traffic Monitoring
+- ⏳ Server Statistics
+
+### Deployment
+- ⏳ Docker Configuration
+- ⏳ Installation Script
+- ⏳ Documentation
+  - ⏳ User Guide (Persian)
+  - ⏳ Admin Guide (Persian)
+  - ⏳ Developer Notes (English)
+
+## Next Steps
+1. ✅ Complete Profile Handlers in the Telegram bot
+2. ✅ Implement Admin Handlers for server and user management
+3. ✅ Add notification system for new payments and accounts
+4. Begin work on the Web Dashboard
+   - Create user dashboard UI
+   - Implement account management interface
+   - Add payment processing UI
+   - Create admin dashboard
+5. Create Docker deployment configuration
+   - Set up Docker Compose for all services
+   - Create installation script
+   - Configure Nginx for web and webhook
+   - Add SSL support
+6. Write comprehensive documentation
+   - User guide in Persian
+   - Admin guide in Persian
+   - Developer notes in English
 
 ## Local Run (2024-03-13)
 
