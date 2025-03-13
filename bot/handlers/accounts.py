@@ -10,6 +10,7 @@ This module implements handlers for managing V2Ray accounts including:
 
 import logging
 import uuid
+import os
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -39,13 +40,17 @@ logger = logging.getLogger(__name__)
 
 # XUI client configuration
 XUI_CONFIG = {
-    "base_url": "http://your-panel-url",  # Replace with actual panel URL
-    "username": "admin",  # Replace with actual username
-    "password": "password",  # Replace with actual password
+    "base_url": os.getenv("XUI_PANEL_URL", "http://localhost:8080"),
+    "username": os.getenv("XUI_PANEL_USERNAME", "admin"),
+    "password": os.getenv("XUI_PANEL_PASSWORD", "admin"),
 }
 
 # Initialize XUI client
-xui_client = XUIClient(**XUI_CONFIG)
+try:
+    xui_client = XUIClient(**XUI_CONFIG)
+except Exception as e:
+    logger.error(f"Failed to initialize XUI client: {e}")
+    xui_client = None
 
 # Conversation states
 (
@@ -531,5 +536,5 @@ def get_accounts_handler() -> ConversationHandler:
             CallbackQueryHandler(accounts_menu, pattern="^menu$"),
         ],
         name="accounts",
-        persistent=True
+        persistent=False
     ) 

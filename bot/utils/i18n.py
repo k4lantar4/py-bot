@@ -21,6 +21,11 @@ AVAILABLE_LANGUAGES = {
     "fa": "فارسی"
 }
 
+def setup_i18n() -> None:
+    """Initialize the internationalization system."""
+    load_translations()
+    logger.info("Internationalization system initialized")
+
 def load_translations() -> None:
     """Load all translation files."""
     i18n_dir = Path(__file__).parent.parent / "i18n"

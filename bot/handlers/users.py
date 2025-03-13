@@ -457,6 +457,7 @@ def get_user_handler() -> ConversationHandler:
             CallbackQueryHandler(profile_menu, pattern="^menu$"),
             CommandHandler("cancel", profile_menu),
         ],
-        name="user_conversation",
-        persistent=True,
+        name="users",
+        persistent=False,
+        per_message=False
     ) 

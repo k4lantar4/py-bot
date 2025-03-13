@@ -32,10 +32,17 @@ class XUIClient:
         self.password = password or os.getenv("XUI_PANEL_PASSWORD", "")
         
         if not all([self.base_url, self.username, self.password]):
-            raise ValueError("Missing required XUI panel credentials. Set XUI_PANEL_URL, XUI_PANEL_USERNAME, and XUI_PANEL_PASSWORD environment variables.")
+            logger.warning("Missing required XUI panel credentials. Some features may not work properly.")
         
         self.session = requests.Session()
-        self._login()
+        self.is_connected = False
+        
+        try:
+            self._login()
+            self.is_connected = True
+        except Exception as e:
+            logger.error(f"Failed to connect to 3x-UI panel: {e}")
+            # Continue without crashing
     
     def _login(self) -> None:
         """Login to the 3x-UI panel."""
@@ -50,56 +57,76 @@ class XUIClient:
             )
             
             if response.status_code != 200:
-                raise Exception(f"Login failed: {response.text}")
+                logger.error(f"Failed to login to 3x-UI panel: HTTP {response.status_code}")
+                return
+                
+            data = response.json()
+            if not data.get("success"):
+                logger.error(f"Failed to login to 3x-UI panel: {data.get('msg', 'Unknown error')}")
+                return
                 
             logger.info("Successfully logged in to 3x-UI panel")
             
         except RequestException as e:
             logger.error(f"Network error while logging in to 3x-UI panel: {e}")
             raise
-        except Exception as e:
-            logger.error(f"Error logging in to 3x-UI panel: {e}")
-            raise
     
     def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """
-        Make an API request.
+        Make a request to the 3x-UI API.
         
         Args:
-            method: HTTP method
+            method: HTTP method (GET, POST, etc.)
             endpoint: API endpoint
-            **kwargs: Additional request arguments
+            **kwargs: Additional arguments to pass to requests
             
         Returns:
-            API response data
+            Response data as dictionary
             
         Raises:
-            Exception: If the request fails or returns an error
+            Exception: If the request fails
         """
+        if not self.is_connected:
+            logger.warning("Not connected to 3x-UI panel. Returning empty response.")
+            return {"success": False, "msg": "Not connected to 3x-UI panel", "obj": None}
+        
+        url = f"{self.base_url}{endpoint}"
+        
         try:
-            url = f"{self.base_url}/{endpoint.lstrip('/')}"
-            response = self.session.request(method, url, timeout=10, **kwargs)
+            response = self.session.request(
+                method,
+                url,
+                **kwargs
+            )
             
-            if response.status_code == 401:
-                # Session expired, try to login again
+            # Check if session expired
+            if response.status_code == 401 or "login" in response.url:
+                logger.info("Session expired, logging in again")
                 self._login()
-                response = self.session.request(method, url, timeout=10, **kwargs)
+                # Retry the request
+                response = self.session.request(
+                    method,
+                    url,
+                    **kwargs
+                )
             
-            if response.status_code != 200:
-                error_msg = f"API request failed: {response.text}"
-                logger.error(error_msg)
-                raise Exception(error_msg)
+            # Parse response
+            try:
+                data = response.json()
+            except ValueError:
+                logger.error(f"Invalid JSON response: {response.text}")
+                return {"success": False, "msg": "Invalid response from server", "obj": None}
             
-            return response.json()
+            if not data.get("success"):
+                logger.error(f"API request failed: {data.get('msg', 'Unknown error')}")
             
+            return data
         except RequestException as e:
-            error_msg = f"Network error while making API request: {e}"
-            logger.error(error_msg)
-            raise Exception(error_msg)
+            logger.error(f"Network error during API request: {e}")
+            return {"success": False, "msg": f"Network error: {str(e)}", "obj": None}
         except Exception as e:
-            error_msg = f"Error making API request: {e}"
-            logger.error(error_msg)
-            raise Exception(error_msg)
+            logger.error(f"Error during API request: {e}")
+            return {"success": False, "msg": f"Error: {str(e)}", "obj": None}
     
     def get_inbounds(self) -> List[Dict[str, Any]]:
         """Get all inbound configurations."""

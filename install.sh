@@ -120,7 +120,7 @@ cd /opt/v2ray-bot
 # Clone repository if not already cloned
 if [ ! -d ".git" ]; then
     print_status "Cloning repository..."
-    if ! git clone https://github.com/yourusername/v2ray-bot.git .; then
+    if ! git clone https://github.com/k4lantar4/py-bot.git .; then
         print_error "Failed to clone repository"
         exit 1
     fi

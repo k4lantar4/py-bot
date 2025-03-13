@@ -1024,5 +1024,5 @@ def get_admin_handler() -> ConversationHandler:
             CallbackQueryHandler(admin_menu, pattern="^menu$"),
         ],
         name="admin",
-        persistent=True
+        persistent=False
     ) 

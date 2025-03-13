@@ -403,8 +403,8 @@ def get_support_handler() -> ConversationHandler:
         },
         fallbacks=[
             CallbackQueryHandler(support_menu, pattern="^menu$"),
-            CommandHandler("cancel", support_menu),
         ],
-        name="support_conversation",
-        persistent=True,
+        name="support",
+        persistent=False,
+        per_message=False
     ) 

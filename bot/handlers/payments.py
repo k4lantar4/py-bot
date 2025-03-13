@@ -430,8 +430,7 @@ def get_payments_handler() -> ConversationHandler:
         },
         fallbacks=[
             CallbackQueryHandler(payments_menu, pattern="^menu$"),
-            CallbackQueryHandler(cancel_payment, pattern=f"^{CANCEL_PAYMENT}$"),
         ],
         name="payments",
-        persistent=True
+        persistent=False
     ) 

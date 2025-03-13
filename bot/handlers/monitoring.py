@@ -328,5 +328,5 @@ def get_monitoring_handler() -> ConversationHandler:
             CallbackQueryHandler(monitoring_menu, pattern="^menu$"),
         ],
         name="monitoring",
-        persistent=True
+        persistent=False
     ) 

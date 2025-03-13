@@ -88,7 +88,7 @@ def main() -> None:
     application.add_handler(accounts.get_accounts_handler())
     
     # Payment handlers
-    application.add_handler(payments.get_payment_handler())
+    application.add_handler(payments.get_payments_handler())
     
     # Admin handlers
     application.add_handler(admin.get_admin_handler())
@@ -109,18 +109,8 @@ def main() -> None:
     application.add_error_handler(error_handler)
     
     # Start the Bot
-    webhook_url = os.getenv("TELEGRAM_WEBHOOK_URL")
-    if webhook_url:
-        # Use webhook
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=8443,
-            url_path=token,
-            webhook_url=f"{webhook_url}/{token}"
-        )
-    else:
-        # Use polling (for development)
-        application.run_polling()
+    # Always use polling for now
+    application.run_polling()
 
 
 async def error_handler(update: Optional[Update], context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -154,8 +154,8 @@ def get_notifications_handler() -> ConversationHandler:
             ]
         },
         fallbacks=[
-            CallbackQueryHandler(notifications_menu, pattern="^profile_settings$")
+            CallbackQueryHandler(notifications_menu, pattern="^menu$"),
         ],
         name="notifications",
-        persistent=True
+        persistent=False
     ) 

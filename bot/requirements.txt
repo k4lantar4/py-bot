@@ -3,8 +3,8 @@ python-telegram-bot==20.7
 
 # HTTP and API
 requests==2.31.0
-httpx==0.25.1
-pyzarinpal==1.0.0
+httpx==0.25.2
+# pyzarinpal==1.0.0 - Not available in PyPI
 
 # Database
 aiosqlite==0.19.0
