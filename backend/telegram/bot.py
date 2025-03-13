@@ -10,6 +10,8 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 import re
 from datetime import datetime
+import secrets
+from django.db import models
 
 from main.models import Server, SubscriptionPlan, Subscription
 from v2ray.models import Inbound, Client, SyncLog, ClientConfig
@@ -42,8 +44,17 @@ User = get_user_model()
     ADMIN_USER_MENU,
     ADMIN_PLAN_MENU,
     ADMIN_PAYMENT_MENU,
-    ADMIN_DISCOUNT_MENU
-) = range(16)
+    ADMIN_DISCOUNT_MENU,
+    FAQ_MENU,
+    TUTORIAL_MENU,
+    TUTORIAL_CATEGORY,
+    REFERRAL_MENU,
+    PREFERENCES_MENU,
+    SETTING_EXPIRY_DAYS,
+    SETTING_USAGE_THRESHOLD,
+    SPEED_TEST_MENU,
+    USAGE_STATS_MENU
+) = range(25)
 
 # Helper function to get message template
 def get_message(name, lang='fa'):
@@ -181,6 +192,18 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             [InlineKeyboardButton(get_message('btn_my_accounts', language_code), callback_data="menu_accounts")],
             [InlineKeyboardButton(get_message('btn_buy_subscription', language_code), callback_data="menu_buy")],
             [InlineKeyboardButton(get_message('btn_payment', language_code), callback_data="menu_payment")],
+            [
+                InlineKeyboardButton(get_message('btn_usage_stats', language_code), callback_data="menu_stats"),
+                InlineKeyboardButton(get_message('btn_speed_test', language_code), callback_data="menu_speedtest")
+            ],
+            [
+                InlineKeyboardButton(get_message('btn_tutorials', language_code), callback_data="menu_tutorials"),
+                InlineKeyboardButton(get_message('btn_faq', language_code), callback_data="menu_faq")
+            ],
+            [
+                InlineKeyboardButton(get_message('btn_referral', language_code), callback_data="menu_referral"),
+                InlineKeyboardButton(get_message('btn_preferences', language_code), callback_data="menu_preferences")
+            ],
             [InlineKeyboardButton(get_message('btn_support', language_code), callback_data="menu_support")],
             [InlineKeyboardButton(get_message('btn_profile', language_code), callback_data="menu_profile")],
         ]
@@ -225,6 +248,18 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return await show_plans(update, context)
     elif action == "payment":
         return await show_payment_menu(update, context)
+    elif action == "stats":
+        return await show_usage_stats(update, context)
+    elif action == "speedtest":
+        return await show_speed_test(update, context)
+    elif action == "tutorials":
+        return await show_tutorials(update, context)
+    elif action == "faq":
+        return await show_faq(update, context)
+    elif action == "referral":
+        return await show_referral_menu(update, context)
+    elif action == "preferences":
+        return await show_preferences(update, context)
     elif action == "support":
         return await start_support_conversation(update, context)
     elif action == "profile":
@@ -1180,6 +1215,840 @@ async def back_to_payment_menu(update: Update, context: ContextTypes.DEFAULT_TYP
     """Go back to payment menu."""
     return await show_payment_menu(update, context)
 
+# FAQ handlers
+async def show_faq(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show FAQ menu."""
+    query = update.callback_query
+    if query:
+        await query.answer()
+    
+    user = update.effective_user
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get active FAQs
+        faqs = FAQ.objects.filter(
+            language_code=language_code,
+            is_active=True
+        ).order_by('order', 'created_at')
+        
+        if not faqs.exists():
+            # No FAQs available
+            message = get_message('no_faqs', language_code)
+            keyboard = [
+                [InlineKeyboardButton(get_message('btn_back_main', language_code), callback_data="back_main")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            if query:
+                await query.edit_message_text(message, reply_markup=reply_markup)
+            else:
+                await update.message.reply_text(message, reply_markup=reply_markup)
+                
+            return MAIN_MENU
+        
+        # Show FAQ list
+        message = get_message('faq_menu', language_code)
+        keyboard = []
+        
+        for faq in faqs:
+            keyboard.append([InlineKeyboardButton(faq.question, callback_data=f"faq_{faq.id}")])
+        
+        # Add back button
+        keyboard.append([InlineKeyboardButton(get_message('btn_back_main', language_code), callback_data="back_main")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if query:
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        else:
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        
+        return FAQ_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        message = get_message('error_user_not_found', 'fa')
+        
+        if query:
+            await query.edit_message_text(message)
+        else:
+            await update.message.reply_text(message)
+            
+        return ConversationHandler.END
+
+async def show_faq_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show answer for selected FAQ."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = update.effective_user
+    faq_id = int(query.data.split('_')[1])
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get FAQ
+        faq = FAQ.objects.get(id=faq_id, language_code=language_code)
+        
+        # Format message with question and answer
+        message = f"*{faq.question}*\n\n{faq.answer}"
+        
+        # Add back button
+        keyboard = [
+            [InlineKeyboardButton(get_message('btn_back_faq', language_code), callback_data="back_faq")],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        
+        return FAQ_MENU
+        
+    except (User.DoesNotExist, FAQ.DoesNotExist):
+        logger.error(f"Error showing FAQ answer for user: {user.id}, faq_id: {faq_id}")
+        await query.edit_message_text(get_message('error_general', 'fa'))
+        return ConversationHandler.END
+
+# Tutorial handlers
+async def show_tutorials(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show tutorial categories menu."""
+    query = update.callback_query
+    if query:
+        await query.answer()
+    
+    user = update.effective_user
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get unique platforms with active tutorials
+        platforms = Tutorial.objects.filter(
+            language_code=language_code,
+            is_active=True
+        ).values_list('platform', flat=True).distinct()
+        
+        if not platforms.exists():
+            # No tutorials available
+            message = get_message('no_tutorials', language_code)
+            keyboard = [
+                [InlineKeyboardButton(get_message('btn_back_main', language_code), callback_data="back_main")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            if query:
+                await query.edit_message_text(message, reply_markup=reply_markup)
+            else:
+                await update.message.reply_text(message, reply_markup=reply_markup)
+                
+            return MAIN_MENU
+        
+        # Show platform selection
+        message = get_message('tutorial_menu', language_code)
+        keyboard = []
+        
+        for platform in platforms:
+            platform_name = get_message(f'platform_{platform}', language_code)
+            keyboard.append([InlineKeyboardButton(platform_name, callback_data=f"platform_{platform}")])
+        
+        # Add back button
+        keyboard.append([InlineKeyboardButton(get_message('btn_back_main', language_code), callback_data="back_main")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if query:
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        else:
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        
+        return TUTORIAL_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        message = get_message('error_user_not_found', 'fa')
+        
+        if query:
+            await query.edit_message_text(message)
+        else:
+            await update.message.reply_text(message)
+            
+        return ConversationHandler.END
+
+async def show_platform_tutorials(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show tutorials for selected platform."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = update.effective_user
+    platform = query.data.split('_')[1]
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get tutorials for platform
+        tutorials = Tutorial.objects.filter(
+            platform=platform,
+            language_code=language_code,
+            is_active=True
+        ).order_by('category', 'order', 'title')
+        
+        if not tutorials.exists():
+            # No tutorials for this platform
+            message = get_message('no_platform_tutorials', language_code)
+            keyboard = [
+                [InlineKeyboardButton(get_message('btn_back_tutorials', language_code), callback_data="back_tutorials")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(message, reply_markup=reply_markup)
+            return TUTORIAL_MENU
+        
+        # Group tutorials by category
+        tutorials_by_category = {}
+        for tutorial in tutorials:
+            if tutorial.category not in tutorials_by_category:
+                tutorials_by_category[tutorial.category] = []
+            tutorials_by_category[tutorial.category].append(tutorial)
+        
+        # Show tutorials grouped by category
+        message = get_message('platform_tutorials', language_code).format(
+            platform=get_message(f'platform_{platform}', language_code)
+        )
+        keyboard = []
+        
+        for category, category_tutorials in tutorials_by_category.items():
+            # Add category header
+            category_name = dict(Tutorial.CATEGORY_CHOICES)[category]
+            keyboard.append([InlineKeyboardButton(f"📚 {category_name}", callback_data=f"category_header")])
+            
+            # Add tutorials in category
+            for tutorial in category_tutorials:
+                keyboard.append([InlineKeyboardButton(tutorial.title, callback_data=f"tutorial_{tutorial.id}")])
+        
+        # Add back button
+        keyboard.append([InlineKeyboardButton(get_message('btn_back_tutorials', language_code), callback_data="back_tutorials")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        
+        return TUTORIAL_CATEGORY
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await query.edit_message_text(get_message('error_user_not_found', 'fa'))
+        return ConversationHandler.END
+
+async def show_tutorial(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show selected tutorial."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = update.effective_user
+    tutorial_id = int(query.data.split('_')[1])
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get tutorial
+        tutorial = Tutorial.objects.get(id=tutorial_id, language_code=language_code)
+        
+        # Format message with title and content
+        message = f"*{tutorial.title}*\n\n{tutorial.content}"
+        
+        # Add image if available
+        if tutorial.image_url:
+            # Note: You'll need to implement image sending separately
+            # as Telegram has a message length limit
+            pass
+        
+        # Add back button
+        keyboard = [
+            [InlineKeyboardButton(get_message('btn_back_tutorials', language_code), callback_data="back_tutorials")],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        
+        return TUTORIAL_CATEGORY
+        
+    except (User.DoesNotExist, Tutorial.DoesNotExist):
+        logger.error(f"Error showing tutorial for user: {user.id}, tutorial_id: {tutorial_id}")
+        await query.edit_message_text(get_message('error_general', 'fa'))
+        return ConversationHandler.END
+
+# Referral system handlers
+async def show_referral_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show referral system menu."""
+    query = update.callback_query
+    if query:
+        await query.answer()
+    
+    user = update.effective_user
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get or create referral code
+        referral_code, created = ReferralCode.objects.get_or_create(
+            user=db_user,
+            defaults={'code': secrets.token_hex(5)[:10]}
+        )
+        
+        # Get referral statistics
+        successful_referrals = ReferralUsage.objects.filter(
+            referral_code=referral_code,
+            bonus_applied=True
+        ).count()
+        
+        total_bonus = ReferralUsage.objects.filter(
+            referral_code=referral_code,
+            bonus_applied=True
+        ).aggregate(total=models.Sum('bonus_amount'))['total'] or 0
+        
+        # Get bonus amount from settings
+        bonus_amount = float(BotSetting.objects.get(key='referral_bonus_amount').value)
+        
+        # Show referral menu
+        message = get_message('referral_menu', language_code).format(
+            code=referral_code.code,
+            count=successful_referrals,
+            total_bonus=f"{total_bonus:,}",
+            bonus_amount=f"{bonus_amount:,}"
+        )
+        
+        # Add back button
+        keyboard = [
+            [InlineKeyboardButton(get_message('btn_back_main', language_code), callback_data="back_main")],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if query:
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        else:
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        
+        return REFERRAL_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        message = get_message('error_user_not_found', 'fa')
+        
+        if query:
+            await query.edit_message_text(message)
+        else:
+            await update.message.reply_text(message)
+            
+        return ConversationHandler.END
+
+async def handle_referral_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle referral code input."""
+    message_text = update.message.text
+    user = update.effective_user
+    
+    if message_text == '/skip':
+        # Skip referral code
+        return await show_main_menu(update, context)
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Check if user already used a referral code
+        if ReferralUsage.objects.filter(referred_user=db_user).exists():
+            await update.message.reply_text(get_message('referral_already_used', language_code))
+            return await show_main_menu(update, context)
+        
+        # Find referral code
+        try:
+            referral_code = ReferralCode.objects.get(code=message_text.strip())
+            
+            # Check if user is trying to use their own code
+            if referral_code.user == db_user:
+                await update.message.reply_text(get_message('referral_own_code', language_code))
+                return REFERRAL_MENU
+            
+            # Create referral usage
+            with transaction.atomic():
+                # Get bonus amount from settings
+                bonus_amount = float(BotSetting.objects.get(key='referral_bonus_amount').value)
+                
+                # Create usage record
+                usage = ReferralUsage.objects.create(
+                    referral_code=referral_code,
+                    referred_user=db_user,
+                    bonus_amount=bonus_amount
+                )
+                
+                # Add bonus to both users' wallets
+                referral_code.user.wallet_balance += bonus_amount
+                referral_code.user.save()
+                
+                db_user.wallet_balance += bonus_amount
+                db_user.save()
+                
+                # Mark bonus as applied
+                usage.bonus_applied = True
+                usage.save()
+                
+                # Send notifications
+                # To referred user
+                await update.message.reply_text(
+                    get_message('referral_code_used', language_code).format(
+                        bonus_amount=f"{bonus_amount:,}"
+                    ),
+                    parse_mode="Markdown"
+                )
+                
+                # To referrer
+                TelegramNotification.objects.create(
+                    user=referral_code.user,
+                    type='user',
+                    message=get_message('referral_bonus_received', language_code).format(
+                        username=db_user.username,
+                        bonus_amount=f"{bonus_amount:,}"
+                    )
+                )
+            
+            return await show_main_menu(update, context)
+            
+        except ReferralCode.DoesNotExist:
+            await update.message.reply_text(get_message('invalid_referral_code', language_code))
+            return REFERRAL_MENU
+            
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await update.message.reply_text(get_message('error_user_not_found', 'fa'))
+        return ConversationHandler.END
+
+# User preferences handlers
+async def show_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show user preferences menu."""
+    query = update.callback_query
+    if query:
+        await query.answer()
+    
+    user = update.effective_user
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get or create user preferences
+        preferences, created = UserPreference.objects.get_or_create(user=db_user)
+        
+        # Show preferences menu
+        message = get_message('preferences_menu', language_code).format(
+            notify_expiration="✅" if preferences.notify_expiration else "❌",
+            expiration_days=preferences.expiration_days_threshold,
+            notify_data_usage="✅" if preferences.notify_data_usage else "❌",
+            data_threshold=preferences.data_usage_threshold,
+            auto_renewal="✅" if preferences.auto_renewal else "❌"
+        )
+        
+        # Build keyboard
+        keyboard = [
+            [InlineKeyboardButton(get_message('btn_toggle_expiry_notify', language_code), 
+                                callback_data="pref_toggle_expiry")],
+            [InlineKeyboardButton(get_message('btn_set_expiry_days', language_code), 
+                                callback_data="pref_set_expiry_days")],
+            [InlineKeyboardButton(get_message('btn_toggle_usage_notify', language_code), 
+                                callback_data="pref_toggle_usage")],
+            [InlineKeyboardButton(get_message('btn_set_usage_threshold', language_code), 
+                                callback_data="pref_set_usage_threshold")],
+            [InlineKeyboardButton(get_message('btn_toggle_auto_renewal', language_code), 
+                                callback_data="pref_toggle_renewal")],
+            [InlineKeyboardButton(get_message('btn_back_main', language_code), 
+                                callback_data="back_main")],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if query:
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        else:
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        
+        return PREFERENCES_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        message = get_message('error_user_not_found', 'fa')
+        
+        if query:
+            await query.edit_message_text(message)
+        else:
+            await update.message.reply_text(message)
+            
+        return ConversationHandler.END
+
+async def handle_preferences_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle preferences menu button clicks."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = update.effective_user
+    action = query.data.split('_')[1]
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        preferences = UserPreference.objects.get(user=db_user)
+        
+        if action == "toggle_expiry":
+            # Toggle expiry notification
+            preferences.notify_expiration = not preferences.notify_expiration
+            preferences.save()
+            return await show_preferences(update, context)
+            
+        elif action == "set_expiry_days":
+            # Ask for expiry days
+            message = get_message('enter_expiry_days', language_code)
+            keyboard = [
+                [InlineKeyboardButton(get_message('btn_back_preferences', language_code), 
+                                    callback_data="back_preferences")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(message, reply_markup=reply_markup)
+            return SETTING_EXPIRY_DAYS
+            
+        elif action == "toggle_usage":
+            # Toggle usage notification
+            preferences.notify_data_usage = not preferences.notify_data_usage
+            preferences.save()
+            return await show_preferences(update, context)
+            
+        elif action == "set_usage_threshold":
+            # Ask for usage threshold
+            message = get_message('enter_usage_threshold', language_code)
+            keyboard = [
+                [InlineKeyboardButton(get_message('btn_back_preferences', language_code), 
+                                    callback_data="back_preferences")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(message, reply_markup=reply_markup)
+            return SETTING_USAGE_THRESHOLD
+            
+        elif action == "toggle_renewal":
+            # Toggle auto renewal
+            preferences.auto_renewal = not preferences.auto_renewal
+            preferences.save()
+            return await show_preferences(update, context)
+            
+        else:
+            return await show_preferences(update, context)
+            
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await query.edit_message_text(get_message('error_user_not_found', 'fa'))
+        return ConversationHandler.END
+
+async def handle_expiry_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle expiry days input."""
+    message_text = update.message.text
+    user = update.effective_user
+    
+    try:
+        # Try to parse days
+        try:
+            days = int(message_text.strip())
+            if not 1 <= days <= 30:
+                raise ValueError
+        except ValueError:
+            await update.message.reply_text(get_message('invalid_number', 'fa'))
+            return SETTING_EXPIRY_DAYS
+        
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Update preference
+        preferences = UserPreference.objects.get(user=db_user)
+        preferences.expiration_days_threshold = days
+        preferences.save()
+        
+        # Show success message
+        await update.message.reply_text(get_message('preferences_updated', language_code))
+        
+        # Return to preferences menu
+        return await show_preferences(update, context)
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await update.message.reply_text(get_message('error_user_not_found', 'fa'))
+        return ConversationHandler.END
+
+async def handle_usage_threshold(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle usage threshold input."""
+    message_text = update.message.text
+    user = update.effective_user
+    
+    try:
+        # Try to parse threshold
+        try:
+            threshold = int(message_text.strip())
+            if not 1 <= threshold <= 100:
+                raise ValueError
+        except ValueError:
+            await update.message.reply_text(get_message('invalid_number', 'fa'))
+            return SETTING_USAGE_THRESHOLD
+        
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Update preference
+        preferences = UserPreference.objects.get(user=db_user)
+        preferences.data_usage_threshold = threshold
+        preferences.save()
+        
+        # Show success message
+        await update.message.reply_text(get_message('preferences_updated', language_code))
+        
+        # Return to preferences menu
+        return await show_preferences(update, context)
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await update.message.reply_text(get_message('error_user_not_found', 'fa'))
+        return ConversationHandler.END
+
+# Usage statistics handlers
+async def show_usage_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show usage statistics menu."""
+    query = update.callback_query
+    if query:
+        await query.answer()
+    
+    user = update.effective_user
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get active subscriptions
+        subscriptions = Subscription.objects.filter(
+            user=db_user,
+            status='active'
+        ).order_by('-created_at')
+        
+        if not subscriptions.exists():
+            # No active subscriptions
+            message = get_message('no_active_accounts', language_code)
+            keyboard = [
+                [InlineKeyboardButton(get_message('btn_buy_subscription', language_code), callback_data="menu_buy")],
+                [InlineKeyboardButton(get_message('btn_back_main', language_code), callback_data="back_main")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            if query:
+                await query.edit_message_text(message, reply_markup=reply_markup)
+            else:
+                await update.message.reply_text(message, reply_markup=reply_markup)
+                
+            return MAIN_MENU
+        
+        # Show list of subscriptions
+        message = get_message('select_subscription_stats', language_code)
+        keyboard = []
+        
+        for subscription in subscriptions:
+            btn_text = f"{subscription.plan.name} - {subscription.remaining_days()} روز"
+            keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"stats_{subscription.id}")])
+        
+        # Add back button
+        keyboard.append([InlineKeyboardButton(get_message('btn_back_main', language_code), callback_data="back_main")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if query:
+            await query.edit_message_text(message, reply_markup=reply_markup)
+        else:
+            await update.message.reply_text(message, reply_markup=reply_markup)
+        
+        return USAGE_STATS_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        message = get_message('error_user_not_found', 'fa')
+        
+        if query:
+            await query.edit_message_text(message)
+        else:
+            await update.message.reply_text(message)
+            
+        return ConversationHandler.END
+
+async def show_subscription_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show statistics for selected subscription."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = update.effective_user
+    subscription_id = int(query.data.split('_')[1])
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get subscription
+        subscription = Subscription.objects.get(id=subscription_id, user=db_user)
+        
+        # Calculate statistics
+        total_days = (subscription.end_date - subscription.start_date).days
+        days_left = subscription.remaining_days()
+        days_used = total_days - days_left
+        
+        if days_used > 0:
+            daily_avg = subscription.data_usage_gb / days_used
+        else:
+            daily_avg = 0
+        
+        # Format period
+        period = f"{subscription.start_date.strftime('%Y-%m-%d')} تا {subscription.end_date.strftime('%Y-%m-%d')}"
+        
+        # Show statistics
+        message = get_message('usage_stats', language_code).format(
+            plan_name=subscription.plan.name,
+            period=period,
+            usage=f"{subscription.data_usage_gb:.2f}",
+            total=f"{subscription.data_limit_gb}" if subscription.data_limit_gb > 0 else get_message('unlimited', language_code),
+            percentage=f"{subscription.data_usage_percentage():.1f}",
+            daily_avg=f"{daily_avg:.2f}",
+            days_left=days_left
+        )
+        
+        # Add back button
+        keyboard = [
+            [InlineKeyboardButton(get_message('btn_back_stats', language_code), callback_data="back_stats")],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        
+        return USAGE_STATS_MENU
+        
+    except (User.DoesNotExist, Subscription.DoesNotExist):
+        logger.error(f"Error showing stats for user: {user.id}, subscription_id: {subscription_id}")
+        await query.edit_message_text(get_message('error_general', 'fa'))
+        return ConversationHandler.END
+
+# Speed test handlers
+async def show_speed_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show speed test menu."""
+    query = update.callback_query
+    if query:
+        await query.answer()
+    
+    user = update.effective_user
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get active subscriptions with their servers
+        subscriptions = Subscription.objects.filter(
+            user=db_user,
+            status='active'
+        ).select_related('server').order_by('-created_at')
+        
+        if not subscriptions.exists():
+            # No active subscriptions
+            message = get_message('no_active_accounts', language_code)
+            keyboard = [
+                [InlineKeyboardButton(get_message('btn_buy_subscription', language_code), callback_data="menu_buy")],
+                [InlineKeyboardButton(get_message('btn_back_main', language_code), callback_data="back_main")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            if query:
+                await query.edit_message_text(message, reply_markup=reply_markup)
+            else:
+                await update.message.reply_text(message, reply_markup=reply_markup)
+                
+            return MAIN_MENU
+        
+        # Show list of servers
+        message = get_message('select_server_speed_test', language_code)
+        keyboard = []
+        
+        # Get unique servers
+        servers = set()
+        for subscription in subscriptions:
+            if subscription.server not in servers:
+                servers.add(subscription.server)
+                keyboard.append([InlineKeyboardButton(subscription.server.name, callback_data=f"speedtest_{subscription.server.id}")])
+        
+        # Add back button
+        keyboard.append([InlineKeyboardButton(get_message('btn_back_main', language_code), callback_data="back_main")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if query:
+            await query.edit_message_text(message, reply_markup=reply_markup)
+        else:
+            await update.message.reply_text(message, reply_markup=reply_markup)
+        
+        return SPEED_TEST_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        message = get_message('error_user_not_found', 'fa')
+        
+        if query:
+            await query.edit_message_text(message)
+        else:
+            await update.message.reply_text(message)
+            
+        return ConversationHandler.END
+
+async def run_speed_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Run speed test for selected server."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = update.effective_user
+    server_id = int(query.data.split('_')[1])
+    
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        # Get server
+        server = Server.objects.get(id=server_id)
+        
+        # Show running message
+        await query.edit_message_text(get_message('speed_test_running', language_code))
+        
+        # Get latest server status
+        status = ServerStatus.objects.filter(server=server).latest()
+        
+        # Format results
+        message = get_message('speed_test', language_code).format(
+            download=f"{status.ping_ms / 10:.1f}",  # Simulated download speed
+            upload=f"{status.ping_ms / 20:.1f}",    # Simulated upload speed
+            ping=status.ping_ms,
+            server=server.name
+        )
+        
+        # Add back button
+        keyboard = [
+            [InlineKeyboardButton(get_message('btn_back_speed_test', language_code), callback_data="back_speedtest")],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        
+        return SPEED_TEST_MENU
+        
+    except (User.DoesNotExist, Server.DoesNotExist, ServerStatus.DoesNotExist):
+        logger.error(f"Error running speed test for user: {user.id}, server_id: {server_id}")
+        await query.edit_message_text(get_message('error_general', 'fa'))
+        return ConversationHandler.END
+
 # Setup function
 def setup_bot():
     """Set up and return the bot application."""
@@ -1228,6 +2097,47 @@ def setup_bot():
             ],
             SUPPORT_CONVERSATION: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_support_message),
+                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
+            ],
+            FAQ_MENU: [
+                CallbackQueryHandler(show_faq_answer, pattern=r"^faq_"),
+                CallbackQueryHandler(show_faq, pattern=r"^back_faq$"),
+                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
+            ],
+            TUTORIAL_MENU: [
+                CallbackQueryHandler(show_platform_tutorials, pattern=r"^platform_"),
+                CallbackQueryHandler(show_tutorials, pattern=r"^back_tutorials$"),
+                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
+            ],
+            TUTORIAL_CATEGORY: [
+                CallbackQueryHandler(show_tutorial, pattern=r"^tutorial_"),
+                CallbackQueryHandler(show_tutorials, pattern=r"^back_tutorials$"),
+            ],
+            REFERRAL_MENU: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_referral_code),
+                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
+            ],
+            PREFERENCES_MENU: [
+                CallbackQueryHandler(handle_preferences_button, pattern=r"^pref_"),
+                CallbackQueryHandler(show_preferences, pattern=r"^back_preferences$"),
+                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
+            ],
+            SETTING_EXPIRY_DAYS: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_expiry_days),
+                CallbackQueryHandler(show_preferences, pattern=r"^back_preferences$"),
+            ],
+            SETTING_USAGE_THRESHOLD: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_usage_threshold),
+                CallbackQueryHandler(show_preferences, pattern=r"^back_preferences$"),
+            ],
+            SPEED_TEST_MENU: [
+                CallbackQueryHandler(run_speed_test, pattern=r"^speedtest_"),
+                CallbackQueryHandler(show_speed_test, pattern=r"^back_speedtest$"),
+                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
+            ],
+            USAGE_STATS_MENU: [
+                CallbackQueryHandler(show_subscription_stats, pattern=r"^stats_"),
+                CallbackQueryHandler(show_usage_stats, pattern=r"^back_stats$"),
                 CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
             ],
             # Other states will be implemented later

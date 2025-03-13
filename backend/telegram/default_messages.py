@@ -458,6 +458,289 @@ If you need further assistance, contact support.
     'error_user_not_found': {
         'fa': "❌ کاربر یافت نشد. لطفاً دوباره با /start شروع کنید.",
         'en': "❌ User not found. Please start again with /start."
+    },
+    
+    # FAQ related
+    'faq_menu': {
+        'fa': """
+📚 *سوالات متداول*
+
+از این بخش می‌توانید پاسخ سوالات رایج را مشاهده کنید.
+برای مشاهده پاسخ هر سوال، روی آن کلیک کنید:
+""",
+        'en': """
+📚 *Frequently Asked Questions*
+
+Here you can find answers to common questions.
+Click on any question to see its answer:
+"""
+    },
+
+    'btn_faq': {
+        'fa': "📚 سوالات متداول",
+        'en': "📚 FAQ"
+    },
+
+    'btn_back_faq': {
+        'fa': "🔙 بازگشت به سوالات متداول",
+        'en': "🔙 Back to FAQ"
+    },
+
+    # Tutorial related
+    'tutorial_menu': {
+        'fa': """
+📖 *آموزش‌های نصب و راه‌اندازی*
+
+لطفاً پلتفرم مورد نظر خود را انتخاب کنید:
+""",
+        'en': """
+📖 *Setup Tutorials*
+
+Please select your platform:
+"""
+    },
+
+    'btn_tutorials': {
+        'fa': "📖 آموزش‌ها",
+        'en': "📖 Tutorials"
+    },
+
+    'btn_back_tutorials': {
+        'fa': "🔙 بازگشت به آموزش‌ها",
+        'en': "🔙 Back to Tutorials"
+    },
+
+    'platform_android': {
+        'fa': "📱 اندروید",
+        'en': "📱 Android"
+    },
+
+    'platform_ios': {
+        'fa': "📱 آیفون",
+        'en': "📱 iPhone"
+    },
+
+    'platform_windows': {
+        'fa': "💻 ویندوز",
+        'en': "💻 Windows"
+    },
+
+    'platform_macos': {
+        'fa': "💻 مک",
+        'en': "💻 Mac"
+    },
+
+    'platform_linux': {
+        'fa': "💻 لینوکس",
+        'en': "💻 Linux"
+    },
+
+    # Referral system
+    'referral_menu': {
+        'fa': """
+🎁 *سیستم دعوت از دوستان*
+
+کد دعوت شما: `{code}`
+تعداد دعوت‌های موفق: {count}
+مجموع پاداش دریافتی: {total_bonus} تومان
+
+با دعوت از دوستان خود، هر دو نفر شما {bonus_amount} تومان پاداش دریافت می‌کنید!
+""",
+        'en': """
+🎁 *Referral System*
+
+Your referral code: `{code}`
+Successful referrals: {count}
+Total bonus earned: {total_bonus} Toman
+
+Invite your friends and both of you will receive {bonus_amount} Toman bonus!
+"""
+    },
+
+    'btn_referral': {
+        'fa': "🎁 دعوت از دوستان",
+        'en': "🎁 Refer Friends"
+    },
+
+    'referral_code_used': {
+        'fa': """
+✅ *تبریک!*
+کد دعوت با موفقیت ثبت شد.
+{bonus_amount} تومان به کیف پول شما اضافه شد.
+""",
+        'en': """
+✅ *Congratulations!*
+Referral code successfully applied.
+{bonus_amount} Toman has been added to your wallet.
+"""
+    },
+
+    'enter_referral_code': {
+        'fa': "🎁 اگر کد دعوت دارید، آن را وارد کنید:",
+        'en': "🎁 If you have a referral code, enter it:"
+    },
+
+    'invalid_referral_code': {
+        'fa': "❌ کد دعوت نامعتبر است. لطفاً دوباره تلاش کنید یا /skip را بزنید.",
+        'en': "❌ Invalid referral code. Please try again or type /skip."
+    },
+
+    # Server status
+    'server_status': {
+        'fa': """
+📊 *وضعیت سرور {server_name}*
+
+🟢 وضعیت: {status}
+⏱ پینگ: {ping} ms
+💻 CPU: {cpu}%
+💾 RAM: {memory}%
+💿 دیسک: {disk}%
+🕒 آخرین بررسی: {last_check}
+""",
+        'en': """
+📊 *Server Status: {server_name}*
+
+🟢 Status: {status}
+⏱ Ping: {ping} ms
+💻 CPU: {cpu}%
+💾 RAM: {memory}%
+💿 Disk: {disk}%
+🕒 Last Check: {last_check}
+"""
+    },
+
+    'btn_server_status': {
+        'fa': "📊 وضعیت سرورها",
+        'en': "📊 Server Status"
+    },
+
+    # User preferences
+    'preferences_menu': {
+        'fa': """
+⚙️ *تنظیمات شخصی*
+
+🔔 اعلان انقضای اشتراک: {notify_expiration}
+⏰ اعلان {expiration_days} روز قبل از انقضا
+📊 اعلان مصرف حجم: {notify_data_usage}
+📈 اعلان در {data_threshold}% مصرف
+🔄 تمدید خودکار: {auto_renewal}
+""",
+        'en': """
+⚙️ *User Preferences*
+
+🔔 Subscription expiry notification: {notify_expiration}
+⏰ Notify {expiration_days} days before expiry
+📊 Data usage notification: {notify_data_usage}
+📈 Notify at {data_threshold}% usage
+🔄 Auto renewal: {auto_renewal}
+"""
+    },
+
+    'btn_preferences': {
+        'fa': "⚙️ تنظیمات",
+        'en': "⚙️ Preferences"
+    },
+
+    'btn_toggle_expiry_notify': {
+        'fa': "🔔 تغییر وضعیت اعلان انقضا",
+        'en': "🔔 Toggle Expiry Notification"
+    },
+
+    'btn_set_expiry_days': {
+        'fa': "⏰ تنظیم روزهای اعلان",
+        'en': "⏰ Set Notification Days"
+    },
+
+    'btn_toggle_usage_notify': {
+        'fa': "📊 تغییر وضعیت اعلان مصرف",
+        'en': "📊 Toggle Usage Notification"
+    },
+
+    'btn_set_usage_threshold': {
+        'fa': "📈 تنظیم آستانه مصرف",
+        'en': "📈 Set Usage Threshold"
+    },
+
+    'btn_toggle_auto_renewal': {
+        'fa': "🔄 تغییر وضعیت تمدید خودکار",
+        'en': "🔄 Toggle Auto Renewal"
+    },
+
+    'enter_expiry_days': {
+        'fa': "⏰ لطفاً تعداد روزهای قبل از انقضا برای دریافت اعلان را وارد کنید (1-30):",
+        'en': "⏰ Please enter how many days before expiry you want to be notified (1-30):"
+    },
+
+    'enter_usage_threshold': {
+        'fa': "�� لطفاً درصد مصرف برای دریافت اعلان را وارد کنید (1-100):",
+        'en': "📈 Please enter at what percentage of usage you want to be notified (1-100):"
+    },
+
+    'invalid_number': {
+        'fa': "❌ عدد وارد شده نامعتبر است. لطفاً دوباره تلاش کنید.",
+        'en': "❌ Invalid number. Please try again."
+    },
+
+    'preferences_updated': {
+        'fa': "✅ تنظیمات شما با موفقیت به‌روزرسانی شد.",
+        'en': "✅ Your preferences have been successfully updated."
+    },
+
+    # Usage statistics
+    'usage_stats': {
+        'fa': """
+📊 *آمار مصرف {plan_name}*
+
+📅 دوره: {period}
+📈 مصرف: {usage} از {total}
+📉 درصد مصرف: {percentage}%
+📊 میانگین روزانه: {daily_avg}
+⏳ روزهای باقیمانده: {days_left}
+""",
+        'en': """
+📊 *Usage Statistics for {plan_name}*
+
+📅 Period: {period}
+📈 Usage: {usage} of {total}
+📉 Usage percentage: {percentage}%
+📊 Daily average: {daily_avg}
+⏳ Days remaining: {days_left}
+"""
+    },
+
+    'btn_usage_stats': {
+        'fa': "📊 آمار مصرف",
+        'en': "📊 Usage Stats"
+    },
+
+    # Speed test
+    'speed_test': {
+        'fa': """
+🚀 *نتایج تست سرعت*
+
+📥 دانلود: {download} Mbps
+📤 آپلود: {upload} Mbps
+⏱ پینگ: {ping} ms
+🌍 سرور: {server}
+""",
+        'en': """
+🚀 *Speed Test Results*
+
+📥 Download: {download} Mbps
+📤 Upload: {upload} Mbps
+⏱ Ping: {ping} ms
+🌍 Server: {server}
+"""
+    },
+
+    'btn_speed_test': {
+        'fa': "🚀 تست سرعت",
+        'en': "🚀 Speed Test"
+    },
+
+    'speed_test_running': {
+        'fa': "🔄 در حال انجام تست سرعت...",
+        'en': "🔄 Running speed test..."
     }
 }
 
