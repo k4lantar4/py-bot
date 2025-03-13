@@ -12,6 +12,17 @@ import i18n from './i18n';
 // Routes
 import AuthRoutes from './routes/AuthRoutes';
 
+// Auth Context
+import { AuthProvider, UserRole } from './contexts/AuthContext';
+
+// Components
+import ProtectedRoute from './components/ProtectedRoute';
+import Forbidden from './components/Forbidden';
+import AdminDashboard from './pages/AdminDashboard';
+import UserDashboard from './pages/UserDashboard';
+import Overview from './pages/UserDashboard/Overview';
+import LoadingScreen from './components/LoadingScreen';
+
 // Create rtl cache
 const rtlCache = createCache({
   key: 'muirtl',
@@ -89,40 +100,88 @@ function App() {
       <CacheProvider value={isRtl ? rtlCache : ltrCache}>
         <ThemeProvider theme={theme}>
           <CssBaseline />
-          <BrowserRouter>
-            <Routes>
-              {/* Render AuthRoutes with toggleTheme and toggleLanguage props */}
-              <Route
-                path="/auth/*"
-                element={React.cloneElement(AuthRoutes.element as React.ReactElement, {
-                  toggleTheme,
-                  toggleLanguage,
-                })}
-              >
-                {AuthRoutes.children?.map((route) => (
-                  <Route
-                    key={route.path}
-                    path={route.path}
-                    element={route.element}
-                  />
-                ))}
-              </Route>
-              
-              {/* Add other routes here */}
-              
-              {/* Redirect root to auth/login */}
-              <Route
-                path="/"
-                element={<Navigate to="/auth/login" replace />}
-              />
-              
-              {/* Catch-all route */}
-              <Route
-                path="*"
-                element={<Navigate to="/auth/login" replace />}
-              />
-            </Routes>
-          </BrowserRouter>
+          <AuthProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Render AuthRoutes with toggleTheme and toggleLanguage props */}
+                <Route
+                  path="/auth/*"
+                  element={React.cloneElement(AuthRoutes.element as React.ReactElement, {
+                    toggleTheme,
+                    toggleLanguage,
+                  })}
+                >
+                  {AuthRoutes.children?.map((route) => (
+                    <Route
+                      key={route.path}
+                      path={route.path}
+                      element={route.element}
+                    />
+                  ))}
+                </Route>
+                
+                {/* Protected Admin Routes */}
+                <Route
+                  path="/admin/*"
+                  element={
+                    <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
+                      <Routes>
+                        <Route path="dashboard" element={<AdminDashboard />} />
+                        <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+                      </Routes>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                {/* Protected Reseller Routes */}
+                <Route
+                  path="/reseller/*"
+                  element={
+                    <ProtectedRoute requiredRoles={[UserRole.RESELLER]}>
+                      {/* Add Reseller routes here */}
+                      <div>Reseller Dashboard (Coming Soon)</div>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                {/* Protected User Dashboard Routes */}
+                <Route
+                  path="/dashboard/*"
+                  element={
+                    <ProtectedRoute requiredRoles={[UserRole.USER, UserRole.RESELLER, UserRole.ADMIN]}>
+                      <UserDashboard toggleTheme={toggleTheme} toggleLanguage={toggleLanguage} />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<Overview />} />
+                  <Route path="services" element={<div>VPN Services (Coming Soon)</div>} />
+                  <Route path="billing" element={<div>Billing (Coming Soon)</div>} />
+                  <Route path="payment" element={<div>Payment (Coming Soon)</div>} />
+                  <Route path="settings" element={<div>Settings (Coming Soon)</div>} />
+                  <Route path="profile" element={<div>Profile (Coming Soon)</div>} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Route>
+                
+                {/* Forbidden Route */}
+                <Route path="/forbidden" element={<Forbidden />} />
+                
+                {/* Loading Screen (for testing) */}
+                <Route path="/loading" element={<LoadingScreen />} />
+                
+                {/* Redirect root to auth/login */}
+                <Route
+                  path="/"
+                  element={<Navigate to="/auth/login" replace />}
+                />
+                
+                {/* Catch-all route */}
+                <Route
+                  path="*"
+                  element={<Navigate to="/auth/login" replace />}
+                />
+              </Routes>
+            </BrowserRouter>
+          </AuthProvider>
         </ThemeProvider>
       </CacheProvider>
     </I18nextProvider>

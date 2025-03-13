@@ -54,7 +54,7 @@ INSTALLED_APPS = [
     'main',
     'api',
     'v2ray',
-    'telegram',
+    'telegrambot',
     'payments',
 ]
 
@@ -110,7 +110,7 @@ else:
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.getenv('POSTGRES_DB', 'v2ray_bot'),
             'USER': os.getenv('POSTGRES_USER', 'postgres'),
-            'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'postgres'),
+            'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'postgres_test_password'),
             'HOST': os.getenv('DB_HOST', 'localhost'),
             'PORT': os.getenv('DB_PORT', '5432'),
         }

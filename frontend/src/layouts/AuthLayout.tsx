@@ -1,93 +1,142 @@
-import React from 'react';
-import { Box, Container, Paper, Typography, useTheme, Link, IconButton } from '@mui/material';
+import React, { ReactNode } from 'react';
+import {
+  Box,
+  Container,
+  Paper,
+  IconButton,
+  Typography,
+  useTheme,
+  Tooltip
+} from '@mui/material';
 import { Outlet } from 'react-router-dom';
-import { Brightness4 as DarkModeIcon, Brightness7 as LightModeIcon, Language as LanguageIcon } from '@mui/icons-material';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
+import TranslateIcon from '@mui/icons-material/Translate';
 import { useTranslation } from 'react-i18next';
 
-// Logo component
-const Logo: React.FC = () => {
-  return (
-    <Typography
-      variant="h4"
-      component="div"
-      sx={{
-        fontWeight: 'bold',
-        color: 'primary.main',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      VPN Manager
-    </Typography>
-  );
-};
-
 interface AuthLayoutProps {
+  children?: ReactNode;
   toggleTheme?: () => void;
   toggleLanguage?: () => void;
 }
 
-const AuthLayout: React.FC<AuthLayoutProps> = ({ toggleTheme, toggleLanguage }) => {
+const AuthLayout: React.FC<AuthLayoutProps> = ({ 
+  children, 
+  toggleTheme, 
+  toggleLanguage 
+}) => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const currentYear = new Date().getFullYear();
-  
-  // Background pattern style for the dark/light themes
-  const backgroundPattern = {
-    backgroundColor: theme.palette.background.default,
-    backgroundImage: `linear-gradient(${theme.palette.background.paper} 1px, transparent 1px), 
-                     linear-gradient(90deg, ${theme.palette.background.paper} 1px, transparent 1px)`,
-    backgroundSize: '20px 20px',
-    backgroundPosition: '-1px -1px',
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-  };
-  
+  const isDarkMode = theme.palette.mode === 'dark';
+  const isRtl = theme.direction === 'rtl';
+
   return (
-    <Box sx={backgroundPattern}>
-      {/* Header with theme toggle and language switch */}
-      <Box 
-        sx={{ 
-          p: 2, 
-          display: 'flex', 
-          justifyContent: 'space-between',
-          alignItems: 'center'
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100vh',
+        bgcolor: 'background.default',
+        background: theme.palette.mode === 'dark' 
+          ? 'linear-gradient(45deg, #050505 0%, #1a1a1a 100%)' 
+          : 'linear-gradient(45deg, #f0f0f0 0%, #ffffff 100%)',
+      }}
+    >
+      {/* Header with theme toggle and language toggle */}
+      <Box
+        component="header"
+        sx={{
+          p: 2,
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
         }}
       >
-        <Logo />
-        
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          {toggleLanguage && (
-            <IconButton onClick={toggleLanguage} color="primary" title={t('تغییر زبان')}>
-              <LanguageIcon />
-            </IconButton>
-          )}
-          
-          {toggleTheme && (
-            <IconButton onClick={toggleTheme} color="primary" title={t('تغییر تم')}>
-              {theme.palette.mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
-            </IconButton>
-          )}
-        </Box>
+        <Tooltip title={t('layout.toggleTheme')}>
+          <IconButton
+            onClick={toggleTheme}
+            color="inherit"
+            sx={{ mr: 1 }}
+          >
+            {isDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('layout.toggleLanguage')}>
+          <IconButton
+            onClick={toggleLanguage}
+            color="inherit"
+          >
+            <TranslateIcon />
+          </IconButton>
+        </Tooltip>
       </Box>
-      
-      {/* Main content area */}
-      <Container
-        maxWidth="lg"
-        sx={{
-          flex: 1,
-          display: 'flex',
+
+      {/* Main content */}
+      <Container 
+        component="main" 
+        maxWidth="xs" 
+        sx={{ 
+          display: 'flex', 
           flexDirection: 'column',
           justifyContent: 'center',
-          p: 2,
+          alignItems: 'center',
+          flexGrow: 1,
+          py: 4
         }}
       >
-        <Outlet />
+        {/* Logo and app name */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            mb: 4,
+          }}
+        >
+          <img 
+            src="/logo.png" 
+            alt="مدیریت وی‌پی‌ان" 
+            style={{ 
+              width: 80, 
+              height: 80, 
+              marginBottom: 16 
+            }} 
+          />
+          <Typography
+            component="h1"
+            variant="h4"
+            color="primary"
+            fontWeight="bold"
+            sx={{ mb: 1 }}
+          >
+            {t('layout.appName')}
+          </Typography>
+          <Typography
+            variant="subtitle1"
+            color="text.secondary"
+            align="center"
+          >
+            {t('layout.appTagline')}
+          </Typography>
+        </Box>
+
+        {/* Auth form container */}
+        <Paper
+          elevation={6}
+          sx={{
+            p: 4,
+            width: '100%',
+            borderRadius: 2,
+            boxShadow: theme.palette.mode === 'dark'
+              ? '0 8px 32px rgba(0, 0, 0, 0.5)'
+              : '0 8px 32px rgba(0, 0, 0, 0.1)',
+          }}
+        >
+          {children || <Outlet />}
+        </Paper>
       </Container>
-      
-      {/* Footer with copyright */}
+
+      {/* Footer */}
       <Box
         component="footer"
         sx={{
@@ -98,19 +147,8 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ toggleTheme, toggleLanguage }) 
         }}
       >
         <Typography variant="body2" color="text.secondary">
-          {t('تمامی حقوق محفوظ است')} &copy; {currentYear} VPN Manager
+          {t('layout.copyright', { year: new Date().getFullYear() })}
         </Typography>
-        <Box sx={{ mt: 1 }}>
-          <Link href="#" color="inherit" sx={{ mx: 1 }}>
-            {t('شرایط استفاده')}
-          </Link>
-          <Link href="#" color="inherit" sx={{ mx: 1 }}>
-            {t('حریم خصوصی')}
-          </Link>
-          <Link href="#" color="inherit" sx={{ mx: 1 }}>
-            {t('پشتیبانی')}
-          </Link>
-        </Box>
       </Box>
     </Box>
   );

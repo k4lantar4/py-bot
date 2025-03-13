@@ -26,7 +26,9 @@ import {
   Settings as SettingsIcon,
   Notifications as NotificationsIcon,
   TrendingUp as TrendingUpIcon,
-  Person as PersonIcon
+  Person as PersonIcon,
+  ListAlt as ListAltIcon,
+  ManageAccounts as ManageAccountsIcon
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 
@@ -36,6 +38,7 @@ import ServerManagement from './ServerManagement';
 import PlanManagement from './PlanManagement';
 import FinancialReports from './FinancialReports';
 import SystemSettings from './SystemSettings';
+import RoleManager from './RoleManager';
 
 // TabPanel component to handle tab content
 interface TabPanelProps {
@@ -282,11 +285,12 @@ const AdminDashboard: React.FC = () => {
           }}
         >
           <Tab icon={<DashboardIcon />} label={t('داشبورد')} iconPosition="start" />
-          <Tab icon={<PeopleIcon />} label={t('کاربران')} iconPosition="start" />
-          <Tab icon={<StorageIcon />} label={t('سرورها')} iconPosition="start" />
-          <Tab icon={<ViewListIcon />} label={t('پلن‌ها')} iconPosition="start" />
-          <Tab icon={<MoneyIcon />} label={t('گزارش مالی')} iconPosition="start" />
-          <Tab icon={<SettingsIcon />} label={t('تنظیمات')} iconPosition="start" />
+          <Tab icon={<PeopleIcon />} label={t('مدیریت کاربران')} iconPosition="start" />
+          <Tab icon={<StorageIcon />} label={t('مدیریت سرورها')} iconPosition="start" />
+          <Tab icon={<ListAltIcon />} label={t('مدیریت پلن‌ها')} iconPosition="start" />
+          <Tab icon={<MoneyIcon />} label={t('گزارش‌های مالی')} iconPosition="start" />
+          <Tab icon={<SettingsIcon />} label={t('تنظیمات سیستم')} iconPosition="start" />
+          <Tab icon={<ManageAccountsIcon />} label={t('مدیریت نقش‌ها')} iconPosition="start" />
         </Tabs>
       </Paper>
 
@@ -308,6 +312,9 @@ const AdminDashboard: React.FC = () => {
         </TabPanel>
         <TabPanel value={tabValue} index={5}>
           <SystemSettings />
+        </TabPanel>
+        <TabPanel value={tabValue} index={6}>
+          <RoleManager />
         </TabPanel>
       </Box>
     </Box>

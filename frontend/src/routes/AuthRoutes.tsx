@@ -1,37 +1,51 @@
 import React from 'react';
-import { RouteObject } from 'react-router-dom';
-
-// Layouts
+import { Route, Routes } from 'react-router-dom';
 import AuthLayout from '../layouts/AuthLayout';
-
-// Auth pages
 import Login from '../pages/Auth/Login';
 import Register from '../pages/Auth/Register';
 import ForgotPassword from '../pages/Auth/ForgotPassword';
 
-// Define authentication routes
-const AuthRoutes: RouteObject = {
-  path: 'auth',
-  element: <AuthLayout />,
+interface AuthRoutesProps {
+  toggleTheme: () => void;
+  toggleLanguage: () => void;
+}
+
+const AuthRoutes = {
+  path: '/auth',
+  element: <AuthLayout toggleTheme={undefined} toggleLanguage={undefined} />,
   children: [
     {
       path: 'login',
-      element: <Login />,
+      element: <Login />
     },
     {
       path: 'register',
-      element: <Register />,
+      element: <Register />
     },
     {
       path: 'forgot-password',
-      element: <ForgotPassword />,
+      element: <ForgotPassword />
     },
     // Redirect to login page by default
     {
       path: '',
-      element: <Login />,
-    },
-  ],
+      element: <Login />
+    }
+  ]
+};
+
+// This component is only used when the route is rendered directly
+const AuthRoutesComponent = ({ toggleTheme, toggleLanguage }: AuthRoutesProps) => {
+  return (
+    <AuthLayout toggleTheme={toggleTheme} toggleLanguage={toggleLanguage}>
+      <Routes>
+        <Route path="login" element={<Login />} />
+        <Route path="register" element={<Register />} />
+        <Route path="forgot-password" element={<ForgotPassword />} />
+        <Route path="" element={<Login />} />
+      </Routes>
+    </AuthLayout>
+  );
 };
 
 export default AuthRoutes; 
