@@ -213,169 +213,239 @@
 
 {% block extra_js %}
 <script>
-    $(document).ready(function() {
-        // Zarinpal payment submission
-        $('#zarinpalSubmit').click(function() {
-            const amount = $('#zarinpalAmount').val();
-            const description = $('#zarinpalDescription').val() || 'Wallet deposit';
-            
-            if (!amount || amount < 10000) {
-                $('#zarinpalError').text('Please enter a valid amount (minimum 10,000 Toman)').show();
-                return;
-            }
-            
-            // Show loading spinner
-            $('#zarinpalSubmit').attr('disabled', true);
-            $('#zarinpalSpinner').removeClass('d-none');
-            $('#zarinpalError').hide();
-            
-            // Send payment request
-            $.ajax({
-                url: '{% url "payments:create_transaction" %}',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    amount: amount,
-                    payment_method: 'zarinpal',
-                    description: description
-                }),
-                success: function(response) {
-                    if (response.success) {
-                        // Redirect to Zarinpal payment page
-                        window.location.href = response.redirect_url;
-                    } else {
-                        $('#zarinpalError').text(response.error).show();
-                        $('#zarinpalSubmit').attr('disabled', false);
-                        $('#zarinpalSpinner').addClass('d-none');
-                    }
-                },
-                error: function() {
-                    $('#zarinpalError').text('An error occurred. Please try again.').show();
-                    $('#zarinpalSubmit').attr('disabled', false);
-                    $('#zarinpalSpinner').addClass('d-none');
-                }
-            });
-        });
+    document.addEventListener('DOMContentLoaded', function() {
+        // Zarinpal Payment
+        const zarinpalForm = document.getElementById('zarinpalForm');
+        const zarinpalSubmit = document.getElementById('zarinpalSubmit');
+        const zarinpalSpinner = document.getElementById('zarinpalSpinner');
+        const zarinpalError = document.getElementById('zarinpalError');
         
-        // Card payment submission
-        $('#cardPaymentSubmit').click(function() {
-            const amount = $('#cardAmount').val();
-            const cardNumber = $('#cardNumber').val();
-            const cardHolder = $('#cardHolder').val();
-            const description = $('#cardDescription').val() || 'Wallet deposit';
-            
-            if (!amount || amount < 10000) {
-                $('#cardPaymentError').text('Please enter a valid amount (minimum 10,000 Toman)').show();
-                return;
-            }
-            
-            if (!cardNumber || cardNumber.length < 16) {
-                $('#cardPaymentError').text('Please enter a valid card number').show();
-                return;
-            }
-            
-            if (!cardHolder) {
-                $('#cardPaymentError').text('Please enter the card holder name').show();
-                return;
-            }
-            
-            // Show loading spinner
-            $('#cardPaymentSubmit').attr('disabled', true);
-            $('#cardPaymentSpinner').removeClass('d-none');
-            $('#cardPaymentError').hide();
-            
-            // Send payment request
-            $.ajax({
-                url: '{% url "payments:create_transaction" %}',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    amount: amount,
-                    payment_method: 'card',
-                    card_number: cardNumber,
-                    card_holder: cardHolder,
-                    description: description
-                }),
-                success: function(response) {
-                    if (response.success) {
+        if (zarinpalSubmit) {
+            zarinpalSubmit.addEventListener('click', function() {
+                // Validate form
+                const amount = document.getElementById('zarinpalAmount').value;
+                const description = document.getElementById('zarinpalDescription').value || 'Wallet deposit';
+                
+                if (!amount || parseInt(amount) < 10000) {
+                    zarinpalError.textContent = 'Minimum amount is 10,000 Toman';
+                    zarinpalError.style.display = 'block';
+                    return;
+                }
+                
+                // Show spinner
+                zarinpalSpinner.classList.remove('d-none');
+                zarinpalSubmit.disabled = true;
+                zarinpalError.style.display = 'none';
+                
+                // Create transaction
+                fetch('/payments/create/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        description: description,
+                        payment_method: 'zarinpal',
+                        type: 'deposit'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    zarinpalSpinner.classList.add('d-none');
+                    zarinpalSubmit.disabled = false;
+                    
+                    if (data.success) {
+                        // Redirect to Zarinpal payment page
+                        window.location.href = data.redirect_url;
+                    } else {
+                        // Show error
+                        zarinpalError.textContent = data.error || 'An error occurred';
+                        zarinpalError.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    zarinpalSpinner.classList.add('d-none');
+                    zarinpalSubmit.disabled = false;
+                    zarinpalError.textContent = 'Network error occurred';
+                    zarinpalError.style.display = 'block';
+                    console.error('Error:', error);
+                });
+            });
+        }
+        
+        // Card Payment
+        const cardPaymentForm = document.getElementById('cardPaymentForm');
+        const cardPaymentSubmit = document.getElementById('cardPaymentSubmit');
+        const cardPaymentSpinner = document.getElementById('cardPaymentSpinner');
+        const cardPaymentError = document.getElementById('cardPaymentError');
+        
+        if (cardPaymentSubmit) {
+            cardPaymentSubmit.addEventListener('click', function() {
+                // Validate form
+                const amount = document.getElementById('cardAmount').value;
+                const cardNumber = document.getElementById('cardNumber').value;
+                const cardHolder = document.getElementById('cardHolder').value;
+                const description = document.getElementById('cardDescription').value || 'Wallet deposit';
+                
+                if (!amount || parseInt(amount) < 10000) {
+                    cardPaymentError.textContent = 'Minimum amount is 10,000 Toman';
+                    cardPaymentError.style.display = 'block';
+                    return;
+                }
+                
+                if (!cardNumber || cardNumber.length < 16) {
+                    cardPaymentError.textContent = 'Please enter a valid card number';
+                    cardPaymentError.style.display = 'block';
+                    return;
+                }
+                
+                if (!cardHolder) {
+                    cardPaymentError.textContent = 'Please enter the card holder name';
+                    cardPaymentError.style.display = 'block';
+                    return;
+                }
+                
+                // Get current date and time in ISO format
+                const transferTime = new Date().toISOString();
+                
+                // Show spinner
+                cardPaymentSpinner.classList.remove('d-none');
+                cardPaymentSubmit.disabled = true;
+                cardPaymentError.style.display = 'none';
+                
+                // Create transaction
+                fetch('/payments/create/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        description: description,
+                        payment_method: 'card',
+                        type: 'deposit',
+                        card_number: cardNumber,
+                        reference_number: 'pending', // Will be provided by user after transfer
+                        transfer_time: transferTime
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    cardPaymentSpinner.classList.add('d-none');
+                    cardPaymentSubmit.disabled = false;
+                    
+                    if (data.success) {
                         // Hide card payment modal
                         $('#cardPaymentModal').modal('hide');
                         
+                        // Update verification modal
+                        document.getElementById('transferAmount').textContent = amount;
+                        document.getElementById('destinationCard').textContent = '{{ card_payment_card_number }}';
+                        document.getElementById('destinationName').textContent = '{{ card_payment_card_holder }}';
+                        document.getElementById('destinationBank').textContent = '{{ card_payment_bank_name }}';
+                        
+                        // Set payment ID for verification
+                        document.getElementById('paymentId').value = data.transaction_id;
+                        
                         // Show verification modal
-                        $('#paymentId').val(response.payment_id);
-                        $('#transferAmount').text(amount);
-                        $('#destinationCard').text('{{ card_payment_card_number }}');
-                        $('#destinationName').text('{{ card_payment_card_holder }}');
-                        $('#destinationBank').text('{{ card_payment_bank_name }}');
                         $('#cardVerificationModal').modal('show');
                     } else {
-                        $('#cardPaymentError').text(response.error).show();
+                        // Show error
+                        cardPaymentError.textContent = data.error || 'An error occurred';
+                        cardPaymentError.style.display = 'block';
                     }
-                    
-                    $('#cardPaymentSubmit').attr('disabled', false);
-                    $('#cardPaymentSpinner').addClass('d-none');
-                },
-                error: function() {
-                    $('#cardPaymentError').text('An error occurred. Please try again.').show();
-                    $('#cardPaymentSubmit').attr('disabled', false);
-                    $('#cardPaymentSpinner').addClass('d-none');
-                }
+                })
+                .catch(error => {
+                    cardPaymentSpinner.classList.add('d-none');
+                    cardPaymentSubmit.disabled = false;
+                    cardPaymentError.textContent = 'Network error occurred';
+                    cardPaymentError.style.display = 'block';
+                    console.error('Error:', error);
+                });
             });
-        });
+        }
         
-        // Verification submission
-        $('#verificationSubmit').click(function() {
-            const paymentId = $('#paymentId').val();
-            const verificationCode = $('#verificationCode').val();
-            
-            if (!verificationCode) {
-                $('#verificationError').text('Please enter the verification code').show();
-                return;
-            }
-            
-            // Show loading spinner
-            $('#verificationSubmit').attr('disabled', true);
-            $('#verificationSpinner').removeClass('d-none');
-            $('#verificationError').hide();
-            
-            // Send verification request
-            $.ajax({
-                url: '{% url "payments:verify_card_payment" %}',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    payment_id: paymentId,
-                    verification_code: verificationCode
-                }),
-                success: function(response) {
-                    if (response.success) {
+        // Verification Form
+        const verificationForm = document.getElementById('verificationForm');
+        const verificationSubmit = document.getElementById('verificationSubmit');
+        const verificationSpinner = document.getElementById('verificationSpinner');
+        const verificationError = document.getElementById('verificationError');
+        
+        if (verificationSubmit) {
+            verificationSubmit.addEventListener('click', function() {
+                // Validate form
+                const verificationCode = document.getElementById('verificationCode').value;
+                
+                if (!verificationCode) {
+                    verificationError.textContent = 'Please enter the tracking code';
+                    verificationError.style.display = 'block';
+                    return;
+                }
+                
+                // Show spinner
+                verificationSpinner.classList.remove('d-none');
+                verificationSubmit.disabled = true;
+                verificationError.style.display = 'none';
+                
+                // Verify payment
+                fetch('/payments/card/verify/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        verification_code: verificationCode
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    verificationSpinner.classList.add('d-none');
+                    verificationSubmit.disabled = false;
+                    
+                    if (data.success) {
                         // Hide verification modal
                         $('#cardVerificationModal').modal('hide');
                         
                         // Show success message
                         Swal.fire({
-                            title: 'Verification Submitted!',
-                            text: response.message,
                             icon: 'success',
-                            confirmButtonText: 'View Transaction'
+                            title: 'Payment Submitted',
+                            text: 'Your payment information has been submitted and is pending verification by our team.',
+                            confirmButtonText: 'View Status'
                         }).then((result) => {
                             if (result.isConfirmed) {
-                                window.location.href = '{% url "payments:transaction_detail" transaction_id=0 %}'.replace('0', response.transaction_id);
+                                window.location.href = '/payments/transaction/' + data.transaction_id + '/';
                             }
                         });
                     } else {
-                        $('#verificationError').text(response.error).show();
-                        $('#verificationSubmit').attr('disabled', false);
-                        $('#verificationSpinner').addClass('d-none');
+                        // Show error
+                        verificationError.textContent = data.error || 'Verification failed';
+                        verificationError.style.display = 'block';
                     }
-                },
-                error: function() {
-                    $('#verificationError').text('An error occurred. Please try again.').show();
-                    $('#verificationSubmit').attr('disabled', false);
-                    $('#verificationSpinner').addClass('d-none');
-                }
+                })
+                .catch(error => {
+                    verificationSpinner.classList.add('d-none');
+                    verificationSubmit.disabled = false;
+                    verificationError.textContent = 'Network error occurred';
+                    verificationError.style.display = 'block';
+                    console.error('Error:', error);
+                });
             });
-        });
+        }
+        
+        // Helper function to get CSRF token
+        function getCSRFToken() {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('csrftoken='))
+                ?.split('=')[1];
+            
+            return cookieValue || '';
+        }
     });
 </script>
 {% endblock %} 

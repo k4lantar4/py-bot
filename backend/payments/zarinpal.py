@@ -361,94 +361,67 @@ class ZarinpalGateway:
             logger.error(f"Error handling completed transaction: {str(e)}")
     
     def _notify_admin_new_payment(self, zarinpal_payment):
-        """Notify admin of new payment"""
+        """Send notification to admin about new Zarinpal payment"""
         try:
-            # Check if telegrambot app is available
-            from django.apps import apps
-            if apps.is_installed('telegrambot'):
-                from telegrambot.models import TelegramNotification
-                
-                # Create a notification message
-                transaction = zarinpal_payment.transaction
-                user = transaction.user
-                
-                message = (
-                    f"🔔 *New Zarinpal payment initiated*\n\n"
-                    f"User: {user.username}\n"
-                    f"Amount: {transaction.amount} Toman\n"
-                    f"Authority: {zarinpal_payment.authority}\n"
-                    f"Time: {transaction.created_at}\n\n"
-                    f"Payment is pending completion."
-                )
-                
-                # Get admin users with Telegram IDs
-                from django.contrib.auth import get_user_model
-                User = get_user_model()
-                admin_users = User.objects.filter(is_staff=True, telegram_id__isnull=False)
-                
-                # Create notifications for all admins
-                for admin in admin_users:
-                    TelegramNotification.objects.create(
-                        user=admin,
-                        type='admin_notification',
-                        message=message,
-                        status='pending'
-                    )
-                
-                logger.info(f"Admin notification created for Zarinpal payment {zarinpal_payment.id}")
-            else:
-                logger.info("Telegrambot app not installed, skipping admin notification")
+            from telegrambot.services.notifications import AdminNotificationService
+            
+            transaction = zarinpal_payment.transaction
+            user = transaction.user
+            
+            message = f"🔔 *New Zarinpal Payment*\n\n"
+            message += f"👤 User: {user.username}\n"
+            message += f"💰 Amount: {transaction.amount} Toman\n"
+            message += f"🔑 Authority: {zarinpal_payment.authority}\n"
+            message += f"🔗 Payment URL: {zarinpal_payment.payment_url}\n"
+            message += f"⏱ Created at: {transaction.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            message += f"Payment is being processed by Zarinpal."
+            
+            notification_service = AdminNotificationService()
+            notification_service.send_message(message)
+            
+            return True
+        except ImportError:
+            logger.warning("AdminNotificationService not available, admin notification not sent")
+            return False
         except Exception as e:
             logger.error(f"Error sending admin notification: {str(e)}")
+            return False
     
     def _notify_user_payment_status(self, zarinpal_payment):
-        """Notify user of payment status change"""
+        """Send notification to user about payment status"""
         try:
-            # Check if telegrambot app is available
-            from django.apps import apps
-            if apps.is_installed('telegrambot'):
-                from telegrambot.models import TelegramNotification
-                
-                transaction = zarinpal_payment.transaction
-                user = transaction.user
-                
-                # Skip if user has no Telegram ID
-                if not user.telegram_id:
-                    logger.info(f"User {user.id} has no Telegram ID, skipping notification")
-                    return
-                
-                # Create message based on status
-                if zarinpal_payment.status == 'verified':
-                    message = (
-                        f"✅ *Payment Successful*\n\n"
-                        f"Your payment of {transaction.amount} Toman has been processed successfully.\n"
-                        f"Reference ID: {zarinpal_payment.ref_id}\n\n"
-                        f"Thank you for your payment!"
-                    )
-                elif zarinpal_payment.status == 'failed':
-                    message = (
-                        f"❌ *Payment Failed*\n\n"
-                        f"Your payment of {transaction.amount} Toman has failed.\n"
-                        f"Authority: {zarinpal_payment.authority}\n\n"
-                        f"Please try again or contact support for assistance."
-                    )
-                else:
-                    # No need to notify for other statuses
-                    return
-                
-                # Create notification
-                TelegramNotification.objects.create(
-                    user=user,
-                    type='payment_status',
-                    message=message,
-                    status='pending'
-                )
-                
-                logger.info(f"User notification created for Zarinpal payment {zarinpal_payment.id}")
+            from telegrambot.services.notifications import UserNotificationService
+            
+            transaction = zarinpal_payment.transaction
+            user = transaction.user
+            
+            if zarinpal_payment.status == 'verified':
+                message = f"✅ *Zarinpal Payment Successful*\n\n"
+                message += f"💰 Amount: {transaction.amount} Toman\n"
+                message += f"🔑 Reference ID: {zarinpal_payment.ref_id}\n"
+                message += f"⏱ Completed at: {transaction.updated_at.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                message += f"Your account has been credited with {transaction.amount} Toman."
+            
+            elif zarinpal_payment.status == 'failed':
+                message = f"❌ *Zarinpal Payment Failed*\n\n"
+                message += f"💰 Amount: {transaction.amount} Toman\n"
+                message += f"🔑 Authority: {zarinpal_payment.authority}\n"
+                message += f"⏱ Time: {transaction.updated_at.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                message += f"Please try again or contact support if the problem persists."
+            
             else:
-                logger.info("Telegrambot app not installed, skipping user notification")
+                return False
+                
+            notification_service = UserNotificationService()
+            notification_service.send_message(user, message)
+            
+            return True
+        except ImportError:
+            logger.warning("UserNotificationService not available, user notification not sent")
+            return False
         except Exception as e:
             logger.error(f"Error sending user notification: {str(e)}")
+            return False
     
     def _get_error_message(self, error_code):
         """Get error message for Zarinpal error code"""

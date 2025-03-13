@@ -12,6 +12,7 @@ urlpatterns = [
     path('api-auth/', include('rest_framework.urls')),
     path('api-token-auth/', auth_views.obtain_auth_token),
     path('webhook/telegram/', telegram_webhook, name='telegram_webhook'),
+    path('payments/', include('payments.urls')),
 ]
 
 # Serve static and media files in development

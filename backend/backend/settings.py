@@ -163,11 +163,14 @@ TELEGRAM_WEBHOOK_URL = os.environ.get('TELEGRAM_WEBHOOK_URL', 'https://yourdomai
 TELEGRAM_ADMIN_USER_IDS = os.environ.get('TELEGRAM_ADMIN_USER_IDS', '').split(',')
 
 # Payment settings
-CARD_NUMBER = os.environ.get('CARD_NUMBER', '1234567890123456')
-CARD_HOLDER = os.environ.get('CARD_HOLDER', 'Your Name')
-CARD_PAYMENT_VERIFICATION_TIMEOUT_MINUTES = 60
+CARD_PAYMENT_ENABLED = os.environ.get('CARD_PAYMENT_ENABLED', 'True') == 'True'
+CARD_PAYMENT_CARD_NUMBER = os.environ.get('CARD_PAYMENT_CARD_NUMBER', '1234567890123456')
+CARD_PAYMENT_CARD_HOLDER = os.environ.get('CARD_PAYMENT_CARD_HOLDER', 'Your Name')
+CARD_PAYMENT_BANK_NAME = os.environ.get('CARD_PAYMENT_BANK_NAME', 'Your Bank')
+CARD_PAYMENT_VERIFICATION_TIMEOUT_MINUTES = int(os.environ.get('CARD_PAYMENT_VERIFICATION_TIMEOUT_MINUTES', '60'))
+ADMIN_NOTIFICATION_ENABLED = os.environ.get('ADMIN_NOTIFICATION_ENABLED', 'True') == 'True'
 
 # Zarinpal settings
 ZARINPAL_MERCHANT = os.environ.get('ZARINPAL_MERCHANT', 'YOUR_ZARINPAL_MERCHANT_ID')
 ZARINPAL_SANDBOX = os.environ.get('ZARINPAL_SANDBOX', 'True') == 'True'
-ZARINPAL_CALLBACK_URL = os.environ.get('ZARINPAL_CALLBACK_URL', 'https://yourdomain.com/verify/zarinpal/') 
+ZARINPAL_CALLBACK_URL = os.environ.get('ZARINPAL_CALLBACK_URL', 'https://yourdomain.com/payments/zarinpal/callback/') 

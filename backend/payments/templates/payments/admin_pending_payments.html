@@ -1,0 +1,263 @@
+{% extends 'admin/base_site.html' %}
+{% load static %}
+
+{% block title %}Pending Payments{% endblock %}
+
+{% block extrastyle %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+<style>
+    .card {
+        margin-bottom: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .card-header {
+        border-radius: 8px 8px 0 0;
+    }
+    .badge {
+        font-size: 85%;
+    }
+    .btn-verify {
+        background-color: #28a745;
+        color: white;
+    }
+    .btn-reject {
+        background-color: #dc3545;
+        color: white;
+    }
+    .payment-details {
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 50px 0;
+    }
+    .empty-state i {
+        font-size: 48px;
+        color: #6c757d;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Pending Card Payments</h4>
+                    <a href="{% url 'admin:index' %}" class="btn btn-sm btn-light">
+                        <i class="fas fa-arrow-left mr-1"></i> Back to Admin
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if pending_payments %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="thead-dark">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>User</th>
+                                        <th>Amount</th>
+                                        <th>Card Number</th>
+                                        <th>Card Holder</th>
+                                        <th>Verification Code</th>
+                                        <th>Created At</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for payment in pending_payments %}
+                                    <tr id="payment-row-{{ payment.id }}">
+                                        <td>{{ payment.id }}</td>
+                                        <td>
+                                            <a href="{% url 'admin:auth_user_change' payment.transaction.user.id %}">
+                                                {{ payment.transaction.user.username }}
+                                            </a>
+                                        </td>
+                                        <td>{{ payment.transaction.amount }} Toman</td>
+                                        <td>{{ payment.card_number }}</td>
+                                        <td>{{ payment.card_holder }}</td>
+                                        <td>{{ payment.verification_code }}</td>
+                                        <td>{{ payment.created_at|date:"Y-m-d H:i" }}</td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-sm btn-verify" 
+                                                        onclick="verifyPayment({{ payment.id }}, 'verify')">
+                                                    <i class="fas fa-check mr-1"></i> Verify
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-reject" 
+                                                        onclick="verifyPayment({{ payment.id }}, 'reject')">
+                                                    <i class="fas fa-times mr-1"></i> Reject
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <h4>No Pending Payments</h4>
+                            <p class="text-muted">There are no pending card payments that require verification.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Details Modal -->
+<div class="modal fade" id="paymentDetailsModal" tabindex="-1" role="dialog" aria-labelledby="paymentDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="paymentDetailsModalLabel">Payment Details</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="paymentDetailsContent">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Verification Result Modal -->
+<div class="modal fade" id="verificationResultModal" tabindex="-1" role="dialog" aria-labelledby="verificationResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="verificationResultModalLabel">Verification Result</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="verificationResultContent">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extrajs %}
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+<script>
+    function verifyPayment(paymentId, action) {
+        // Confirm action
+        let confirmTitle = action === 'verify' ? 'Verify Payment' : 'Reject Payment';
+        let confirmText = action === 'verify' 
+            ? 'Are you sure you want to verify this payment? This will update the user\'s wallet balance.'
+            : 'Are you sure you want to reject this payment?';
+        let confirmButtonText = action === 'verify' ? 'Yes, Verify' : 'Yes, Reject';
+        let confirmButtonColor = action === 'verify' ? '#28a745' : '#dc3545';
+        
+        Swal.fire({
+            title: confirmTitle,
+            text: confirmText,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: confirmButtonColor,
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: confirmButtonText,
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Show loading
+                Swal.fire({
+                    title: 'Processing...',
+                    text: 'Please wait while we process your request.',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    allowEnterKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                
+                // Send verification request
+                $.ajax({
+                    url: '{% url "payments:admin_verify_payment" %}',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        payment_id: paymentId,
+                        action: action
+                    }),
+                    success: function(response) {
+                        Swal.close();
+                        
+                        if (response.success) {
+                            // Remove row from table
+                            $('#payment-row-' + paymentId).fadeOut(500, function() {
+                                $(this).remove();
+                                
+                                // Check if table is empty
+                                if ($('table tbody tr').length === 0) {
+                                    $('table').replaceWith(
+                                        '<div class="empty-state">' +
+                                        '<i class="fas fa-check-circle"></i>' +
+                                        '<h4>No Pending Payments</h4>' +
+                                        '<p class="text-muted">There are no pending card payments that require verification.</p>' +
+                                        '</div>'
+                                    );
+                                }
+                            });
+                            
+                            // Show success message
+                            Swal.fire({
+                                title: action === 'verify' ? 'Payment Verified!' : 'Payment Rejected!',
+                                text: response.message,
+                                icon: 'success',
+                                confirmButtonText: 'OK'
+                            });
+                        } else {
+                            // Show error message
+                            Swal.fire({
+                                title: 'Error',
+                                text: response.error,
+                                icon: 'error',
+                                confirmButtonText: 'OK'
+                            });
+                        }
+                    },
+                    error: function() {
+                        Swal.close();
+                        
+                        // Show error message
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'An error occurred while processing your request. Please try again.',
+                            icon: 'error',
+                            confirmButtonText: 'OK'
+                        });
+                    }
+                });
+            }
+        });
+    }
+</script>
+{% endblock %} 

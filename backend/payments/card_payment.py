@@ -214,95 +214,77 @@ class CardPaymentProcessor:
         }
     
     def _notify_admin_new_payment(self, card_payment):
-        """Notify admin of new payment"""
+        """Send notification to admin about new card payment"""
         try:
-            # Check if telegrambot app is available
-            from django.apps import apps
-            if apps.is_installed('telegrambot'):
-                from telegrambot.models import TelegramNotification
-                
-                # Create a notification message
-                transaction = card_payment.transaction
-                user = transaction.user
-                
-                message = (
-                    f"🔔 *New card payment received*\n\n"
-                    f"User: {user.username}\n"
-                    f"Amount: {transaction.amount} Toman\n"
-                    f"Card Number: {card_payment.card_number}\n"
-                    f"Reference: {card_payment.reference_number}\n"
-                    f"Verification Code: {card_payment.verification_code}\n"
-                    f"Time: {card_payment.transfer_time}\n\n"
-                    f"Please verify this payment in the admin panel."
-                )
-                
-                # Get admin users with Telegram IDs
-                from django.contrib.auth import get_user_model
-                User = get_user_model()
-                admin_users = User.objects.filter(is_staff=True, telegram_id__isnull=False)
-                
-                # Create notifications for all admins
-                for admin in admin_users:
-                    TelegramNotification.objects.create(
-                        user=admin,
-                        type='admin_notification',
-                        message=message,
-                        status='pending'
-                    )
-                
-                logger.info(f"Admin notification created for card payment {card_payment.id}")
-            else:
-                logger.info("Telegrambot app not installed, skipping admin notification")
+            from telegrambot.services.notifications import AdminNotificationService
+            
+            transaction = card_payment.transaction
+            user = transaction.user
+            
+            message = f"🔔 *New Card Payment*\n\n"
+            message += f"👤 User: {user.username}\n"
+            message += f"💰 Amount: {transaction.amount} Toman\n"
+            message += f"💳 Card: {card_payment.card_number}\n"
+            message += f"📝 Reference: {card_payment.reference_number}\n"
+            message += f"⏱ Transfer Time: {card_payment.transfer_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            message += f"🔑 Verification Code: {card_payment.verification_code}\n"
+            message += f"⏳ Expires at: {card_payment.expires_at.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            message += f"Use the admin panel to verify this payment."
+            
+            notification_service = AdminNotificationService()
+            notification_service.send_message(message)
+            
+            return True
+        except ImportError:
+            logger.warning("AdminNotificationService not available, admin notification not sent")
+            return False
         except Exception as e:
             logger.error(f"Error sending admin notification: {str(e)}")
+            return False
     
     def _notify_user_payment_status(self, card_payment):
-        """Notify user of payment status change"""
+        """Send notification to user about payment status"""
         try:
-            # Check if telegrambot app is available
-            from django.apps import apps
-            if apps.is_installed('telegrambot'):
-                from telegrambot.models import TelegramNotification
+            from telegrambot.services.notifications import UserNotificationService
+            
+            transaction = card_payment.transaction
+            user = transaction.user
+            
+            if card_payment.status == 'verified':
+                message = f"✅ *Payment Verified*\n\n"
+                message += f"💰 Amount: {transaction.amount} Toman\n"
+                message += f"🔑 Verification Code: {card_payment.verification_code}\n"
+                message += f"⏱ Verified at: {card_payment.verified_at.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                message += f"Your account has been credited with {transaction.amount} Toman."
+            
+            elif card_payment.status == 'rejected':
+                message = f"❌ *Payment Rejected*\n\n"
+                message += f"💰 Amount: {transaction.amount} Toman\n"
+                message += f"🔑 Verification Code: {card_payment.verification_code}\n"
+                message += f"⏱ Rejected at: {card_payment.verified_at.strftime('%Y-%m-%d %H:%M:%S') if card_payment.verified_at else 'N/A'}\n"
                 
-                transaction = card_payment.transaction
-                user = transaction.user
-                
-                # Skip if user has no Telegram ID
-                if not user.telegram_id:
-                    logger.info(f"User {user.id} has no Telegram ID, skipping notification")
-                    return
-                
-                # Create message based on status
-                if card_payment.status == 'verified':
-                    message = (
-                        f"✅ *Payment Verified*\n\n"
-                        f"Your card payment of {transaction.amount} Toman has been verified.\n"
-                        f"Reference: {card_payment.reference_number}\n"
-                        f"Verification Code: {card_payment.verification_code}\n\n"
-                        f"Thank you for your payment!"
-                    )
-                elif card_payment.status == 'rejected':
-                    message = (
-                        f"❌ *Payment Rejected*\n\n"
-                        f"Your card payment of {transaction.amount} Toman has been rejected.\n"
-                        f"Reference: {card_payment.reference_number}\n"
-                        f"Reason: {card_payment.admin_note or 'Not specified'}\n\n"
-                        f"Please contact support for assistance."
-                    )
+                if card_payment.admin_note:
+                    message += f"📝 Reason: {card_payment.admin_note}\n\n"
                 else:
-                    # No need to notify for other statuses
-                    return
-                
-                # Create notification
-                TelegramNotification.objects.create(
-                    user=user,
-                    type='payment_status',
-                    message=message,
-                    status='pending'
-                )
-                
-                logger.info(f"User notification created for card payment {card_payment.id}")
+                    message += f"\nPlease contact support for more information."
+            
+            elif card_payment.status == 'expired':
+                message = f"⌛ *Payment Expired*\n\n"
+                message += f"💰 Amount: {transaction.amount} Toman\n"
+                message += f"🔑 Verification Code: {card_payment.verification_code}\n"
+                message += f"⏱ Expired at: {card_payment.expires_at.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                message += f"Please create a new payment if you wish to continue."
+            
             else:
-                logger.info("Telegrambot app not installed, skipping user notification")
+                return False
+                
+            notification_service = UserNotificationService()
+            notification_service.send_message(user, message)
+            
+            return True
+        except ImportError:
+            logger.warning("UserNotificationService not available, user notification not sent")
+            return False
         except Exception as e:
-            logger.error(f"Error sending user notification: {str(e)}") 
+            logger.error(f"Error sending user notification: {str(e)}")
+            return False 

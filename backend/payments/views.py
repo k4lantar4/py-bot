@@ -7,6 +7,7 @@ from django.views.decorators.http import require_POST, require_GET
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
+from django.db import models
 
 from .models import Transaction, ZarinpalPayment, CardPayment
 from .zarinpal import ZarinpalGateway
@@ -20,6 +21,9 @@ def payment_methods(request):
     context = {
         'zarinpal_enabled': hasattr(settings, 'ZARINPAL_MERCHANT') and settings.ZARINPAL_MERCHANT,
         'card_payment_enabled': hasattr(settings, 'CARD_PAYMENT_ENABLED') and settings.CARD_PAYMENT_ENABLED,
+        'card_payment_card_number': settings.CARD_PAYMENT_CARD_NUMBER,
+        'card_payment_card_holder': settings.CARD_PAYMENT_CARD_HOLDER,
+        'card_payment_bank_name': settings.CARD_PAYMENT_BANK_NAME,
     }
     return render(request, 'payments/payment_methods.html', context)
 
@@ -55,7 +59,13 @@ def create_transaction(request):
         if payment_method == 'zarinpal':
             # Redirect to Zarinpal payment
             gateway = ZarinpalGateway()
-            result = gateway.request_payment(transaction.id)
+            result = gateway.request_payment(
+                transaction_id=transaction.id,
+                amount=amount,
+                description=description,
+                email=data.get('email'),
+                mobile=data.get('mobile')
+            )
             
             if result['success']:
                 return JsonResponse({
@@ -77,15 +87,17 @@ def create_transaction(request):
             result = card_processor.create_payment(
                 transaction_id=transaction.id,
                 card_number=data.get('card_number'),
-                card_holder=data.get('card_holder')
+                reference_number=data.get('reference_number'),
+                transfer_time=data.get('transfer_time')
             )
             
             if result['success']:
                 return JsonResponse({
                     'success': True,
                     'transaction_id': transaction.id,
-                    'payment_id': result['payment_id'],
-                    'message': 'Payment created successfully. Please complete the transfer and submit the verification code.'
+                    'verification_code': result['verification_code'],
+                    'expires_at': result['expires_at'].isoformat(),
+                    'message': 'Payment created successfully. Please complete the transfer and use the verification code for reference.'
                 })
             else:
                 # Delete transaction if payment creation failed
@@ -189,26 +201,24 @@ def verify_card_payment(request):
     """Verify a card payment with verification code"""
     try:
         data = json.loads(request.body)
-        payment_id = data.get('payment_id')
         verification_code = data.get('verification_code')
         
-        if not payment_id or not verification_code:
+        if not verification_code:
             return JsonResponse({
                 'success': False,
-                'error': 'Payment ID and verification code are required'
+                'error': 'Verification code is required'
             })
         
         # Verify payment
         card_processor = CardPaymentProcessor()
-        result = card_processor.verify_payment(payment_id, verification_code)
+        result = card_processor.verify_payment(verification_code)
         
         return JsonResponse(result)
-        
     except Exception as e:
         logger.error(f"Error verifying card payment: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': 'An error occurred while verifying your payment'
+            'error': 'An error occurred during payment verification'
         })
 
 @login_required
@@ -216,8 +226,18 @@ def user_transactions(request):
     """View user's transaction history"""
     transactions = Transaction.objects.filter(user=request.user).order_by('-created_at')
     
+    # Calculate transaction statistics
+    completed_count = transactions.filter(status='completed').count()
+    pending_count = transactions.filter(status='pending').count()
+    failed_count = transactions.filter(status__in=['failed', 'expired']).count()
+    total_amount = transactions.filter(status='completed').aggregate(total=models.Sum('amount'))['total'] or 0
+    
     context = {
-        'transactions': transactions
+        'transactions': transactions,
+        'completed_count': completed_count,
+        'pending_count': pending_count,
+        'failed_count': failed_count,
+        'total_amount': total_amount
     }
     
     return render(request, 'payments/user_transactions.html', context)
