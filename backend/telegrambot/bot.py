@@ -16,7 +16,7 @@ from django.db import models
 from main.models import Server, SubscriptionPlan, Subscription
 from v2ray.models import Inbound, Client, SyncLog, ClientConfig
 from payments.models import Transaction, CardPayment, ZarinpalPayment, PaymentMethod, Discount
-from telegram.models import TelegramMessage, TelegramCallback, TelegramState, TelegramNotification, TelegramLog
+from telegrambot.models import TelegramMessage, TelegramCallback, TelegramState, TelegramNotification, TelegramLog
 from .default_messages import get_default_message
 
 # Configure logging

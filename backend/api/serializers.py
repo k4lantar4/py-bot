@@ -1,9 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from main.models import Server, SubscriptionPlan, Subscription
 from v2ray.models import Inbound, Client, SyncLog, ClientConfig
 from payments.models import Transaction, CardPayment, ZarinpalPayment, PaymentMethod, Discount
-from telegram.models import TelegramMessage, TelegramNotification
+from telegrambot.models import TelegramMessage, TelegramNotification
 
 User = get_user_model()
 

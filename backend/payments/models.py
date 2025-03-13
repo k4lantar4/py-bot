@@ -24,7 +24,7 @@ class Transaction(models.Model):
         ('admin', _('Admin Adjustment')),
     )
     
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='transactions')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='payment_transactions')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     type = models.CharField(max_length=20, choices=TYPE_CHOICES)
@@ -46,7 +46,7 @@ class CardPayment(models.Model):
         ('expired', _('Expired')),
     )
     
-    transaction = models.OneToOneField(Transaction, on_delete=models.CASCADE, related_name='card_payment')
+    transaction = models.OneToOneField(Transaction, on_delete=models.CASCADE, related_name='card_payment_details')
     card_number = models.CharField(max_length=20)
     reference_number = models.CharField(max_length=100)
     transfer_time = models.DateTimeField()
@@ -54,7 +54,7 @@ class CardPayment(models.Model):
     expires_at = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     admin_note = models.TextField(blank=True)
-    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_card_payments')
     verified_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
@@ -81,7 +81,7 @@ class ZarinpalPayment(models.Model):
         ('failed', _('Failed')),
     )
     
-    transaction = models.OneToOneField(Transaction, on_delete=models.CASCADE, related_name='zarinpal_payment')
+    transaction = models.OneToOneField(Transaction, on_delete=models.CASCADE, related_name='zarinpal_payment_details')
     authority = models.CharField(max_length=100, blank=True, null=True)
     ref_id = models.CharField(max_length=100, blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -158,8 +158,8 @@ class Discount(models.Model):
 class DiscountUsage(models.Model):
     """Model for tracking discount code usage"""
     discount = models.ForeignKey(Discount, on_delete=models.CASCADE, related_name='usages')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='discount_usages')
-    transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name='discount_usage')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='payment_discount_usages')
+    transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name='discount_usages')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
     

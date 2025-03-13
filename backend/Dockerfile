@@ -14,6 +14,7 @@ RUN apt-get update \
         python3-dev \
         libpq-dev \
         netcat-traditional \
+        bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -28,7 +29,8 @@ COPY . .
 
 # Set up entrypoint
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh \
+    && sed -i 's/\r$//g' /entrypoint.sh
 
 # Create non-root user and set permissions
 RUN adduser --disabled-password --gecos '' appuser \
@@ -38,7 +40,7 @@ RUN adduser --disabled-password --gecos '' appuser \
 # Switch to non-root user
 USER appuser
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 
 # Start the Django server
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"] 

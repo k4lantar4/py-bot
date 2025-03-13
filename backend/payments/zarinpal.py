@@ -12,9 +12,10 @@ class ZarinpalGateway:
     
     def __init__(self):
         """Initialize the Zarinpal gateway"""
-        self.merchant_id = settings.ZARINPAL_MERCHANT
-        self.sandbox = settings.ZARINPAL_SANDBOX
-        self.callback_url = settings.ZARINPAL_CALLBACK_URL
+        self.merchant_id = getattr(settings, 'ZARINPAL_MERCHANT', '')
+        self.sandbox = getattr(settings, 'ZARINPAL_SANDBOX', True)
+        self.callback_url = getattr(settings, 'ZARINPAL_CALLBACK_URL', '')
+        self.admin_notification_enabled = getattr(settings, 'ADMIN_NOTIFICATION_ENABLED', True)
         
         # Set API endpoints based on sandbox mode
         if self.sandbox:
@@ -29,6 +30,15 @@ class ZarinpalGateway:
     def request_payment(self, transaction_id, amount, description, email=None, mobile=None):
         """Request a payment from Zarinpal"""
         try:
+            # Validate parameters
+            if not self.merchant_id:
+                logger.error("ZARINPAL_MERCHANT not set in settings")
+                return {"success": False, "error_message": "Payment gateway not configured properly"}
+            
+            if not self.callback_url:
+                logger.error("ZARINPAL_CALLBACK_URL not set in settings")
+                return {"success": False, "error_message": "Payment gateway callback URL not configured"}
+            
             # Get transaction
             transaction = Transaction.objects.get(id=transaction_id)
             
@@ -51,7 +61,27 @@ class ZarinpalGateway:
             
             # Make request to Zarinpal
             response = requests.post(self.request_url, json=data, timeout=10)
-            result = response.json()
+            
+            # Log the response
+            logger.info(f"Zarinpal payment request response: {response.text}")
+            
+            # Check response status code
+            if response.status_code != 200:
+                logger.error(f"Zarinpal API error: HTTP {response.status_code}")
+                return {
+                    "success": False,
+                    "error_message": f"Payment gateway error: HTTP {response.status_code}"
+                }
+            
+            # Parse response
+            try:
+                result = response.json()
+            except json.JSONDecodeError:
+                logger.error(f"Invalid JSON response from Zarinpal API: {response.text}")
+                return {
+                    "success": False,
+                    "error_message": "Invalid response from payment gateway"
+                }
             
             if self.sandbox:
                 # Sandbox response format
@@ -66,6 +96,10 @@ class ZarinpalGateway:
                         status='pending',
                         payment_url=payment_url
                     )
+                    
+                    # Send notification to admin if enabled
+                    if self.admin_notification_enabled:
+                        self._notify_admin_new_payment(zarinpal_payment)
                     
                     return {
                         "success": True,
@@ -96,6 +130,10 @@ class ZarinpalGateway:
                         payment_url=payment_url
                     )
                     
+                    # Send notification to admin if enabled
+                    if self.admin_notification_enabled:
+                        self._notify_admin_new_payment(zarinpal_payment)
+                    
                     return {
                         "success": True,
                         "authority": authority,
@@ -117,6 +155,12 @@ class ZarinpalGateway:
                 "success": False,
                 "error_message": "Transaction not found"
             }
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error to Zarinpal API: {str(e)}")
+            return {
+                "success": False,
+                "error_message": f"Connection error: {str(e)}"
+            }
         except Exception as e:
             logger.error(f"Error requesting Zarinpal payment: {str(e)}")
             return {
@@ -127,9 +171,27 @@ class ZarinpalGateway:
     def verify_payment(self, authority, amount):
         """Verify a payment with Zarinpal"""
         try:
+            # Validate parameters
+            if not self.merchant_id:
+                logger.error("ZARINPAL_MERCHANT not set in settings")
+                return {"success": False, "error_message": "Payment gateway not configured properly"}
+            
             # Get Zarinpal payment
-            zarinpal_payment = ZarinpalPayment.objects.get(authority=authority)
-            transaction = zarinpal_payment.transaction
+            try:
+                zarinpal_payment = ZarinpalPayment.objects.get(authority=authority)
+                transaction = zarinpal_payment.transaction
+            except ZarinpalPayment.DoesNotExist:
+                logger.error(f"Zarinpal payment with authority {authority} does not exist")
+                return {"success": False, "error_message": "Payment not found"}
+            
+            # Check if payment is already verified
+            if zarinpal_payment.status == 'verified':
+                return {
+                    "success": True,
+                    "status": "already_verified",
+                    "ref_id": zarinpal_payment.ref_id,
+                    "transaction_id": transaction.id
+                }
             
             # Convert amount from Toman to Rial (Zarinpal uses Rial)
             amount_rial = int(amount * 10)
@@ -143,7 +205,27 @@ class ZarinpalGateway:
             
             # Make request to Zarinpal
             response = requests.post(self.verify_url, json=data, timeout=10)
-            result = response.json()
+            
+            # Log the response
+            logger.info(f"Zarinpal payment verification response: {response.text}")
+            
+            # Check response status code
+            if response.status_code != 200:
+                logger.error(f"Zarinpal API error: HTTP {response.status_code}")
+                return {
+                    "success": False,
+                    "error_message": f"Payment gateway error: HTTP {response.status_code}"
+                }
+            
+            # Parse response
+            try:
+                result = response.json()
+            except json.JSONDecodeError:
+                logger.error(f"Invalid JSON response from Zarinpal API: {response.text}")
+                return {
+                    "success": False,
+                    "error_message": "Invalid response from payment gateway"
+                }
             
             if self.sandbox:
                 # Sandbox response format
@@ -160,6 +242,12 @@ class ZarinpalGateway:
                     transaction.transaction_id = ref_id
                     transaction.transaction_data = result
                     transaction.save()
+                    
+                    # Handle transaction type specific actions
+                    self._handle_completed_transaction(transaction)
+                    
+                    # Notify user
+                    self._notify_user_payment_status(zarinpal_payment)
                     
                     return {
                         "success": True,
@@ -201,6 +289,12 @@ class ZarinpalGateway:
                     transaction.transaction_data = result
                     transaction.save()
                     
+                    # Handle transaction type specific actions
+                    self._handle_completed_transaction(transaction)
+                    
+                    # Notify user
+                    self._notify_user_payment_status(zarinpal_payment)
+                    
                     return {
                         "success": True,
                         "ref_id": ref_id,
@@ -225,11 +319,11 @@ class ZarinpalGateway:
                         "error_code": error_code,
                         "error_message": error_message
                     }
-        except ZarinpalPayment.DoesNotExist:
-            logger.error(f"Zarinpal payment with authority {authority} does not exist")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error to Zarinpal API: {str(e)}")
             return {
                 "success": False,
-                "error_message": "Payment not found"
+                "error_message": f"Connection error: {str(e)}"
             }
         except Exception as e:
             logger.error(f"Error verifying Zarinpal payment: {str(e)}")
@@ -237,6 +331,124 @@ class ZarinpalGateway:
                 "success": False,
                 "error_message": str(e)
             }
+    
+    def _handle_completed_transaction(self, transaction):
+        """Handle actions after a successful transaction"""
+        try:
+            # Update user wallet if this was a deposit
+            if transaction.type == 'deposit':
+                user = transaction.user
+                user.wallet_balance += transaction.amount
+                user.save()
+                logger.info(f"Updated user {user.username} wallet balance to {user.wallet_balance}")
+            
+            # Activate subscription if this was a purchase
+            if transaction.type == 'purchase' and hasattr(transaction, 'subscription'):
+                subscription = transaction.subscription
+                if subscription and subscription.status == 'pending':
+                    subscription.status = 'active'
+                    subscription.save()
+                    
+                    # Create client in 3X-UI panel
+                    from v2ray.api_client import create_client
+                    success = create_client(subscription.id)
+                    
+                    if success:
+                        logger.info(f"Created client for subscription {subscription.id}")
+                    else:
+                        logger.error(f"Failed to create client for subscription {subscription.id}")
+        except Exception as e:
+            logger.error(f"Error handling completed transaction: {str(e)}")
+    
+    def _notify_admin_new_payment(self, zarinpal_payment):
+        """Notify admin of new payment"""
+        try:
+            # Check if telegrambot app is available
+            from django.apps import apps
+            if apps.is_installed('telegrambot'):
+                from telegrambot.models import TelegramNotification
+                
+                # Create a notification message
+                transaction = zarinpal_payment.transaction
+                user = transaction.user
+                
+                message = (
+                    f"🔔 *New Zarinpal payment initiated*\n\n"
+                    f"User: {user.username}\n"
+                    f"Amount: {transaction.amount} Toman\n"
+                    f"Authority: {zarinpal_payment.authority}\n"
+                    f"Time: {transaction.created_at}\n\n"
+                    f"Payment is pending completion."
+                )
+                
+                # Get admin users with Telegram IDs
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                admin_users = User.objects.filter(is_staff=True, telegram_id__isnull=False)
+                
+                # Create notifications for all admins
+                for admin in admin_users:
+                    TelegramNotification.objects.create(
+                        user=admin,
+                        type='admin_notification',
+                        message=message,
+                        status='pending'
+                    )
+                
+                logger.info(f"Admin notification created for Zarinpal payment {zarinpal_payment.id}")
+            else:
+                logger.info("Telegrambot app not installed, skipping admin notification")
+        except Exception as e:
+            logger.error(f"Error sending admin notification: {str(e)}")
+    
+    def _notify_user_payment_status(self, zarinpal_payment):
+        """Notify user of payment status change"""
+        try:
+            # Check if telegrambot app is available
+            from django.apps import apps
+            if apps.is_installed('telegrambot'):
+                from telegrambot.models import TelegramNotification
+                
+                transaction = zarinpal_payment.transaction
+                user = transaction.user
+                
+                # Skip if user has no Telegram ID
+                if not user.telegram_id:
+                    logger.info(f"User {user.id} has no Telegram ID, skipping notification")
+                    return
+                
+                # Create message based on status
+                if zarinpal_payment.status == 'verified':
+                    message = (
+                        f"✅ *Payment Successful*\n\n"
+                        f"Your payment of {transaction.amount} Toman has been processed successfully.\n"
+                        f"Reference ID: {zarinpal_payment.ref_id}\n\n"
+                        f"Thank you for your payment!"
+                    )
+                elif zarinpal_payment.status == 'failed':
+                    message = (
+                        f"❌ *Payment Failed*\n\n"
+                        f"Your payment of {transaction.amount} Toman has failed.\n"
+                        f"Authority: {zarinpal_payment.authority}\n\n"
+                        f"Please try again or contact support for assistance."
+                    )
+                else:
+                    # No need to notify for other statuses
+                    return
+                
+                # Create notification
+                TelegramNotification.objects.create(
+                    user=user,
+                    type='payment_status',
+                    message=message,
+                    status='pending'
+                )
+                
+                logger.info(f"User notification created for Zarinpal payment {zarinpal_payment.id}")
+            else:
+                logger.info("Telegrambot app not installed, skipping user notification")
+        except Exception as e:
+            logger.error(f"Error sending user notification: {str(e)}")
     
     def _get_error_message(self, error_code):
         """Get error message for Zarinpal error code"""

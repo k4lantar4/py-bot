@@ -76,7 +76,7 @@ class Subscription(models.Model):
         ('cancelled', _('Cancelled')),
     )
     
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='subscriptions')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='v2ray_subscriptions')
     plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE)
     server = models.ForeignKey(Server, on_delete=models.CASCADE)
     # Store the inbound ID and client email from 3x-UI
@@ -127,8 +127,8 @@ class Payment(models.Model):
         ('refunded', _('Refunded')),
     )
     
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='payments')
-    subscription = models.ForeignKey(Subscription, on_delete=models.SET_NULL, null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='v2ray_payments')
+    subscription = models.ForeignKey(Subscription, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=20, choices=PAYMENT_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -159,7 +159,7 @@ class CardPayment(models.Model):
     expires_at = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     admin_note = models.TextField(blank=True)
-    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='v2ray_verified_payments')
     verified_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
@@ -265,7 +265,7 @@ class APIKey(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.key:
-            self.key = secrets.token_urlsafe(32)
+            self.key = secrets.token_hex(32)
         super().save(*args, **kwargs)
     
     def is_valid(self):

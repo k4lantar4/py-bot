@@ -1,10 +1,16 @@
 import json
 import logging
+import sys
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
+
+# Add the parent directory to the Python path
+sys.path.insert(0, '/usr/local/lib/python3.11/site-packages')
+
+# Now import from python-telegram-bot
 from telegram import Update
-from telegram.ext import Dispatcher, CallbackContext
+from telegram.ext import Application
 
 from .bot import setup_bot
 
@@ -16,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 # Initialize the bot application
 application = setup_bot()
-dispatcher = application.dispatcher
 
 @csrf_exempt
 def telegram_webhook(request):
@@ -30,8 +35,8 @@ def telegram_webhook(request):
             # Convert to Update object
             update = Update.de_json(update_data, application.bot)
             
-            # Process update
-            dispatcher.process_update(update)
+            # Process update asynchronously
+            application.process_update(update)
             
             return JsonResponse({'status': 'ok'})
         except Exception as e:

@@ -21,5 +21,6 @@ router.register(r'telegram-notifications', views.TelegramNotificationViewSet)
 # The API URLs are now determined automatically by the router
 urlpatterns = [
     path('', include(router.urls)),
-    # Add additional custom endpoints here if needed
+    # Add the BotConfig endpoint
+    path('bot/config/', views.BotConfigView.as_view(), name='bot-config'),
 ] 
