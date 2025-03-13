@@ -1,15 +1,17 @@
+version: '3.8'
+
 services:
   # Database
   db:
-    image: postgres:15-alpine
+    image: postgres:13
     volumes:
-      - postgres_data:/var/lib/postgresql/data/
+      - postgres_data:/var/lib/postgresql/data
     env_file:
-      - ./.env
+      - .env
     environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
     ports:
       - "5432:5432"
     healthcheck:
@@ -18,10 +20,12 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - mrjbot_network
 
   # Redis for caching and session storage
   redis:
-    image: redis:7-alpine
+    image: redis:6
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -33,14 +37,15 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - mrjbot_network
 
   # Backend Django application
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - ./backend:/app
+      - .:/app
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     ports:
@@ -51,7 +56,7 @@ services:
       redis:
         condition: service_healthy
     env_file:
-      - ./.env
+      - .env
     environment:
       - DB_HOST=db
       - DB_PORT=5432
@@ -59,57 +64,53 @@ services:
       - REDIS_PORT=6379
       - DEBUG=1
       - DJANGO_SETTINGS_MODULE=backend.settings
-    command: python manage.py runserver 0.0.0.0:8000
-    restart: unless-stopped
+    networks:
+      - mrjbot_network
 
   # Celery worker for background tasks
-  celery:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: celery -A core worker -l INFO
+  celery_worker:
+    build: .
+    command: celery -A config worker -l info
     volumes:
-      - ./backend:/app
+      - .:/app
+    env_file:
+      - .env
     depends_on:
       - backend
       - redis
-    env_file:
-      - ./.env
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
     restart: unless-stopped
+    networks:
+      - mrjbot_network
 
   # Celery beat for scheduled tasks
-  celery-beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: celery -A core beat -l INFO
+  celery_beat:
+    build: .
+    command: celery -A config beat -l info
     volumes:
-      - ./backend:/app
+      - .:/app
+    env_file:
+      - .env
     depends_on:
       - backend
       - redis
-    env_file:
-      - ./.env
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
     restart: unless-stopped
+    networks:
+      - mrjbot_network
 
   # Telegram bot
   bot:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    build: .
+    command: python -m telegram.main
     volumes:
-      - ./backend:/app
-    depends_on:
-      backend:
-        condition: service_started
+      - .:/app
     env_file:
-      - ./.env
+      - .env
     environment:
       - DB_HOST=db
       - DB_PORT=5432
@@ -117,11 +118,31 @@ services:
       - REDIS_PORT=6379
       - DEBUG=1
       - DJANGO_SETTINGS_MODULE=backend.settings
-    command: python -m telegram.main
     restart: unless-stopped
+    networks:
+      - mrjbot_network
+
+  nginx:
+    image: nginx:1.21
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - mrjbot_network
 
 volumes:
   postgres_data:
   redis_data:
   static_volume:
-  media_volume: 
+  media_volume:
+
+networks:
+  mrjbot_network:
+    driver: bridge 

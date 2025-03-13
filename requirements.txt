@@ -1,34 +1,81 @@
-# Django and REST framework
+# Django & DRF
 Django==5.0.2
 djangorestframework==3.14.0
-django-filter==23.5
 django-cors-headers==4.3.1
 django-environ==0.11.2
+django-filter==23.5
+django-redis==5.4.0
+django-storages==1.14.2
+django-celery-results==2.5.1
+django-celery-beat==2.5.0
+django-rest-swagger==2.2.0
+drf-yasg==1.21.7
 
 # Database
 psycopg2-binary==2.9.9
-redis==5.0.1
+SQLAlchemy==2.0.27
+alembic==1.13.1
+
+# Authentication
+djangorestframework-simplejwt==5.3.1
+django-allauth==0.61.1
+django-otp==1.3.1
+qrcode==7.4.2
 
 # Telegram Bot
-python-telegram-bot==20.7
+python-telegram-bot==20.8
+aiohttp==3.9.3
+pydantic==2.6.1
 
-# Celery
+# Task Queue
 celery==5.3.6
+redis==5.0.1
 
-# Utilities
+# API & HTTP
 requests==2.31.0
-python-dateutil==2.8.2
-pytz==2024.1
-Pillow==10.2.0
+urllib3==2.2.1
+httpx==0.26.0
 
-# Development
-black==24.1.1
-flake8==7.0.0
+# Payment
+stripe==7.11.0
+paypalrestsdk==1.13.1
+zarinpal==1.0.0
+
+# Email
+django-anymail[sendgrid]==10.1
+django-anymail[mailgun]==10.1
+django-anymail[postmark]==10.1
+
+# Storage
+boto3==1.34.34
+google-cloud-storage==2.14.0
+azure-storage-blob==12.19.0
+
+# Monitoring
+sentry-sdk==1.40.4
+prometheus-client==0.19.0
+django-debug-toolbar==4.3.0
+
+# Testing
 pytest==8.0.1
 pytest-django==4.8.0
 pytest-cov==4.1.0
-coverage==7.4.1
+pytest-asyncio==0.23.5
+factory-boy==3.3.0
+faker==22.6.0
 
-# Production
-gunicorn==21.2.0
-whitenoise==6.6.0 
+# Development
+black==24.1.1
+isort==5.13.2
+flake8==7.0.0
+mypy==1.8.0
+pre-commit==3.6.0
+ipython==8.21.0
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2024.1
+Pillow==10.2.0
+qrcode==7.4.2
+python-magic==0.4.27
+python-dotenv==1.0.1 

@@ -14,22 +14,30 @@ from pathlib import Path
 import os
 from datetime import timedelta
 import sys
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Initialize environment variables
+env = environ.Env()
+environ.Env.read_env(BASE_DIR / '.env')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-test-key-for-development')
+SECRET_KEY = env('SECRET_KEY', default='your-secret-key-here')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+DEBUG = env.bool('DEBUG', default=True)
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
+# IP Whitelisting
+BLACKLISTED_IPS = env.list('BLACKLISTED_IPS', default=[])
+WHITELISTED_IPS = env.list('WHITELISTED_IPS', default=[])
+ALLOWED_IPS = env.list('ALLOWED_IPS', default=[])
 
 # Application definition
 
@@ -42,35 +50,31 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # Third-party apps
     'rest_framework',
-    'corsheaders',
     'rest_framework_simplejwt',
-    'csp',
-    'defender',
-    'django_ratelimit',
-    'django_celery_beat',
+    'corsheaders',
     'django_filters',
-    'drf_yasg',
+    'channels',  # For WebSocket support
+    'model_utils',  # For model tracking
     # Local apps
     'main',
-    'api',
-    'v2ray',
-    'telegrambot',
-    'payments',
+    'chat',  # Live chat app
+    'v2ray',  # V2Ray management app
+    'payments',  # Payment processing app
+    'api',  # API endpoints app
+    'telegrambot',  # Telegram bot app
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'csp.middleware.CSPMiddleware',
-    'defender.middleware.FailedLoginMiddleware',
-    'django_ratelimit.middleware.RatelimitMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -78,7 +82,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -93,28 +97,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-if os.getenv('DATABASE_URL'):
-    import dj_database_url
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=os.getenv('DATABASE_URL')
-        )
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('DB_NAME', default='mrjbot'),
+        'USER': env('DB_USER', default='mrjbot'),
+        'PASSWORD': env('DB_PASSWORD', default='mrjbot'),
+        'HOST': env('DB_HOST', default='db'),
+        'PORT': env('DB_PORT', default='5432'),
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('POSTGRES_DB', 'v2ray_bot'),
-            'USER': os.getenv('POSTGRES_USER', 'postgres'),
-            'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'postgres_test_password'),
-            'HOST': os.getenv('DB_HOST', 'localhost'),
-            'PORT': os.getenv('DB_PORT', '5432'),
-        }
-    }
+}
 
 # Custom User Model
 AUTH_USER_MODEL = 'main.User'
@@ -128,9 +123,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {
-            'min_length': 12,
-        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -147,13 +139,12 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', 'fa-ir')
+LANGUAGE_CODE = 'fa'  # Default to Persian
 
-TIME_ZONE = os.getenv('TIME_ZONE', 'Asia/Tehran')
+TIME_ZONE = 'Asia/Tehran'  # Iran timezone
 
 USE_I18N = True
 
@@ -173,9 +164,8 @@ LANGUAGES = [
 
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
+STATICFILES_DIRS = []
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -188,8 +178,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Cache settings
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': env('REDIS_URL', default='redis://redis:6379/0'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
     }
 }
 
@@ -233,166 +228,125 @@ CSP_CONNECT_SRC = ("'self'", "https:")
 CSP_UPGRADE_INSECURE_REQUESTS = not DEBUG
 
 # CORS settings
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
+CORS_ALLOWED_ORIGINS = env.list('CORS_ORIGIN_WHITELIST', default=[
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+])
 CORS_ALLOW_CREDENTIALS = True
 
-# Rate Limiting Settings
-RATELIMIT_ENABLE = True
-RATELIMIT_USE_CACHE = 'default'
-RATELIMIT_VIEW = 'django_ratelimit.views.limited'
-RATELIMIT_FAIL_OPEN = False
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
 
-# IP blacklist settings
-BLACKLISTED_IPS = os.environ.get('BLACKLISTED_IPS', '').split(',') if os.environ.get('BLACKLISTED_IPS') else []
-ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '').split(',') if os.environ.get('ALLOWED_IPS') else []
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
-# Rest Framework settings
+# JWT Settings
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=env.int('JWT_ACCESS_TOKEN_LIFETIME', 5)),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=env.int('JWT_REFRESH_TOKEN_LIFETIME', 1)),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': env('JWT_SECRET_KEY', default=SECRET_KEY),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
+# REST Framework Settings
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
+    'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle'
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'user': '1000/hour',
-        'login': '5/minute',
-    },
+    ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
-    'DEFAULT_FILTER_BACKENDS': [
+    'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
-    ],
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ] if not DEBUG else [
-        'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',
-    ],
+    ),
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',
+        'user': '1000/day',
+    },
 }
 
-# JWT settings
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.getenv('JWT_ACCESS_TOKEN_EXPIRE_MINUTES', 30))),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.getenv('JWT_REFRESH_TOKEN_EXPIRE_DAYS', 7))),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'SIGNING_KEY': os.getenv('JWT_SECRET_KEY', SECRET_KEY),
-    'ALGORITHM': os.getenv('JWT_ALGORITHM', 'HS256'),
-}
-
-# CSRF Settings
-CSRF_USE_SESSIONS = True
-CSRF_COOKIE_HTTPONLY = True
-CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS if not host.startswith('localhost') and not host.startswith('127.0.0.1')]
-CSRF_FAILURE_VIEW = 'django.views.csrf.csrf_failure'
-
-# Defender Settings
-DEFENDER_LOGIN_FAILURE_LIMIT = 5
-DEFENDER_COOLOFF_TIME = 300  # 5 minutes
-DEFENDER_LOCKOUT_TEMPLATE = 'defender/lockout.html'
-DEFENDER_REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-DEFENDER_USE_CELERY = True
-
-# Email settings
-EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 25))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'False').lower() == 'true'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@localhost')
-
-# Celery settings
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/1')
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/1')
+# Celery Settings
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://redis:6379/0')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://redis:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers.DatabaseScheduler'
 
-# Telegram Bot settings
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
-TELEGRAM_WEBHOOK_URL = os.getenv('TELEGRAM_WEBHOOK_URL', '')
-ADMIN_USER_IDS = os.getenv('ADMIN_USER_IDS', '[]')
-try:
-    import json
-    ADMIN_USER_IDS = json.loads(ADMIN_USER_IDS)
-except (json.JSONDecodeError, TypeError):
-    ADMIN_USER_IDS = []
+# Email Settings
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@example.com')
 
-# 3X-UI API Settings
-THREEXUI_API_TIMEOUT = int(os.getenv('THREEXUI_API_TIMEOUT', 30))
-THREEXUI_SESSION_EXPIRY = int(os.getenv('THREEXUI_SESSION_EXPIRY', 3600))
+# Telegram Bot Settings
+TELEGRAM_BOT_TOKEN = env('TELEGRAM_BOT_TOKEN', default='')
+TELEGRAM_WEBHOOK_URL = env('TELEGRAM_WEBHOOK_URL', default='')
+TELEGRAM_ADMIN_GROUP_ID = env('TELEGRAM_ADMIN_GROUP_ID', default='')
 
 # Payment Settings
-# Zarinpal Payment Gateway
-ZARINPAL_MERCHANT = os.getenv('ZARINPAL_MERCHANT', '')
-ZARINPAL_SANDBOX = os.getenv('ZARINPAL_SANDBOX', 'True').lower() == 'true'
-ZARINPAL_CALLBACK_URL = os.getenv('ZARINPAL_CALLBACK_URL', 'http://localhost:8000/api/v1/payments/verify')
+ZARINPAL_MERCHANT = env('ZARINPAL_MERCHANT', default='')
+ZARINPAL_SANDBOX = env.bool('ZARINPAL_SANDBOX', default=True)
+ZARINPAL_CALLBACK_URL = env('ZARINPAL_CALLBACK_URL', default='')
 
-# Card Payment Settings
-CARD_NUMBER = os.getenv('CARD_NUMBER', '')
-CARD_HOLDER = os.getenv('CARD_HOLDER', '')
-CARD_PAYMENT_VERIFICATION_TIMEOUT_MINUTES = int(os.getenv('CARD_PAYMENT_VERIFICATION_TIMEOUT_MINUTES', 30))
+# Points System Settings
+POINTS_PER_PURCHASE = env.int('POINTS_PER_PURCHASE', default=10)
+POINTS_PER_REFERRAL = env.int('POINTS_PER_REFERRAL', default=50)
+POINTS_EXPIRY_DAYS = env.int('POINTS_EXPIRY_DAYS', default=365)
 
-# Logging settings
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'console': {
-            'level': LOG_LEVEL,
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-        'file': {
-            'level': LOG_LEVEL,
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
-            'maxBytes': 10 * 1024 * 1024,  # 10 MB
-            'backupCount': 5,
-            'formatter': 'verbose',
-        },
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console', 'file'],
-            'level': LOG_LEVEL,
-            'propagate': True,
-        },
-        'main': {
-            'handlers': ['console', 'file'],
-            'level': LOG_LEVEL,
-            'propagate': True,
-        },
-        'telegram_bot': {
-            'handlers': ['console', 'file'],
-            'level': LOG_LEVEL,
-            'propagate': True,
+# Live Chat Settings
+LIVE_CHAT_ENABLED = env.bool('LIVE_CHAT_ENABLED', default=True)
+MAX_CHAT_SESSIONS = env.int('MAX_CHAT_SESSIONS', default=5)
+CHAT_TIMEOUT_MINUTES = env.int('CHAT_TIMEOUT_MINUTES', default=30)
+
+# Channels Settings (for WebSocket)
+ASGI_APPLICATION = 'config.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [env('REDIS_URL', default='redis://redis:6379/0')],
         },
     },
 }
 
-# Make sure the logs directory exists
-os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+# Debug Toolbar Settings
+if DEBUG:
+    INTERNAL_IPS = [
+        '127.0.0.1',
+    ]

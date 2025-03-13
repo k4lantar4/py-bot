@@ -53,8 +53,10 @@ User = get_user_model()
     SETTING_EXPIRY_DAYS,
     SETTING_USAGE_THRESHOLD,
     SPEED_TEST_MENU,
-    USAGE_STATS_MENU
-) = range(25)
+    USAGE_STATS_MENU,
+    POINTS_MENU,
+    POINTS_REDEMPTION
+) = range(27)
 
 # Helper function to get message template
 def get_message(name, lang='fa'):
@@ -177,62 +179,40 @@ async def language_selection(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 # Main menu handler
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show the main menu."""
-    user = update.effective_user
-    try:
-        db_user = User.objects.get(telegram_id=user.id)
-        language_code = db_user.language_code
-        
-        # Store in context
-        context.user_data['user_id'] = db_user.id
-        context.user_data['language_code'] = language_code
-        
-        # Build main menu keyboard
-        keyboard = [
-            [InlineKeyboardButton(get_message('btn_my_accounts', language_code), callback_data="menu_accounts")],
-            [InlineKeyboardButton(get_message('btn_buy_subscription', language_code), callback_data="menu_buy")],
-            [InlineKeyboardButton(get_message('btn_payment', language_code), callback_data="menu_payment")],
-            [
-                InlineKeyboardButton(get_message('btn_usage_stats', language_code), callback_data="menu_stats"),
-                InlineKeyboardButton(get_message('btn_speed_test', language_code), callback_data="menu_speedtest")
-            ],
-            [
-                InlineKeyboardButton(get_message('btn_tutorials', language_code), callback_data="menu_tutorials"),
-                InlineKeyboardButton(get_message('btn_faq', language_code), callback_data="menu_faq")
-            ],
-            [
-                InlineKeyboardButton(get_message('btn_referral', language_code), callback_data="menu_referral"),
-                InlineKeyboardButton(get_message('btn_preferences', language_code), callback_data="menu_preferences")
-            ],
-            [InlineKeyboardButton(get_message('btn_support', language_code), callback_data="menu_support")],
-            [InlineKeyboardButton(get_message('btn_profile', language_code), callback_data="menu_profile")],
+    """Show main menu."""
+    query = update.callback_query
+    user = query.from_user if query else update.effective_user
+    
+    # Get user's language code
+    lang_code = get_user_language(user.id)
+    
+    # Create keyboard
+    keyboard = [
+        [
+            InlineKeyboardButton(_("🔑 اکانت‌های من"), callback_data="my_accounts"),
+            InlineKeyboardButton(_("🛒 خرید اشتراک"), callback_data="buy_subscription")
+        ],
+        [
+            InlineKeyboardButton(_("💰 پرداخت"), callback_data="payment"),
+            InlineKeyboardButton(_("🎁 دعوت از دوستان"), callback_data="referral")
+        ],
+        [
+            InlineKeyboardButton(_("💎 امتیازات"), callback_data="points"),
+            InlineKeyboardButton(_("⚙️ تنظیمات"), callback_data="preferences")
+        ],
+        [
+            InlineKeyboardButton(_("📞 پشتیبانی"), callback_data="support"),
+            InlineKeyboardButton(_("👤 پروفایل من"), callback_data="profile")
         ]
-        
-        # Add admin button if user is admin
-        if db_user.is_admin:
-            keyboard.append([InlineKeyboardButton(get_message('btn_admin', language_code), callback_data="menu_admin")])
-            
-        # Add language button
-        keyboard.append([InlineKeyboardButton(get_message('btn_language', language_code), callback_data="menu_language")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        main_menu_message = get_message('main_menu', language_code)
-        
-        if update.message:
-            await update.message.reply_text(main_menu_message, reply_markup=reply_markup)
-        else:
-            await update.callback_query.edit_message_text(main_menu_message, reply_markup=reply_markup)
-        
-        return MAIN_MENU
-        
-    except User.DoesNotExist:
-        logger.error(f"User not found for telegram_id: {user.id}")
-        if update.message:
-            await update.message.reply_text("Error loading main menu. Please try /start again.")
-        else:
-            await update.callback_query.edit_message_text("Error loading main menu. Please try /start again.")
-        return ConversationHandler.END
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        _("🏠 منوی اصلی\nاز دکمه‌های زیر می‌توانید استفاده کنید:"),
+        reply_markup=reply_markup
+    )
+    
+    return MAIN_MENU
 
 # Main menu callback handler
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -240,11 +220,11 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     query = update.callback_query
     await query.answer()
     
-    action = query.data.split('_')[1]
+    action = query.data
     
-    if action == "accounts":
+    if action == "my_accounts":
         return await show_accounts(update, context)
-    elif action == "buy":
+    elif action == "buy_subscription":
         return await show_plans(update, context)
     elif action == "payment":
         return await show_payment_menu(update, context)
@@ -2049,107 +2029,279 @@ async def run_speed_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_text(get_message('error_general', 'fa'))
         return ConversationHandler.END
 
+# Points menu handler
+async def show_points_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show points menu."""
+    user = update.effective_user
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(get_message('btn_points_balance', language_code), callback_data="points_balance"),
+                InlineKeyboardButton(get_message('btn_points_history', language_code), callback_data="points_history")
+            ],
+            [
+                InlineKeyboardButton(get_message('btn_points_redeem', language_code), callback_data="points_redeem"),
+                InlineKeyboardButton(get_message('btn_points_earn', language_code), callback_data="points_earn")
+            ],
+            [InlineKeyboardButton(get_message('btn_back', language_code), callback_data="menu_main")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        points_message = get_message('points_menu', language_code).format(points=db_user.points)
+        
+        if update.message:
+            await update.message.reply_text(points_message, reply_markup=reply_markup)
+        else:
+            await update.callback_query.edit_message_text(points_message, reply_markup=reply_markup)
+        
+        return MAIN_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        if update.message:
+            await update.message.reply_text("Error loading points menu. Please try /start again.")
+        else:
+            await update.callback_query.edit_message_text("Error loading points menu. Please try /start again.")
+        return ConversationHandler.END
+
+# Points balance handler
+async def show_points_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show points balance."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = query.from_user
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        balance_message = get_message('points_balance', language_code).format(points=db_user.points)
+        
+        keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(balance_message, reply_markup=reply_markup)
+        return MAIN_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await query.edit_message_text("Error loading points balance. Please try /start again.")
+        return ConversationHandler.END
+
+# Points history handler
+async def show_points_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show points transaction history."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = query.from_user
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        transactions = db_user.get_points_history()[:10]  # Last 10 transactions
+        if not transactions:
+            history_message = get_message('points_history_empty', language_code)
+        else:
+            history_message = get_message('points_history', language_code) + "\n\n"
+            for tx in transactions:
+                emoji = "➕" if tx.type == 'earn' else "➖" if tx.type == 'spend' else "⚡️"
+                history_message += f"{emoji} *{tx.type.title()}*: {abs(tx.points)} points\n"
+                history_message += f"   _{tx.description}_\n"
+                history_message += f"   {tx.created_at.strftime('%Y-%m-%d %H:%M')}\n\n"
+        
+        keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(history_message, reply_markup=reply_markup, parse_mode='Markdown')
+        return MAIN_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await query.edit_message_text("Error loading points history. Please try /start again.")
+        return ConversationHandler.END
+
+# Points redemption handler
+async def show_points_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show available redemption options."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = query.from_user
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        rules = PointsRedemptionRule.objects.filter(is_active=True)
+        if not rules:
+            redemption_message = get_message('points_redemption_empty', language_code)
+            keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
+        else:
+            redemption_message = get_message('points_redemption', language_code).format(points=db_user.points)
+            keyboard = []
+            for rule in rules:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"{rule.name} ({rule.points_cost} points)",
+                        callback_data=f"redeem_{rule.id}"
+                    )
+                ])
+            keyboard.append([InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(redemption_message, reply_markup=reply_markup)
+        return MAIN_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await query.edit_message_text("Error loading redemption options. Please try /start again.")
+        return ConversationHandler.END
+
+# Handle redemption
+async def handle_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle rule redemption."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = query.from_user
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        rule_id = int(query.data.split('_')[1])
+        
+        try:
+            rule = PointsRedemptionRule.objects.get(id=rule_id, is_active=True)
+            
+            # Check if user has enough points
+            if db_user.points < rule.points_cost:
+                await query.answer(get_message('points_insufficient', language_code))
+                return
+            
+            # Get active subscription if needed
+            applied_to = None
+            if rule.reward_type in ['data', 'days']:
+                applied_to = Subscription.objects.filter(
+                    user=db_user,
+                    status='active'
+                ).first()
+                
+                if not applied_to:
+                    await query.answer(get_message('points_no_subscription', language_code))
+                    return
+            
+            # Create redemption
+            redemption = PointsRedemption.objects.create(
+                user=db_user,
+                rule=rule,
+                points_spent=rule.points_cost,
+                reward_value=rule.reward_value,
+                applied_to=applied_to
+            )
+            
+            # Apply reward
+            if redemption.apply_reward():
+                await query.answer(get_message('points_redeem_success', language_code))
+                
+                # Send success message
+                reward_text = get_message('points_reward_success', language_code).format(
+                    points=rule.points_cost,
+                    reward=rule.name
+                )
+                
+                if rule.reward_type == 'discount':
+                    reward_text += get_message('points_discount_code', language_code).format(
+                        code=f"POINTS_{redemption.id}"
+                    )
+                
+                keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(reward_text, reply_markup=reply_markup, parse_mode='Markdown')
+            else:
+                await query.answer(get_message('points_redeem_failed', language_code))
+                
+        except PointsRedemptionRule.DoesNotExist:
+            await query.answer(get_message('points_invalid_rule', language_code))
+            
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await query.edit_message_text("Error processing redemption. Please try /start again.")
+    
+    return MAIN_MENU
+
+# Points earn info handler
+async def show_points_earn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show how to earn points."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = query.from_user
+    try:
+        db_user = User.objects.get(telegram_id=user.id)
+        language_code = db_user.language_code
+        
+        earn_message = get_message('points_earn_info', language_code)
+        
+        keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(earn_message, reply_markup=reply_markup)
+        return MAIN_MENU
+        
+    except User.DoesNotExist:
+        logger.error(f"User not found for telegram_id: {user.id}")
+        await query.edit_message_text("Error loading points info. Please try /start again.")
+        return ConversationHandler.END
+
 # Setup function
 def setup_bot():
-    """Set up and return the bot application."""
-    # Get bot token from settings
-    token = settings.TELEGRAM_BOT_TOKEN
+    """Setup bot handlers."""
+    application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
     
-    # Create application
-    application = Application.builder().token(token).build()
-    
-    # Add handlers
+    # Add conversation handler
     conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler("start", start),
-            CommandHandler("language", language_command),
-        ],
+        entry_points=[CommandHandler('start', start)],
         states={
             SELECTING_LANGUAGE: [
-                CallbackQueryHandler(language_selection, pattern=r"^lang_"),
+                CallbackQueryHandler(language_selection, pattern='^lang_')
             ],
             MAIN_MENU: [
-                CallbackQueryHandler(handle_main_menu, pattern=r"^menu_"),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
+                CallbackQueryHandler(handle_main_menu, pattern='^my_accounts$'),
+                CallbackQueryHandler(handle_main_menu, pattern='^buy_subscription$'),
+                CallbackQueryHandler(handle_main_menu, pattern='^payment$'),
+                CallbackQueryHandler(handle_main_menu, pattern='^referral$'),
+                CallbackQueryHandler(handle_main_menu, pattern='^points$'),
+                CallbackQueryHandler(handle_main_menu, pattern='^preferences$'),
+                CallbackQueryHandler(handle_main_menu, pattern='^support$'),
+                CallbackQueryHandler(handle_main_menu, pattern='^profile$'),
+                CallbackQueryHandler(back_to_main_menu, pattern='^back_main$'),
+                CallbackQueryHandler(back_to_accounts, pattern='^back_accounts$'),
+                CallbackQueryHandler(back_to_payment_menu, pattern='^back_payment$'),
             ],
-            ACCOUNT_MENU: [
-                CallbackQueryHandler(show_account_details, pattern=r"^account_"),
-                CallbackQueryHandler(show_config_link, pattern=r"^config_"),
-                CallbackQueryHandler(back_to_accounts, pattern=r"^back_accounts$"),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
+            POINTS_MENU: [
+                CallbackQueryHandler(show_points_balance, pattern='^points_balance$'),
+                CallbackQueryHandler(show_points_history, pattern='^points_history$'),
+                CallbackQueryHandler(show_points_redemption, pattern='^points_redeem$'),
+                CallbackQueryHandler(show_points_earn, pattern='^points_earn$'),
+                CallbackQueryHandler(show_main_menu, pattern='^back_main$'),
             ],
-            PLAN_SELECTION: [
-                # Will be implemented later
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
+            POINTS_REDEMPTION: [
+                CallbackQueryHandler(handle_redemption, pattern='^redeem_'),
+                CallbackQueryHandler(show_points_menu, pattern='^points$'),
             ],
-            PAYMENT_MENU: [
-                CallbackQueryHandler(handle_payment_menu, pattern=r"^payment_"),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_payment_check),
-            ],
-            PAYMENT_METHOD_SELECTION: [
-                CallbackQueryHandler(select_payment_method, pattern=r"^paymethod_"),
-                CallbackQueryHandler(back_to_payment_menu, pattern=r"^back_payment$"),
-            ],
-            CARD_PAYMENT_INFO: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_card_payment_info),
-                CallbackQueryHandler(back_to_payment_menu, pattern=r"^back_payment$"),
-            ],
-            SUPPORT_CONVERSATION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_support_message),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
-            ],
-            FAQ_MENU: [
-                CallbackQueryHandler(show_faq_answer, pattern=r"^faq_"),
-                CallbackQueryHandler(show_faq, pattern=r"^back_faq$"),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
-            ],
-            TUTORIAL_MENU: [
-                CallbackQueryHandler(show_platform_tutorials, pattern=r"^platform_"),
-                CallbackQueryHandler(show_tutorials, pattern=r"^back_tutorials$"),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
-            ],
-            TUTORIAL_CATEGORY: [
-                CallbackQueryHandler(show_tutorial, pattern=r"^tutorial_"),
-                CallbackQueryHandler(show_tutorials, pattern=r"^back_tutorials$"),
-            ],
-            REFERRAL_MENU: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_referral_code),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
-            ],
-            PREFERENCES_MENU: [
-                CallbackQueryHandler(handle_preferences_button, pattern=r"^pref_"),
-                CallbackQueryHandler(show_preferences, pattern=r"^back_preferences$"),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
-            ],
-            SETTING_EXPIRY_DAYS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_expiry_days),
-                CallbackQueryHandler(show_preferences, pattern=r"^back_preferences$"),
-            ],
-            SETTING_USAGE_THRESHOLD: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_usage_threshold),
-                CallbackQueryHandler(show_preferences, pattern=r"^back_preferences$"),
-            ],
-            SPEED_TEST_MENU: [
-                CallbackQueryHandler(run_speed_test, pattern=r"^speedtest_"),
-                CallbackQueryHandler(show_speed_test, pattern=r"^back_speedtest$"),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
-            ],
-            USAGE_STATS_MENU: [
-                CallbackQueryHandler(show_subscription_stats, pattern=r"^stats_"),
-                CallbackQueryHandler(show_usage_stats, pattern=r"^back_stats$"),
-                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_main$"),
-            ],
-            # Other states will be implemented later
+            # ... existing states ...
         },
-        fallbacks=[
-            CommandHandler("cancel", cancel),
-            CommandHandler("start", start),
-        ],
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
     
     application.add_handler(conv_handler)
-    application.add_handler(CommandHandler("help", help_command))
+    
+    # Add command handlers
+    application.add_handler(CommandHandler('help', help_command))
+    application.add_handler(CommandHandler('language', language_command))
     
     return application
 

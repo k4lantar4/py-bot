@@ -5,6 +5,7 @@ from main.models import Server, SubscriptionPlan, Subscription
 from v2ray.models import Inbound, Client, SyncLog, ClientConfig
 from payments.models import Transaction, CardPayment, ZarinpalPayment, PaymentMethod, Discount
 from telegrambot.models import TelegramMessage, TelegramNotification
+from points.models import PointsRedemptionRule, PointsRedemption
 
 User = get_user_model()
 
@@ -175,4 +176,46 @@ class TelegramNotificationSerializer(serializers.ModelSerializer):
         model = TelegramNotification
         fields = ['id', 'user', 'type', 'message', 'status', 'error_message',
                   'created_at', 'sent_at']
-        read_only_fields = ['id', 'created_at', 'sent_at'] 
+        read_only_fields = ['id', 'created_at', 'sent_at']
+
+
+class PlanSuggestionSerializer(serializers.ModelSerializer):
+    """Serializer for plan suggestions."""
+    suggested_plan_name = serializers.CharField(source='suggested_plan.name', read_only=True)
+    
+    class Meta:
+        model = PlanSuggestion
+        fields = [
+            'id', 'suggested_plan', 'suggested_plan_name',
+            'reason', 'created_at', 'is_accepted'
+        ]
+        read_only_fields = ['created_at', 'is_accepted']
+
+
+class PointsRedemptionRuleSerializer(serializers.ModelSerializer):
+    """Serializer for points redemption rules."""
+    
+    class Meta:
+        model = PointsRedemptionRule
+        fields = [
+            'id', 'name', 'description', 'points_cost',
+            'reward_type', 'reward_value', 'is_active',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class PointsRedemptionSerializer(serializers.ModelSerializer):
+    """Serializer for points redemption transactions."""
+    rule = PointsRedemptionRuleSerializer(read_only=True)
+    rule_id = serializers.IntegerField(write_only=True)
+    applied_to_id = serializers.IntegerField(write_only=True, required=False)
+    
+    class Meta:
+        model = PointsRedemption
+        fields = [
+            'id', 'user', 'rule', 'rule_id', 'status',
+            'points_spent', 'reward_value', 'applied_to',
+            'applied_to_id', 'created_at', 'completed_at'
+        ]
+        read_only_fields = ['id', 'user', 'status', 'points_spent', 'reward_value', 'created_at', 'completed_at'] 

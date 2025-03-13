@@ -9,6 +9,8 @@ from datetime import timedelta
 from django.conf import settings
 from django.db.models import Sum, Count, Q
 import datetime
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 from main.models import Server, SubscriptionPlan, Subscription
 from v2ray.models import Inbound, Client, SyncLog, ClientConfig
@@ -124,6 +126,33 @@ class UserViewSet(viewsets.ModelViewSet):
             'wallet_balance': user.wallet_balance,
             'transaction_id': transaction.id
         })
+
+    @swagger_auto_schema(
+        operation_description="Get user profile",
+        responses={
+            200: UserSerializer,
+            404: "User not found"
+        }
+    )
+    @action(detail=False, methods=['get'])
+    def profile(self, request):
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_description="Update user profile",
+        request_body=UserSerializer,
+        responses={
+            200: UserSerializer,
+            400: "Bad request"
+        }
+    )
+    @action(detail=False, methods=['put'])
+    def update_profile(self, request):
+        serializer = self.get_serializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 
 class ServerViewSet(viewsets.ModelViewSet):
@@ -306,6 +335,19 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Configuration not found'}, status=status.HTTP_404_NOT_FOUND)
         
         serializer = ClientConfigSerializer(configs)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_description="Get user subscriptions",
+        responses={
+            200: SubscriptionSerializer(many=True),
+            404: "User not found"
+        }
+    )
+    @action(detail=False, methods=['get'])
+    def user_subscriptions(self, request):
+        subscriptions = self.queryset.filter(user=request.user)
+        serializer = self.get_serializer(subscriptions, many=True)
         return Response(serializer.data)
 
 
@@ -737,3 +779,119 @@ class BotConfigView(APIView):
                 'maintenance_mode': getattr(settings, 'MAINTENANCE_MODE', False)
             }
         })
+
+
+class PlanSuggestionViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for retrieving plan suggestions."""
+    serializer_class = PlanSuggestionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return PlanSuggestion.objects.filter(
+            user=self.request.user,
+            is_accepted=False
+        ).order_by('-created_at')
+    
+    @action(detail=True, methods=['post'])
+    def accept(self, request, pk=None):
+        """Accept a plan suggestion."""
+        suggestion = self.get_object()
+        suggestion.accept()
+        return Response({'status': 'accepted'})
+
+
+class PointsRedemptionRuleViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for retrieving points redemption rules."""
+    queryset = PointsRedemptionRule.objects.filter(is_active=True)
+    serializer_class = PointsRedemptionRuleSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class PointsRedemptionViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing points redemptions."""
+    serializer_class = PointsRedemptionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return PointsRedemption.objects.filter(user=self.request.user)
+    
+    def create(self, request, *args, **kwargs):
+        """Create a new points redemption."""
+        rule_id = request.data.get('rule_id')
+        applied_to_id = request.data.get('applied_to_id')
+        
+        try:
+            rule = PointsRedemptionRule.objects.get(id=rule_id, is_active=True)
+            user = request.user
+            
+            # Check if user has enough points
+            if user.points < rule.points_cost:
+                return Response({
+                    'error': 'Insufficient points',
+                    'required': rule.points_cost,
+                    'available': user.points
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get subscription if needed
+            applied_to = None
+            if rule.reward_type in ['data', 'days'] and applied_to_id:
+                try:
+                    applied_to = Subscription.objects.get(
+                        id=applied_to_id,
+                        user=user,
+                        status='active'
+                    )
+                except Subscription.DoesNotExist:
+                    return Response({
+                        'error': 'Active subscription not found'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Create redemption
+            redemption = PointsRedemption.objects.create(
+                user=user,
+                rule=rule,
+                points_spent=rule.points_cost,
+                reward_value=rule.reward_value,
+                applied_to=applied_to
+            )
+            
+            # Deduct points
+            user.points -= rule.points_cost
+            user.save()
+            
+            # Apply reward
+            if redemption.apply_reward():
+                serializer = self.get_serializer(redemption)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            else:
+                # Refund points if reward application failed
+                user.points += rule.points_cost
+                user.save()
+                redemption.delete()
+                return Response({
+                    'error': 'Failed to apply reward'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except PointsRedemptionRule.DoesNotExist:
+            return Response({
+                'error': 'Invalid redemption rule'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Cancel a points redemption."""
+        redemption = self.get_object()
+        
+        if redemption.status != 'pending':
+            return Response({
+                'error': 'Can only cancel pending redemptions'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Refund points
+        request.user.points += redemption.points_spent
+        request.user.save()
+        
+        redemption.status = 'cancelled'
+        redemption.save()
+        
+        return Response({'status': 'cancelled'})

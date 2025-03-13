@@ -1,146 +1,322 @@
-# 🚀 V2Ray Telegram Bot Project Blueprint
+# MRJ Bot Project Blueprint 🌟
 
-## 📁 Project Structure
+## Overview
+
+MRJ Bot is a powerful V2Ray subscription and payment management system with a Telegram bot interface and web dashboard. Built with Django, React, and python-telegram-bot, it integrates with multiple 3x-UI panels for seamless V2Ray account management.
+
+## Project Structure
+
+```
+mrjbot/
+├── backend/                 # Django backend
+│   ├── config/             # Django settings
+│   ├── mrjbot/             # Main app
+│   │   ├── models/         # Database models
+│   │   ├── serializers/    # API serializers
+│   │   ├── views/          # API views
+│   │   ├── urls/           # URL routing
+│   │   └── tasks/          # Celery tasks
+│   └── manage.py
+├── bot/                    # Telegram bot
+│   ├── handlers/           # Command handlers
+│   ├── keyboards/          # Inline keyboards
+│   ├── messages/           # Message templates
+│   └── utils/              # Utility functions
+├── frontend/               # React frontend
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── pages/         # Page components
+│   │   ├── store/         # Redux store
+│   │   ├── api/           # API clients
+│   │   └── utils/         # Utility functions
+│   └── package.json
+├── nginx/                  # Nginx configuration
+├── scripts/               # Utility scripts
+├── tests/                 # Test files
+├── docker-compose.yml     # Docker Compose config
+├── Dockerfile            # Docker configuration
+├── requirements.txt      # Python dependencies
+└── README.md            # Project documentation
+```
+
+## Features
 
 ### Backend (Django)
-- `backend/` - Django REST framework application
-  - `apps/` - Modular Django applications
-    - `users/` - User management and authentication
-    - `servers/` - V2Ray server management
-    - `payments/` - Payment processing (Zarinpal, card-to-card)
-    - `notifications/` - Telegram notifications system
-  - `core/` - Core functionality and shared components
-  - `api/` - REST API endpoints
-  - `utils/` - Helper functions and utilities
+- User Authentication & Authorization
+- Subscription Management
+- Payment Processing (Card-to-Card & Zarinpal)
+- Commission System
+- Notification System
+- System Settings
+- RESTful API
+- Swagger Documentation
+- Celery Tasks
+- Redis Caching
+- PostgreSQL Database
+- Points System
+- Live Chat Support
+- Smart Plan Suggestions
+- Server Monitoring
+- Bulk Messaging
+- Role Management (Admin, Seller, VIP)
+- Card Owner Tracking
+- Financial Reports
+- License System
 
-### Telegram Bot (Python)
-- `bot/` - Python Telegram Bot application
-  - `handlers/` - Command and message handlers
-  - `keyboards/` - Custom keyboard layouts
-  - `middleware/` - Bot middleware components
-  - `utils/` - Bot-specific utilities
+### Telegram Bot
+- User Commands
+  - /start - Start bot
+  - /help - Show help
+  - /profile - User profile
+  - /subscription - Subscription info
+  - /payment - Payment options
+  - /wallet - Wallet balance
+  - /transactions - Transaction history
+  - /support - Contact support
+  - /points - Check points
+  - /chat - Live chat support
+  - /plans - View smart plans
 
-### Web Dashboard (React)
-- `frontend/` - React application
-  - `src/` - Source code
-    - `components/` - Reusable UI components
-    - `pages/` - Page components
-    - `hooks/` - Custom React hooks
-    - `utils/` - Frontend utilities
-  - `public/` - Static assets
+- Admin Commands
+  - /admin - Admin panel
+  - /users - User management
+  - /subscriptions - Subscription management
+  - /payments - Payment management
+  - /settings - System settings
+  - /broadcast - Send message to users
+  - /stats - System statistics
+  - /servers - Server management
+  - /cards - Card tracking
+  - /reports - Financial reports
+  - /license - License management
 
-## 🎯 Features
+- Seller Commands
+  - /seller - Seller panel
+  - /sales - Sales history
+  - /commission - Commission info
+  - /withdraw - Withdrawal request
+  - /balance - Account balance
+  - /cards - Card management
+  - /points - Points management
 
-### Core Features
-1. User Management
-   - Role-based access (Admin, Seller, VIP)
-   - User authentication and authorization
-   - Profile management
-   - Activity tracking
+### Frontend (React)
+- Admin Dashboard
+  - User Management
+  - Subscription Management
+  - Payment Management
+  - Commission Management
+  - System Settings
+  - Statistics & Reports
+  - Server Monitoring
+  - Card Tracking
+  - Points Management
+  - License Management
+  - Live Chat Support
 
-2. Server Management
-   - 3x-UI panel integration
-   - Server monitoring and health checks
-   - Traffic usage tracking
-   - Automatic server rotation
+- User Dashboard
+  - Profile Management
+  - Subscription Management
+  - Transaction History
+  - Wallet Management
+  - Notifications
+  - Points History
+  - Live Chat
+  - Smart Plan Suggestions
 
-3. Payment System
-   - Zarinpal integration
-   - Card-to-card transfers
-   - Payment history
-   - Automatic invoice generation
+- Seller Dashboard
+  - Sales History
+  - Commission History
+  - Withdrawal Requests
+  - Account Balance
+  - Performance Stats
+  - Card Management
+  - Points Management
 
-4. Notification System
-   - Telegram notifications
-   - Server status alerts
-   - Payment confirmations
-   - User activity notifications
-
-5. Multi-language Support
-   - Persian (primary)
-   - English
-   - RTL support
-   - Language switching
-
-### Future Enhancements
-1. Additional VPN Protocols
-   - OpenVPN support
-   - WireGuard integration
-   - Shadowsocks compatibility
-
-2. Extended Services
-   - Apple ID sales
-   - PUBG UC sales
-   - Other digital goods
-
-3. Advanced Features
-   - Bulk messaging system
-   - Advanced analytics
-   - API rate limiting
-   - Caching system
-
-## 🔧 Technical Requirements
+## Technical Stack
 
 ### Backend
 - Django 5.x
 - Django REST framework
-- PostgreSQL
-- Redis (caching)
-- Celery (task queue)
+- PostgreSQL 13+
+- Redis 6+
+- Celery
+- JWT Authentication
+- CORS
+- Swagger/OpenAPI
+- 3x-UI API Integration
+- OCR for Receipts
+- Real-time WebSocket
 
 ### Frontend
 - React 18.x
 - TypeScript
-- Tailwind CSS
+- Material-UI
 - Redux Toolkit
 - React Query
+- Axios
+- RTL Support
+- Dark Theme
+- WebSocket Client
+- Chart.js
 
 ### Bot
 - python-telegram-bot v20+
 - aiohttp
 - SQLAlchemy
 - Pydantic
+- OCR Integration
+- WebSocket Support
 
 ### Infrastructure
 - Docker & Docker Compose
 - Nginx
-- Let's Encrypt SSL
+- SSL/TLS
 - Ubuntu 22.04 LTS
+- Backup System
+- Monitoring Stack
 
-## 🔒 Security Measures
-- JWT authentication
-- HTTPS enforcement
+## Security Features
+
+### Authentication & Authorization
+- JWT-based authentication
+- Role-based access control
+- Session management
+- Password hashing
+- 2FA support
+- IP whitelisting
+
+### Data Protection
+- HTTPS encryption
 - Input validation
-- Rate limiting
-- SQL injection prevention
 - XSS protection
 - CSRF protection
-- Secure session management
+- SQL injection prevention
+- Card data encryption
+- Receipt data protection
 
-## 🐳 Deployment
-- Docker Compose setup
-- Environment variable management
-- Backup system
-- Monitoring and logging
-- CI/CD pipeline
+### Infrastructure Security
+- Firewall rules
+- Rate limiting
+- IP whitelisting
+- SSL/TLS encryption
+- Regular backups
+- DDoS protection
+- WAF integration
 
-## 📱 User Interface
-- Dark gray and deep blue color scheme
-- Responsive design
-- RTL support
-- Mobile-first approach
-- Progressive Web App capabilities
+## Deployment
 
-## 🔄 Integration Points
-- 3x-UI API
-- Zarinpal API
-- Telegram Bot API
-- Payment gateways
+### Requirements
+- Ubuntu 22.04 LTS
+- Docker & Docker Compose
+- Domain or public IP
+- SSL certificate
+- Minimum 2GB RAM
+- 20GB SSD
+
+### Installation
+1. Clone repository
+2. Configure environment variables
+3. Build Docker images
+4. Start services
+5. Apply migrations
+6. Create superuser
+7. Configure SSL
+8. Set up monitoring
+9. Configure backup system
+10. Set up license
+
+### Maintenance
+- Regular backups
+- Log rotation
+- Performance monitoring
+- Security updates
+- Database optimization
+- License validation
+- Server health checks
+
+## Development Workflow
+
+### Setup
+1. Create virtual environment
+2. Install dependencies
+3. Configure database
+4. Apply migrations
+5. Create superuser
+6. Run development server
+7. Set up development SSL
+8. Configure monitoring
+
+### Testing
+- Unit tests
+- Integration tests
+- API tests
+- Frontend tests
+- Bot tests
+- Load tests
+- Security tests
+
+### Code Quality
+- Black formatting
+- isort imports
+- flake8 linting
+- mypy type checking
+- pre-commit hooks
+- SonarQube integration
+- Code coverage tracking
+
+## Future Enhancements
+
+### Features
+- OpenVPN Support
+- Apple ID Integration
+- PUBG UC Integration
+- Mobile app
+- Desktop app
+- Browser extension
+- API marketplace
+- Webhook system
+- Real-time updates
+- File storage
+- Search functionality
+
+### Integration
+- Additional Payment Gateways
+- Email services
+- SMS services
+- Social media
+- Cloud storage
+- Analytics tools
 - Monitoring services
+- CRM systems
 
-## 📊 Monitoring & Analytics
-- Server status monitoring
-- User activity tracking
-- Payment analytics
-- Traffic usage statistics
-- Error logging and reporting 
+### Performance
+- Database optimization
+- Query caching
+- Asset optimization
+- Code splitting
+- Lazy loading
+- Service workers
+- Edge computing
+- CDN optimization
+
+## License System
+
+### Features
+- License key validation
+- Version control
+- Feature flags
+- Usage tracking
+- Auto-renewal
+- Grace period
+- Backup protection
+- Multi-server support
+
+### Management
+- License generation
+- Activation system
+- Usage monitoring
+- Expiration handling
+- Backup protection
+- Server validation
+- Feature control
+- Analytics 

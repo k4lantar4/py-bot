@@ -672,7 +672,7 @@ Referral code successfully applied.
     },
 
     'enter_usage_threshold': {
-        'fa': "�� لطفاً درصد مصرف برای دریافت اعلان را وارد کنید (1-100):",
+        'fa': "📈 لطفاً درصد مصرف برای دریافت اعلان را وارد کنید (1-100):",
         'en': "📈 Please enter at what percentage of usage you want to be notified (1-100):"
     },
 
@@ -741,15 +741,148 @@ Referral code successfully applied.
     'speed_test_running': {
         'fa': "🔄 در حال انجام تست سرعت...",
         'en': "🔄 Running speed test..."
-    }
+    },
+
+    # Points related
+    'points_menu': {
+        'fa': "💎 منوی امتیازات\n\nامتیازات فعلی شما: {points}\n\nچه کاری می‌خواهید انجام دهید؟",
+        'en': "💎 Points Menu\n\nYour current points: {points}\n\nWhat would you like to do?"
+    },
+    'points_balance': {
+        'fa': "💰 موجودی امتیازات\n\nامتیازات فعلی شما: {points}\n\nبه جمع‌آوری امتیازات ادامه دهید تا جوایز عالی دریافت کنید!",
+        'en': "💰 Points Balance\n\nYour current points: {points}\n\nKeep earning points to unlock amazing rewards!"
+    },
+    'points_history': {
+        'fa': "📊 تاریخچه امتیازات\n\n۱۰ تراکنش آخر شما:\n\n{transactions}",
+        'en': "📊 Points History\n\nHere are your last 10 transactions:\n\n{transactions}"
+    },
+    'points_history_empty': {
+        'fa': "📊 تاریخچه امتیازات\n\nشما هنوز هیچ تراکنشی انجام نداده‌اید.\n\nشروع به کسب امتیازات کنید تا تاریخچه شما اینجا نمایش داده شود!",
+        'en': "📊 Points History\n\nYou haven't made any transactions yet.\n\nStart earning points to see your history here!"
+    },
+    'points_redemption': {
+        'fa': "🎁 تبدیل امتیازات\n\nجوایز موجود:\n\n{rewards}\n\nیک جایزه را انتخاب کنید تا امتیازات خود را تبدیل کنید!",
+        'en': "🎁 Points Redemption\n\nAvailable rewards:\n\n{rewards}\n\nSelect a reward to redeem your points!"
+    },
+    'points_redemption_empty': {
+        'fa': "🎁 تبدیل امتیازات\n\nدر حال حاضر هیچ جایزه‌ای موجود نیست.\n\nبعداً دوباره بررسی کنید تا جوایز جدید را ببینید!",
+        'en': "🎁 Points Redemption\n\nNo rewards available at the moment.\n\nCheck back later for new rewards!"
+    },
+    'points_redemption_success': {
+        'fa': "🎉 تبریک می‌گوییم!\n\nشما با موفقیت {points} امتیاز را برای {reward} تبدیل کردید!\n\nموجودی جدید شما: {new_balance} امتیاز",
+        'en': "🎉 Congratulations!\n\nYou have successfully redeemed {points} points for {reward}!\n\nYour new balance: {new_balance} points"
+    },
+    'points_redemption_failed': {
+        'fa': "❌ تبدیل ناموفق\n\n{error_message}\n\nلطفاً دوباره تلاش کنید یا جایزه دیگری را انتخاب کنید.",
+        'en': "❌ Redemption Failed\n\n{error_message}\n\nPlease try again or select a different reward."
+    },
+    'points_earn': {
+        'fa': "💫 کسب امتیازات\n\nراه‌های کسب امتیازات:\n\n1. 🛍️ خرید محصولات\n2. 👥 معرفی دوستان\n3. 📱 ورود روزانه\n4. 🎮 انجام وظایف\n\nاز امروز شروع به کسب امتیازات کنید!",
+        'en': "💫 Earn Points\n\nHere's how you can earn points:\n\n1. 🛍️ Make purchases\n2. 👥 Refer friends\n3. 📱 Daily check-ins\n4. 🎮 Complete tasks\n\nStart earning points today!"
+    },
+    'btn_points': {
+        'fa': "💎 امتیازات",
+        'en': "💎 Points"
+    },
+    'btn_points_balance': {
+        'fa': "💰 موجودی",
+        'en': "💰 Balance"
+    },
+    'btn_points_history': {
+        'fa': "📊 تاریخچه",
+        'en': "📊 History"
+    },
+    'btn_points_redeem': {
+        'fa': "🎁 تبدیل",
+        'en': "🎁 Redeem"
+    },
+    'btn_points_earn': {
+        'fa': "💫 کسب امتیازات",
+        'en': "💫 Earn Points"
+    },
+    'btn_back_points': {
+        'fa': "⬅️ بازگشت به امتیازات",
+        'en': "⬅️ Back to Points"
+    },
 }
 
 def get_default_message(name, lang='fa'):
-    """Get a default message by name and language"""
-    if name in default_messages:
-        if lang in default_messages[name]:
-            return default_messages[name][lang]
-        # Fallback to English
-        return default_messages[name].get('en', f"Message '{name}' not found.")
-    # Message not found
-    return f"Message '{name}' not found." 
+    """Get default message by name and language"""
+    messages = {
+        'fa': {
+            # ... existing messages ...
+            
+            # Points menu
+            'btn_points': '💎 امتیازات',
+            'points_menu': '🎯 *منوی امتیازات*\n\nامتیازات شما: *{points}*\n\nگزینه مورد نظر را انتخاب کنید:',
+            'btn_points_balance': '💎 موجودی امتیازات',
+            'btn_points_history': '📊 تاریخچه امتیازات',
+            'btn_points_redeem': '🎁 استفاده از امتیازات',
+            'btn_points_earn': '❓ نحوه کسب امتیاز',
+            
+            # Points balance
+            'points_balance': '💎 *موجودی امتیازات*\n\nامتیازات شما: *{points}*\n\nاز منوی امتیازات برای مشاهده گزینه‌های دیگر استفاده کنید.',
+            
+            # Points history
+            'points_history': '📊 *تاریخچه امتیازات*\n\n',
+            'points_history_empty': '📊 *تاریخچه امتیازات*\n\nهیچ تراکنشی یافت نشد.\n\nاز منوی امتیازات برای مشاهده گزینه‌های دیگر استفاده کنید.',
+            
+            # Points redemption
+            'points_redemption': '🎁 *استفاده از امتیازات*\n\nامتیازات شما: *{points}*\n\nگزینه مورد نظر را برای استفاده انتخاب کنید:',
+            'points_redemption_empty': '🎁 *استفاده از امتیازات*\n\nدر حال حاضر هیچ گزینه‌ای برای استفاده از امتیازات موجود نیست.\n\nاز منوی امتیازات برای مشاهده گزینه‌های دیگر استفاده کنید.',
+            'points_insufficient': '❌ امتیازات شما کافی نیست!',
+            'points_no_subscription': '❌ اشتراک فعالی یافت نشد!',
+            'points_redeem_success': '✅ امتیازات با موفقیت استفاده شد!',
+            'points_reward_success': '🎉 *استفاده از امتیازات موفقیت‌آمیز بود!*\n\nامتیازات استفاده شده: *{points}*\nپاداش: *{reward}*',
+            'points_discount_code': '\n\nکد تخفیف شما: *{code}*',
+            'points_redeem_failed': '❌ خطا در استفاده از امتیازات!',
+            'points_invalid_rule': '❌ گزینه نامعتبر است!',
+            
+            # Points earn info
+            'points_earn_info': '❓ *نحوه کسب امتیاز*\n\nشما می‌توانید از طریق موارد زیر امتیاز کسب کنید:\n\n'
+                                  '• خرید اشتراک\n'
+                                  '• معرفی کاربران جدید\n'
+                                  '• شرکت در مسابقات و رویدادها\n'
+                                  '• استفاده از کدهای تخفیف\n\n'
+                                  'از منوی امتیازات برای مشاهده گزینه‌های دیگر استفاده کنید.',
+        },
+        'en': {
+            # ... existing messages ...
+            
+            # Points menu
+            'btn_points': '💎 Points',
+            'points_menu': '🎯 *Points Menu*\n\nYour points: *{points}*\n\nChoose an option:',
+            'btn_points_balance': '💎 Points Balance',
+            'btn_points_history': '📊 Points History',
+            'btn_points_redeem': '🎁 Redeem Points',
+            'btn_points_earn': '❓ How to Earn',
+            
+            # Points balance
+            'points_balance': '💎 *Points Balance*\n\nYour points: *{points}*\n\nUse the points menu to see other options.',
+            
+            # Points history
+            'points_history': '📊 *Points History*\n\n',
+            'points_history_empty': '📊 *Points History*\n\nNo transactions found.\n\nUse the points menu to see other options.',
+            
+            # Points redemption
+            'points_redemption': '🎁 *Redeem Points*\n\nYour points: *{points}*\n\nChoose a reward to redeem:',
+            'points_redemption_empty': '🎁 *Redeem Points*\n\nNo redemption options available at the moment.\n\nUse the points menu to see other options.',
+            'points_insufficient': '❌ Insufficient points!',
+            'points_no_subscription': '❌ No active subscription found!',
+            'points_redeem_success': '✅ Points redeemed successfully!',
+            'points_reward_success': '🎉 *Points Redemption Successful!*\n\nPoints spent: *{points}*\nReward: *{reward}*',
+            'points_discount_code': '\n\nYour discount code: *{code}*',
+            'points_redeem_failed': '❌ Failed to redeem points!',
+            'points_invalid_rule': '❌ Invalid redemption option!',
+            
+            # Points earn info
+            'points_earn_info': '❓ *How to Earn Points*\n\nYou can earn points through:\n\n'
+                                  '• Purchasing subscriptions\n'
+                                  '• Referring new users\n'
+                                  '• Participating in contests and events\n'
+                                  '• Using discount codes\n\n'
+                                  'Use the points menu to see other options.',
+        }
+    }
+    
+    return messages.get(lang, messages['en']).get(name, f"Message not found: {name}") 

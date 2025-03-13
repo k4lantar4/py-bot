@@ -1,161 +1,275 @@
-# 🤖 V2Ray Telegram Bot
+# 🤖 V2Ray Telegram Bot with Web Dashboard
 
-## 📝 About
-A comprehensive V2Ray account management system featuring:
-- 🤖 Telegram bot with Persian language support
-- 🌐 Modern web dashboard
-- 💳 Payment system with Zarinpal and card-to-card support
-- 🔄 Integration with 3x-UI panels
-- 🔔 Telegram notifications
-- 🌍 Multi-language support (Persian and English)
+## 🌟 Key Features
 
-## 🚀 Key Features
-
-### 👥 User Management
-- ✅ User registration and authentication
-- ✅ User profiles
-- ✅ Role-based access (Admin, Seller, VIP)
-- ✅ User management by admins
-
-### 💳 Payment System
-- ✅ Online payments via Zarinpal
-- ✅ Card-to-card transfers
-- ✅ User wallet
-- ✅ Transaction history
-- ✅ Discount system
-
-### 🌐 Server Management
-- ✅ Integration with 3x-UI panels
-- ✅ Server monitoring
-- ✅ Traffic management
-- ✅ Automatic server rotation
-
-### 📱 Telegram Bot
-- ✅ Basic commands (/start, /help)
-- ✅ Account management
-- ✅ Payments and purchases
-- ✅ User profiles
-- ✅ Admin panel
-- ✅ Support system
+### 🤖 Telegram Bot
+- Complete V2Ray account management
+- Powerful admin panel
+- Card-to-card and Zarinpal payment system
+- Points and rewards system
+- Live support chat
+- Smart plan suggestions
+- Multi-language support (Persian-first)
+- Telegram notifications
+- Card management with owner tracking
+- Financial reports
+- Seller panel
+- Server management
+- Bulk messaging
 
 ### 🎨 Web Dashboard
-- ✅ Modern UI
-- ✅ Dark theme
-- ✅ RTL support
-- ✅ Multi-language
-- ✅ Account management
-- ✅ Admin panel
-
-## 🛠️ Technologies Used
-
-### Backend
-- Django 5.x
-- Django REST framework
-- PostgreSQL
-- Redis
-- Celery
-
-### Frontend
-- React 18.x
-- TypeScript
-- Tailwind CSS
-- Redux Toolkit
-- React Query
-
-### Bot
-- python-telegram-bot v20+
-- aiohttp
-- SQLAlchemy
-- Pydantic
-
-### Infrastructure
-- Docker & Docker Compose
-- Nginx
-- Let's Encrypt SSL
-- Ubuntu 22.04 LTS
-
-## 📊 Project Status
-
-### ✅ Completed
-- Core project structure
-- Authentication system
+- Modern and beautiful UI
+- Dark and deep blue theme
+- RTL support
+- Advanced admin panel
 - User management
-- Payment processing
-- 3x-UI integration
-- Telegram bot
-- Web dashboard
-- Multi-language support
-- Notification system
+- Server management
+- Card management
+- Points system
+- Live chat
+- Financial reports
+- License management
+- Analytics
 
-### ⚠️ In Development
+### ⚙️ Technical Features
+- Multiple 3x-UI panel integration
+- Secure payment system
+- Card data encryption
+- Receipt protection
+- Automatic backups
 - Server monitoring
-- Financial reporting
-- Bulk messaging
+- License system
+- Advanced security
 - Performance optimization
-- Backup system
-- Monitoring dashboard
-
-### 🔜 Planned
-- OpenVPN support
-- Apple ID account sales
-- PUBG UC sales
-- Advanced discount system
-- Developer API
+- Docker support
 
 ## 🚀 Installation
 
 ### Prerequisites
-- Ubuntu 22.04 LTS
-- Docker & Docker Compose
+- Ubuntu 22.04 server
+- Docker and Docker Compose
 - Domain or public IP
-- SSL certificate (optional)
+- Minimum 2GB RAM
+- 20GB SSD space
 
 ### Setup
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/v2ray-telegram-bot.git
-cd v2ray-telegram-bot
+git clone https://github.com/yourusername/mrjbot.git
+cd mrjbot
 ```
 
-2. Configure environment files:
+2. Configure environment variables:
 ```bash
 cp .env.example .env
-# Edit .env with your settings
+# Edit .env file with your settings
 ```
 
 3. Start with Docker:
 ```bash
-docker compose up -d
+docker-compose up -d
 ```
 
-4. Run installation script:
+4. Run initial commands:
 ```bash
-./install.sh
+docker-compose exec backend python manage.py migrate
+docker-compose exec backend python manage.py createsuperuser
 ```
 
-## 📚 Documentation
-- [Installation Guide](docs/installation.md)
-- [User Guide](docs/user-guide.md)
-- [Admin Guide](docs/admin-guide.md)
-- [API Documentation](docs/api.md)
+5. Configure SSL:
+```bash
+./mrjbot setup-ssl
+```
+
+6. Set up license:
+```bash
+./mrjbot set-license YOUR-LICENSE-KEY
+```
+
+## 🛠️ Management Commands
+
+### Main Commands
+```bash
+./mrjbot start          # Start services
+./mrjbot stop           # Stop services
+./mrjbot restart        # Restart services
+./mrjbot status         # Check service status
+./mrjbot logs           # View logs
+```
+
+### Backup Commands
+```bash
+./mrjbot backup         # Create backup
+./mrjbot restore        # Restore from backup
+./mrjbot list-backups   # List backups
+```
+
+### Management Commands
+```bash
+./mrjbot update         # Update system
+./mrjbot check-points   # Check points
+./mrjbot monitor        # Monitor servers
+./mrjbot report         # Financial reports
+```
+
+## 🔒 Security
+
+### Security Features
+- Sensitive data encryption
+- DDoS protection
+- Web Application Firewall
+- IP whitelisting
+- Two-factor authentication
+- Card encryption
+- Receipt protection
+
+### Backup System
+- Daily automatic backups
+- Cloud storage
+- Encrypted backups
+- Quick recovery
+- Backup history
+
+## 💰 Payment System
+
+### Payment Methods
+- Card-to-card with owner tracking
+- Zarinpal gateway
+- Internal wallet
+- Points system
+
+### Payment Features
+- Automatic transaction verification
+- Commission system
+- Financial reports
+- Transaction history
+- Card management
+
+## 🎯 Points System
+
+### Earning Points
+- Account purchases
+- User referrals
+- System usage
+- Support chat activity
+
+### Using Points
+- Purchase discounts
+- VIP status upgrade
+- Direct purchases
+- Special rewards
+
+## 💬 Live Chat Support
+
+### Features
+- Real-time support
+- Operator transfer
+- Chat history
+- File sharing
+- Auto-responses
+
+### Management
+- Operator panel
+- Response statistics
+- Service quality
+- Performance reports
+
+## 📊 Reports and Analytics
+
+### Financial Reports
+- Daily/weekly/monthly sales
+- Card transactions
+- Commissions
+- Profit/loss
+
+### System Statistics
+- Server status
+- Traffic usage
+- User count
+- System performance
+
+## 🔄 Updates
+
+### Update System
+- Automatic updates
+- Pre-update backups
+- Telegram notifications
+- Error recovery
+
+### Update Commands
+```bash
+./mrjbot update         # Update system
+./mrjbot update-check   # Check for updates
+./mrjbot rollback       # Rollback to previous version
+```
+
+## 📱 Future Versions
+
+### New Features
+- OpenVPN support
+- Apple ID account sales
+- PUBG UC sales
+- Mobile app
+- Desktop app
+
+### Improvements
+- New UI
+- Faster performance
+- Enhanced security
+- New capabilities
+
+## 📝 Documentation
+
+### Guides
+- Installation guide
+- User guide
+- Admin guide
+- Developer guide
+
+### Tutorials
+- Setup tutorial
+- Usage tutorial
+- Management tutorial
+- Development tutorial
 
 ## 🤝 Contributing
-To contribute to the project:
-1. Fork the repository
-2. Create a new branch
-3. Make your changes
-4. Submit a Pull Request
 
-## 📝 License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+### How to Contribute
+- Report bugs
+- Suggest features
+- Submit code
+- Improve documentation
+
+### Guidelines
+- Clean code
+- Complete testing
+- Updated docs
+- Follow standards
+
+## 📄 License
+
+### License Types
+- Free version
+- Professional version
+- Enterprise version
+- Custom version
+
+### License Features
+- User limits
+- Server limits
+- API limits
+- Special support
 
 ## 📞 Support
-- Telegram: [@v2raybot](https://t.me/v2raybot)
-- Email: support@example.com
-- Website: https://example.com
 
-## 🙏 Acknowledgments
-- [3x-UI](https://github.com/MHSanaei/3x-ui) for V2Ray management panel
-- [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) for Telegram bot library
-- [Django](https://www.djangoproject.com/) for backend framework
-- [React](https://reactjs.org/) for frontend framework
+### Contact Methods
+- Telegram
+- Email
+- Ticket system
+- Live chat
+
+### Response Times
+- 24/7 technical support
+- 9 AM to 9 PM general support
+- Holiday support
+- Emergency support

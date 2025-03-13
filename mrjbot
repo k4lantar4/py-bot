@@ -1,0 +1,192 @@
+#!/bin/bash
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Print with color
+print_color() {
+    echo -e "${2}${1}${NC}"
+}
+
+# Check if Docker is running
+check_docker() {
+    if ! docker info > /dev/null 2>&1; then
+        print_color "Docker is not running. Please start Docker first." "$RED"
+        exit 1
+    fi
+}
+
+# Check if Docker Compose is installed
+check_docker_compose() {
+    if ! command -v docker-compose &> /dev/null; then
+        print_color "Docker Compose is not installed. Please install it first." "$RED"
+        exit 1
+    fi
+}
+
+# Start the application
+start() {
+    check_docker
+    check_docker_compose
+    
+    print_color "Starting MRJ Bot..." "$YELLOW"
+    docker-compose up -d
+    print_color "MRJ Bot started successfully!" "$GREEN"
+}
+
+# Stop the application
+stop() {
+    check_docker
+    check_docker_compose
+    
+    print_color "Stopping MRJ Bot..." "$YELLOW"
+    docker-compose down
+    print_color "MRJ Bot stopped successfully!" "$GREEN"
+}
+
+# Restart the application
+restart() {
+    check_docker
+    check_docker_compose
+    
+    print_color "Restarting MRJ Bot..." "$YELLOW"
+    docker-compose restart
+    print_color "MRJ Bot restarted successfully!" "$GREEN"
+}
+
+# Show logs
+logs() {
+    check_docker
+    check_docker_compose
+    
+    if [ -z "$1" ]; then
+        docker-compose logs -f
+    else
+        docker-compose logs -f "$1"
+    fi
+}
+
+# Create superuser
+createsuperuser() {
+    check_docker
+    check_docker_compose
+    
+    print_color "Creating superuser..." "$YELLOW"
+    docker-compose exec web python manage.py createsuperuser
+}
+
+# Apply migrations
+migrate() {
+    check_docker
+    check_docker_compose
+    
+    print_color "Applying database migrations..." "$YELLOW"
+    docker-compose exec web python manage.py migrate
+    print_color "Migrations applied successfully!" "$GREEN"
+}
+
+# Collect static files
+collectstatic() {
+    check_docker
+    check_docker_compose
+    
+    print_color "Collecting static files..." "$YELLOW"
+    docker-compose exec web python manage.py collectstatic --noinput
+    print_color "Static files collected successfully!" "$GREEN"
+}
+
+# Shell into a container
+shell() {
+    check_docker
+    check_docker_compose
+    
+    if [ -z "$1" ]; then
+        print_color "Please specify a service name (web, db, redis, etc.)" "$RED"
+        exit 1
+    fi
+    
+    docker-compose exec "$1" bash
+}
+
+# Show status
+status() {
+    check_docker
+    check_docker_compose
+    
+    print_color "MRJ Bot Status:" "$YELLOW"
+    docker-compose ps
+}
+
+# Show help
+help() {
+    print_color "MRJ Bot CLI" "$YELLOW"
+    print_color "Usage: $0 [command] [options]" "$GREEN"
+    print_color "\nCommands:" "$YELLOW"
+    print_color "  start     Start the application" "$GREEN"
+    print_color "  stop      Stop the application" "$GREEN"
+    print_color "  restart   Restart the application" "$GREEN"
+    print_color "  logs      Show logs (optional: service name)" "$GREEN"
+    print_color "  shell     Access shell (optional: service name)" "$GREEN"
+    print_color "  status    Check application status" "$GREEN"
+    print_color "  migrate   Apply database migrations" "$GREEN"
+    print_color "  static    Collect static files" "$GREEN"
+    print_color "  superuser Create superuser" "$GREEN"
+    print_color "  help      Show this help message" "$GREEN"
+    print_color "\nExamples:" "$YELLOW"
+    print_color "  $0 start" "$GREEN"
+    print_color "  $0 stop" "$GREEN"
+    print_color "  $0 restart" "$GREEN"
+    print_color "  $0 logs" "$GREEN"
+    print_color "  $0 logs web" "$GREEN"
+    print_color "  $0 shell" "$GREEN"
+    print_color "  $0 shell db" "$GREEN"
+    print_color "  $0 status" "$GREEN"
+    print_color "  $0 migrate" "$GREEN"
+    print_color "  $0 static" "$GREEN"
+    print_color "  $0 superuser" "$GREEN"
+}
+
+# Main script
+check_docker
+check_docker_compose
+
+case "$1" in
+    "start")
+        start
+        ;;
+    "stop")
+        stop
+        ;;
+    "restart")
+        restart
+        ;;
+    "logs")
+        logs "$2"
+        ;;
+    "createsuperuser")
+        createsuperuser
+        ;;
+    "migrate")
+        migrate
+        ;;
+    "collectstatic")
+        collectstatic
+        ;;
+    "shell")
+        shell "$2"
+        ;;
+    "status")
+        status
+        ;;
+    "help"|"")
+        help
+        ;;
+    *)
+        print_color "Unknown command: $1" "$RED"
+        help
+        exit 1
+        ;;
+esac 

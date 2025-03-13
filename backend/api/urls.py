@@ -17,6 +17,9 @@ router.register(r'payment-methods', views.PaymentMethodViewSet)
 router.register(r'discounts', views.DiscountViewSet)
 router.register(r'telegram-messages', views.TelegramMessageViewSet)
 router.register(r'telegram-notifications', views.TelegramNotificationViewSet)
+router.register(r'plan-suggestions', views.PlanSuggestionViewSet, basename='plan-suggestion')
+router.register(r'points-rules', views.PointsRedemptionRuleViewSet, basename='points-rule')
+router.register(r'points-redemptions', views.PointsRedemptionViewSet, basename='points-redemption')
 
 # The API URLs are now determined automatically by the router
 urlpatterns = [
