@@ -1,275 +1,163 @@
-# 🤖 V2Ray Telegram Bot with Web Dashboard
+# 🌟 MRJ Bot - Ultimate V2Ray Management System
 
-## 🌟 Key Features
+## 📝 Introduction
+MRJ Bot is a comprehensive V2Ray subscription and payment management system featuring a Telegram bot interface and web dashboard. Built with cutting-edge technologies (Django 5.x, React 18.x, and python-telegram-bot v20+), it seamlessly integrates with multiple 3x-UI panels for advanced V2Ray account management.
 
-### 🤖 Telegram Bot
-- Complete V2Ray account management
-- Powerful admin panel
-- Card-to-card and Zarinpal payment system
-- Points and rewards system
-- Live support chat
-- Smart plan suggestions
-- Multi-language support (Persian-first)
-- Telegram notifications
-- Card management with owner tracking
-- Financial reports
-- Seller panel
-- Server management
-- Bulk messaging
+## ✨ Core Features
 
-### 🎨 Web Dashboard
-- Modern and beautiful UI
-- Dark and deep blue theme
-- RTL support
-- Advanced admin panel
-- User management
-- Server management
-- Card management
-- Points system
-- Live chat
-- Financial reports
-- License management
-- Analytics
+### 💳 Payment & Financial Management
+- Card-to-Card Payments with Owner Tracking
+  - Track card owners and transactions
+  - Automatic receipt verification (OCR)
+  - Payment confirmation workflow
+  - Transaction history
+- Zarinpal Integration
+  - Automatic payment verification
+  - Transaction logging
+  - Refund handling
+- Financial Reports
+  - Daily/weekly/monthly sales
+  - Card-wise breakdowns
+  - Confirmation statistics
+  - Revenue projections
 
-### ⚙️ Technical Features
-- Multiple 3x-UI panel integration
-- Secure payment system
-- Card data encryption
-- Receipt protection
-- Automatic backups
-- Server monitoring
-- License system
-- Advanced security
-- Performance optimization
-- Docker support
+### 🎁 Points & Rewards System
+- Point Earning
+  - Purchase-based points
+  - Referral bonuses
+  - Activity rewards
+- Point Management
+  - Point expiry system
+  - Redemption options
+  - VIP status tiers
+  - CLI command: `mrjbot check-points`
 
-## 🚀 Installation
+### 💬 Live Chat Support
+- Real-time chat in Telegram bot
+- Support ticket management
+- Agent assignment
+- Chat history
+- Response templates
+- Performance metrics
+
+### 🎯 Smart Plan Suggestions
+- Usage-based recommendations
+- Traffic analysis
+- Personalized offers
+- Upgrade suggestions
+- Multi-language templates
+
+### 🖥️ Server Management
+- Multi-panel Integration
+  - 3x-UI API sync
+  - Load balancing
+  - Failover support
+- Server Monitoring
+  - Health checks
+  - Traffic monitoring
+  - Performance metrics
+  - Alert system
+
+### 👥 Role Management
+- User Roles
+  - Admin
+  - Seller
+  - VIP User
+  - Regular User
+- Permission System
+  - Granular access control
+  - Custom role creation
+  - Activity logging
+
+## 🚀 Installation & Setup
 
 ### Prerequisites
-- Ubuntu 22.04 server
-- Docker and Docker Compose
+- Ubuntu 22.04 LTS
+- Docker & Docker Compose
 - Domain or public IP
 - Minimum 2GB RAM
-- 20GB SSD space
 
-### Setup
-1. Clone the repository:
+### Quick Install
 ```bash
-git clone https://github.com/yourusername/mrjbot.git
+# Download and install
+git clone https://github.com/username/mrjbot
 cd mrjbot
-```
+./install.sh
 
-2. Configure environment variables:
-```bash
-cp .env.example .env
-# Edit .env file with your settings
-```
-
-3. Start with Docker:
-```bash
+# Run
 docker-compose up -d
-```
-
-4. Run initial commands:
-```bash
-docker-compose exec backend python manage.py migrate
-docker-compose exec backend python manage.py createsuperuser
-```
-
-5. Configure SSL:
-```bash
-./mrjbot setup-ssl
-```
-
-6. Set up license:
-```bash
-./mrjbot set-license YOUR-LICENSE-KEY
-```
-
-## 🛠️ Management Commands
-
-### Main Commands
-```bash
-./mrjbot start          # Start services
-./mrjbot stop           # Stop services
-./mrjbot restart        # Restart services
-./mrjbot status         # Check service status
-./mrjbot logs           # View logs
-```
-
-### Backup Commands
-```bash
-./mrjbot backup         # Create backup
-./mrjbot restore        # Restore from backup
-./mrjbot list-backups   # List backups
 ```
 
 ### Management Commands
 ```bash
-./mrjbot update         # Update system
-./mrjbot check-points   # Check points
-./mrjbot monitor        # Monitor servers
-./mrjbot report         # Financial reports
+mrjbot install          # Install system
+mrjbot update          # Update system
+mrjbot backup          # Create backup
+mrjbot check-points    # Check points
+mrjbot set-license     # Set license
 ```
 
-## 🔒 Security
+## 🔒 Security & Performance
 
 ### Security Features
-- Sensitive data encryption
-- DDoS protection
-- Web Application Firewall
+- HTTPS everywhere
+- JWT authentication
+- Input validation
+- Session encryption
+- API rate limiting
 - IP whitelisting
-- Two-factor authentication
-- Card encryption
-- Receipt protection
 
-### Backup System
-- Daily automatic backups
-- Cloud storage
-- Encrypted backups
-- Quick recovery
-- Backup history
+### Performance Optimization
+- Redis caching
+- Database optimization
+- Load balancing
+- CDN integration
+- Asset compression
 
-## 💰 Payment System
+## 🔮 Future Extensions
+- OpenVPN Support
+- Apple ID Sales
+- PUBG UC Integration
+- Additional Payment Methods
+- Enhanced Analytics
+- AI-powered Support
 
-### Payment Methods
-- Card-to-card with owner tracking
-- Zarinpal gateway
-- Internal wallet
-- Points system
+## 📚 Documentation
+- Installation Guide
+- User Guide
+- API Documentation
+- Admin Manual
+- Development Guide
 
-### Payment Features
-- Automatic transaction verification
-- Commission system
-- Financial reports
-- Transaction history
-- Card management
+## 📝 License & Updates
 
-## 🎯 Points System
+### License System
+- License validation
+- Feature tiers
+- Usage tracking
+- Expiry management
+- Auto-renewal
 
-### Earning Points
-- Account purchases
-- User referrals
-- System usage
-- Support chat activity
+### Update Management
+- Version control
+- Change logging
+- Migration scripts
+- Backup system
+- Rollback procedures
 
-### Using Points
-- Purchase discounts
-- VIP status upgrade
-- Direct purchases
-- Special rewards
+## 🤝 Support
+For support, you can:
+- Contact us via Telegram bot
+- Submit a ticket
+- Use live chat
+- Join our Telegram group
 
-## 💬 Live Chat Support
-
-### Features
-- Real-time support
-- Operator transfer
-- Chat history
-- File sharing
-- Auto-responses
-
-### Management
-- Operator panel
-- Response statistics
-- Service quality
-- Performance reports
-
-## 📊 Reports and Analytics
-
-### Financial Reports
-- Daily/weekly/monthly sales
-- Card transactions
-- Commissions
-- Profit/loss
-
-### System Statistics
-- Server status
-- Traffic usage
-- User count
-- System performance
-
-## 🔄 Updates
-
-### Update System
+## 💫 Key Advantages
+- Beautiful modern UI
+- Multi-language support
+- Secure payment system
+- Easy management
+- 24/7 support
 - Automatic updates
-- Pre-update backups
-- Telegram notifications
-- Error recovery
-
-### Update Commands
-```bash
-./mrjbot update         # Update system
-./mrjbot update-check   # Check for updates
-./mrjbot rollback       # Rollback to previous version
-```
-
-## 📱 Future Versions
-
-### New Features
-- OpenVPN support
-- Apple ID account sales
-- PUBG UC sales
-- Mobile app
-- Desktop app
-
-### Improvements
-- New UI
-- Faster performance
-- Enhanced security
-- New capabilities
-
-## 📝 Documentation
-
-### Guides
-- Installation guide
-- User guide
-- Admin guide
-- Developer guide
-
-### Tutorials
-- Setup tutorial
-- Usage tutorial
-- Management tutorial
-- Development tutorial
-
-## 🤝 Contributing
-
-### How to Contribute
-- Report bugs
-- Suggest features
-- Submit code
-- Improve documentation
-
-### Guidelines
-- Clean code
-- Complete testing
-- Updated docs
-- Follow standards
-
-## 📄 License
-
-### License Types
-- Free version
-- Professional version
-- Enterprise version
-- Custom version
-
-### License Features
-- User limits
-- Server limits
-- API limits
-- Special support
-
-## 📞 Support
-
-### Contact Methods
-- Telegram
-- Email
-- Ticket system
-- Live chat
-
-### Response Times
-- 24/7 technical support
-- 9 AM to 9 PM general support
-- Holiday support
-- Emergency support
+- Advanced reporting
+- High security

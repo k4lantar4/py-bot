@@ -3,12 +3,15 @@ import uuid
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
-from .models import Transaction, CardPayment
+from .models import Transaction, CardPayment, CardOwner
+from .ocr_verification import ReceiptOCRProcessor
+from notifications.telegram import send_admin_notification, send_user_notification
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
 class CardPaymentProcessor:
-    """Card payment processor for manual card-to-card payments"""
+    """Process card to card payments with OCR verification and card owner tracking"""
     
     def __init__(self):
         """Initialize the card payment processor"""
@@ -17,192 +20,248 @@ class CardPaymentProcessor:
         self.card_number = getattr(settings, 'CARD_PAYMENT_NUMBER', '')
         self.card_holder = getattr(settings, 'CARD_PAYMENT_HOLDER', '')
         self.bank_name = getattr(settings, 'CARD_PAYMENT_BANK', '')
+        self.ocr_processor = ReceiptOCRProcessor()
     
-    def create_payment(self, transaction_id, card_number, reference_number, transfer_time):
+    def create_payment(self, user, amount, card_owner_id=None, verification_method='manual'):
         """Create a new card payment"""
         try:
-            # Get transaction
-            transaction = Transaction.objects.get(id=transaction_id)
-            
-            # Calculate expiry time
-            expires_at = timezone.now() + timedelta(minutes=self.verification_timeout_minutes)
-            
-            # Create card payment record
-            card_payment = CardPayment.objects.create(
-                transaction=transaction,
-                card_number=card_number,
-                reference_number=reference_number,
-                transfer_time=transfer_time,
-                status='pending',
-                expires_at=expires_at
-            )
-            
-            # Send notification to admin if enabled
-            if self.admin_notification_enabled:
-                self._notify_admin_new_payment(card_payment)
-            
-            return {
-                "success": True,
-                "verification_code": card_payment.verification_code,
-                "expires_at": expires_at,
-                "transaction_id": transaction.id
-            }
-        except Transaction.DoesNotExist:
-            logger.error(f"Transaction with ID {transaction_id} does not exist")
-            return {
-                "success": False,
-                "error_message": "Transaction not found"
-            }
+            with transaction.atomic():
+                # Create transaction
+                tx = Transaction.objects.create(
+                    user=user,
+                    amount=amount,
+                    type='deposit',
+                    description='Card to card payment'
+                )
+                
+                # Get card owner if provided
+                card_owner = None
+                if card_owner_id:
+                    try:
+                        card_owner = CardOwner.objects.get(id=card_owner_id, is_active=True)
+                    except CardOwner.DoesNotExist:
+                        logger.warning(f"Card owner {card_owner_id} not found or inactive")
+                
+                # Create card payment
+                payment = CardPayment.objects.create(
+                    transaction=tx,
+                    card_owner=card_owner,
+                    card_number=card_owner.card_number if card_owner else None,
+                    verification_method=verification_method
+                )
+                
+                # Send notifications
+                self._notify_payment_created(payment)
+                
+                return payment
+                
         except Exception as e:
             logger.error(f"Error creating card payment: {str(e)}")
-            return {
-                "success": False,
-                "error_message": str(e)
-            }
+            raise
     
-    def verify_payment(self, verification_code):
-        """Check the status of a card payment"""
+    def verify_payment(self, payment_id, admin_user, receipt_image=None, admin_note=''):
+        """Verify a card payment with optional OCR verification"""
         try:
-            # Get card payment
-            card_payment = CardPayment.objects.get(verification_code=verification_code)
-            transaction = card_payment.transaction
+            payment = CardPayment.objects.select_for_update().get(id=payment_id)
             
-            # Check payment status
-            if card_payment.status == 'verified':
-                return {
-                    "success": True,
-                    "status": "verified",
-                    "transaction_id": transaction.id
-                }
-            elif card_payment.status == 'rejected':
-                return {
-                    "success": False,
-                    "status": "rejected",
-                    "error_message": card_payment.admin_note or "Payment was rejected by administrator",
-                    "transaction_id": transaction.id
-                }
-            elif card_payment.status == 'expired' or card_payment.is_expired():
-                # Update status if expired but not marked
-                if card_payment.status != 'expired':
-                    card_payment.status = 'expired'
-                    card_payment.save()
+            if payment.is_expired():
+                payment.status = 'expired'
+                payment.save()
+                self._notify_payment_expired(payment)
+                return False, "Payment has expired"
+            
+            # Perform OCR verification if receipt image is provided
+            ocr_verified = False
+            if receipt_image and payment.verification_method in ['ocr', 'both']:
+                ocr_verified, ocr_message = self.ocr_processor.verify_payment(payment_id, receipt_image)
+                if not ocr_verified and payment.verification_method == 'ocr':
+                    payment.status = 'retry'
+                    payment.admin_note = f"OCR verification failed: {ocr_message}"
+                    payment.save()
+                    self._notify_payment_retry(payment)
+                    return False, ocr_message
+            
+            # Manual verification by admin
+            if payment.verification_method in ['manual', 'both']:
+                with transaction.atomic():
+                    # Update payment status
+                    payment.status = 'verified'
+                    payment.verified_by = admin_user
+                    payment.verified_at = timezone.now()
+                    payment.admin_note = admin_note
+                    payment.save()
                     
                     # Update transaction status
-                    transaction.status = 'expired'
-                    transaction.save()
-                
-                return {
-                    "success": False,
-                    "status": "expired",
-                    "error_message": "Payment verification time has expired",
-                    "transaction_id": transaction.id
-                }
-            else:
-                # Payment still pending
-                return {
-                    "success": True,
-                    "status": "pending",
-                    "message": "Payment is pending verification by administrator",
-                    "transaction_id": transaction.id,
-                    "expires_at": card_payment.expires_at
-                }
+                    payment.transaction.status = 'completed'
+                    payment.transaction.save()
+                    
+                    # Update card owner if exists
+                    if payment.card_owner and not payment.card_owner.is_verified:
+                        payment.card_owner.verify(admin_user)
+                    
+                    # Send notifications
+                    self._notify_payment_verified(payment)
+                    
+                    return True, "Payment verified successfully"
+            
+            return False, "Invalid verification method"
+            
         except CardPayment.DoesNotExist:
-            logger.error(f"Card payment with verification code {verification_code} does not exist")
-            return {
-                "success": False,
-                "error_message": "Payment not found"
-            }
+            logger.error(f"Payment {payment_id} not found")
+            return False, "Payment not found"
         except Exception as e:
-            logger.error(f"Error verifying card payment: {str(e)}")
-            return {
-                "success": False,
-                "error_message": str(e)
-            }
+            logger.error(f"Error verifying payment: {str(e)}")
+            return False, str(e)
     
-    def admin_verify_payment(self, card_payment_id, admin_user, approved=True, note=None):
-        """Admin verification of card payment"""
+    def reject_payment(self, payment_id, admin_user, reason=''):
+        """Reject a card payment"""
         try:
-            # Get card payment
-            card_payment = CardPayment.objects.get(id=card_payment_id)
-            transaction = card_payment.transaction
-            
-            # Check if payment is already verified or rejected
-            if card_payment.status in ['verified', 'rejected']:
-                return {
-                    "success": False,
-                    "error_message": f"Payment already {card_payment.status}",
-                    "transaction_id": transaction.id
-                }
-            
-            # Check if payment is expired
-            if card_payment.is_expired():
-                card_payment.status = 'expired'
-                card_payment.save()
+            with transaction.atomic():
+                payment = CardPayment.objects.select_for_update().get(id=payment_id)
                 
-                # Update transaction status
-                transaction.status = 'expired'
-                transaction.save()
+                if payment.status == 'verified':
+                    return False, "Cannot reject a verified payment"
                 
-                return {
-                    "success": False,
-                    "error_message": "Payment verification time has expired",
-                    "transaction_id": transaction.id
-                }
-            
-            # Update payment status based on admin decision
-            if approved:
-                card_payment.status = 'verified'
-                transaction.status = 'completed'
+                payment.status = 'rejected'
+                payment.verified_by = admin_user
+                payment.verified_at = timezone.now()
+                payment.admin_note = reason
+                payment.save()
                 
-                # Update user wallet if this was a deposit
-                if transaction.type == 'deposit':
-                    user = transaction.user
-                    user.wallet_balance += transaction.amount
-                    user.save()
+                payment.transaction.status = 'failed'
+                payment.transaction.save()
                 
-                # Activate subscription if this was a purchase
-                if transaction.type == 'purchase' and hasattr(transaction, 'subscription'):
-                    subscription = transaction.subscription
-                    if subscription and subscription.status == 'pending':
-                        subscription.status = 'active'
-                        subscription.save()
-                        
-                        # Create client in 3X-UI panel
-                        from v2ray.api_client import create_client
-                        create_client(subscription.id)
-            else:
-                card_payment.status = 'rejected'
-                transaction.status = 'failed'
-            
-            # Update card payment record
-            card_payment.verified_by = admin_user
-            card_payment.verified_at = timezone.now()
-            card_payment.admin_note = note
-            card_payment.save()
-            
-            # Update transaction
-            transaction.save()
-            
-            # Send notification to user
-            self._notify_user_payment_status(card_payment)
-            
-            return {
-                "success": True,
-                "status": card_payment.status,
-                "transaction_id": transaction.id
-            }
+                # Send notifications
+                self._notify_payment_rejected(payment)
+                
+                return True, "Payment rejected successfully"
+                
         except CardPayment.DoesNotExist:
-            logger.error(f"Card payment with ID {card_payment_id} does not exist")
-            return {
-                "success": False,
-                "error_message": "Payment not found"
-            }
+            logger.error(f"Payment {payment_id} not found")
+            return False, "Payment not found"
         except Exception as e:
-            logger.error(f"Error verifying card payment by admin: {str(e)}")
-            return {
-                "success": False,
-                "error_message": str(e)
-            }
+            logger.error(f"Error rejecting payment: {str(e)}")
+            return False, str(e)
+    
+    def retry_payment(self, payment_id):
+        """Retry a failed or expired payment"""
+        try:
+            payment = CardPayment.objects.get(id=payment_id)
+            
+            if payment.can_retry():
+                success = payment.retry_payment()
+                if success:
+                    self._notify_payment_retry(payment)
+                    return True, "Payment retry initiated"
+                return False, "Could not retry payment"
+            
+            return False, "Payment cannot be retried"
+            
+        except CardPayment.DoesNotExist:
+            logger.error(f"Payment {payment_id} not found")
+            return False, "Payment not found"
+        except Exception as e:
+            logger.error(f"Error retrying payment: {str(e)}")
+            return False, str(e)
+    
+    def _notify_payment_created(self, payment):
+        """Send notifications for new payment"""
+        user_msg = (
+            f"🏦 پرداخت جدید ایجاد شد!\n\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}\n"
+            f"⏰ مهلت پرداخت: {payment.expires_at.strftime('%H:%M:%S')}\n\n"
+            f"لطفا مبلغ را به کارت زیر واریز کنید:\n"
+            f"💳 {payment.card_number if payment.card_number else 'در انتظار تخصیص کارت'}"
+        )
+        
+        admin_msg = (
+            f"💫 درخواست پرداخت جدید\n\n"
+            f"👤 کاربر: {payment.transaction.user.username}\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}"
+        )
+        
+        send_user_notification(payment.transaction.user.telegram_id, user_msg)
+        send_admin_notification(admin_msg)
+    
+    def _notify_payment_verified(self, payment):
+        """Send notifications for verified payment"""
+        user_msg = (
+            f"✅ پرداخت شما تایید شد!\n\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}"
+        )
+        
+        admin_msg = (
+            f"✅ پرداخت تایید شد\n\n"
+            f"👤 کاربر: {payment.transaction.user.username}\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}\n"
+            f"👨‍💼 تایید کننده: {payment.verified_by.username}"
+        )
+        
+        send_user_notification(payment.transaction.user.telegram_id, user_msg)
+        send_admin_notification(admin_msg)
+    
+    def _notify_payment_rejected(self, payment):
+        """Send notifications for rejected payment"""
+        user_msg = (
+            f"❌ پرداخت شما رد شد\n\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}\n"
+            f"📝 دلیل: {payment.admin_note}"
+        )
+        
+        admin_msg = (
+            f"❌ پرداخت رد شد\n\n"
+            f"👤 کاربر: {payment.transaction.user.username}\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}\n"
+            f"👨‍💼 رد کننده: {payment.verified_by.username}\n"
+            f"📝 دلیل: {payment.admin_note}"
+        )
+        
+        send_user_notification(payment.transaction.user.telegram_id, user_msg)
+        send_admin_notification(admin_msg)
+    
+    def _notify_payment_expired(self, payment):
+        """Send notifications for expired payment"""
+        user_msg = (
+            f"⏰ پرداخت شما منقضی شد\n\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}"
+        )
+        
+        admin_msg = (
+            f"⏰ پرداخت منقضی شد\n\n"
+            f"👤 کاربر: {payment.transaction.user.username}\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}"
+        )
+        
+        send_user_notification(payment.transaction.user.telegram_id, user_msg)
+        send_admin_notification(admin_msg)
+    
+    def _notify_payment_retry(self, payment):
+        """Send notifications for payment retry"""
+        user_msg = (
+            f"🔄 درخواست پرداخت مجدد\n\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}\n"
+            f"⏰ مهلت جدید: {payment.expires_at.strftime('%H:%M:%S')}"
+        )
+        
+        admin_msg = (
+            f"🔄 درخواست پرداخت مجدد\n\n"
+            f"👤 کاربر: {payment.transaction.user.username}\n"
+            f"💰 مبلغ: {payment.transaction.amount:,} تومان\n"
+            f"🔑 کد پیگیری: {payment.verification_code}\n"
+            f"🔢 تعداد تلاش: {payment.retry_count}/{payment.max_retries}"
+        )
+        
+        send_user_notification(payment.transaction.user.telegram_id, user_msg)
+        send_admin_notification(admin_msg)
     
     def get_payment_details(self):
         """Get card payment details for display to users"""
