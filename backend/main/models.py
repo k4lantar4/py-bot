@@ -494,18 +494,24 @@ class APIKey(models.Model):
 
 class PointsTransaction(models.Model):
     """Model for tracking points transactions."""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='points_transactions')
-    type = models.CharField(max_length=10, choices=[
-        ('earn', 'Earned'),
-        ('spend', 'Spent'),
-        ('system', 'System')
-    ])
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transactions')
+    type = models.CharField(
+        max_length=20,
+        choices=[
+            ('earn', 'Earned'),
+            ('spend', 'Spent'),
+            ('system', 'System')
+        ]
+    )
     points = models.IntegerField()
     description = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.type} {self.points} points"
 
 class LiveChatSession(models.Model):
     """Model for live chat support sessions"""
@@ -622,83 +628,37 @@ class PointsRedemptionRule(models.Model):
     """Model for points redemption rules."""
     name = models.CharField(max_length=100)
     description = models.TextField()
-    points_cost = models.PositiveIntegerField()
-    reward_type = models.CharField(max_length=50, choices=[
-        ('discount', _('Discount')),
-        ('vip', _('VIP Status')),
-        ('data', _('Extra Data')),
-        ('days', _('Extra Days')),
-    ])
-    reward_value = models.DecimalField(max_digits=10, decimal_places=2)
+    points_required = models.IntegerField()
+    reward_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('discount', 'Discount Code'),
+            ('days', 'Subscription Days'),
+            ('other', 'Other')
+        ]
+    )
+    reward_value = models.IntegerField()
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['-created_at']
+
     def __str__(self):
-        return f"{self.name} ({self.points_cost} points)"
+        return f"{self.name} ({self.points_required} points)"
 
 class PointsRedemption(models.Model):
-    """Model for points redemption transactions."""
-    STATUS_CHOICES = (
-        ('pending', _('Pending')),
-        ('completed', _('Completed')),
-        ('failed', _('Failed')),
-        ('cancelled', _('Cancelled')),
-    )
-    
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='points_redemptions')
+    """Model for points redemptions."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     rule = models.ForeignKey(PointsRedemptionRule, on_delete=models.CASCADE)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    points_spent = models.PositiveIntegerField()
-    reward_value = models.DecimalField(max_digits=10, decimal_places=2)
-    applied_to = models.ForeignKey(Subscription, on_delete=models.SET_NULL, null=True, blank=True)
+    points_spent = models.IntegerField()
+    reward_value = models.IntegerField()
+    subscription = models.ForeignKey(Subscription, on_delete=models.SET_NULL, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.user.username} - {self.rule.name}"
-
-    def apply_reward(self):
-        """Apply the reward to the user."""
-        if self.status != 'pending':
-            return False
-
-        try:
-            if self.rule.reward_type == 'discount':
-                # Create a discount code for the user
-                discount = Discount.objects.create(
-                    code=f"POINTS_{self.id}",
-                    description=f"Points redemption discount for {self.user.username}",
-                    type='percentage',
-                    value=self.reward_value,
-                    valid_until=timezone.now() + timezone.timedelta(days=30)
-                )
-                # TODO: Send discount code to user via notification
-
-            elif self.rule.reward_type == 'vip':
-                # Update user role to VIP
-                vip_role = Role.objects.get(name='vip')
-                self.user.role = vip_role
-                self.user.save()
-
-            elif self.rule.reward_type == 'data':
-                # Add extra data to active subscription
-                if self.applied_to:
-                    self.applied_to.data_limit_gb += self.reward_value
-                    self.applied_to.save()
-
-            elif self.rule.reward_type == 'days':
-                # Extend subscription duration
-                if self.applied_to:
-                    self.applied_to.end_date += timezone.timedelta(days=int(self.reward_value))
-                    self.applied_to.save()
-
-            self.status = 'completed'
-            self.completed_at = timezone.now()
-            self.save()
-            return True
-
-        except Exception as e:
-            self.status = 'failed'
-            self.save()
-            return False

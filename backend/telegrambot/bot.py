@@ -2032,229 +2032,294 @@ async def run_speed_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # Points menu handler
 async def show_points_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Show points menu."""
-    user = update.effective_user
+    query = update.callback_query
+    user = query.from_user if query else update.effective_user
+    
+    # Get user's language code
+    lang_code = get_user_language(user.id)
+    
+    # Get user's points
     try:
         db_user = User.objects.get(telegram_id=user.id)
-        language_code = db_user.language_code
-        
-        keyboard = [
-            [
-                InlineKeyboardButton(get_message('btn_points_balance', language_code), callback_data="points_balance"),
-                InlineKeyboardButton(get_message('btn_points_history', language_code), callback_data="points_history")
-            ],
-            [
-                InlineKeyboardButton(get_message('btn_points_redeem', language_code), callback_data="points_redeem"),
-                InlineKeyboardButton(get_message('btn_points_earn', language_code), callback_data="points_earn")
-            ],
-            [InlineKeyboardButton(get_message('btn_back', language_code), callback_data="menu_main")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        points_message = get_message('points_menu', language_code).format(points=db_user.points)
-        
-        if update.message:
-            await update.message.reply_text(points_message, reply_markup=reply_markup)
-        else:
-            await update.callback_query.edit_message_text(points_message, reply_markup=reply_markup)
-        
-        return MAIN_MENU
-        
+        points = db_user.points
     except User.DoesNotExist:
-        logger.error(f"User not found for telegram_id: {user.id}")
-        if update.message:
-            await update.message.reply_text("Error loading points menu. Please try /start again.")
-        else:
-            await update.callback_query.edit_message_text("Error loading points menu. Please try /start again.")
-        return ConversationHandler.END
+        points = 0
+    
+    # Create keyboard
+    keyboard = [
+        [
+            InlineKeyboardButton(get_message('btn_points_balance', lang_code), callback_data='points_balance'),
+            InlineKeyboardButton(get_message('btn_points_history', lang_code), callback_data='points_history')
+        ],
+        [
+            InlineKeyboardButton(get_message('btn_points_redeem', lang_code), callback_data='points_redeem'),
+            InlineKeyboardButton(get_message('btn_points_earn', lang_code), callback_data='points_earn')
+        ],
+        [
+            InlineKeyboardButton(get_message('btn_back_main', lang_code), callback_data='back_main')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Send message
+    if query:
+        await query.answer()
+        await query.edit_message_text(
+            text=get_message('points_menu', lang_code).format(points=points),
+            reply_markup=reply_markup
+        )
+    else:
+        await update.message.reply_text(
+            text=get_message('points_menu', lang_code).format(points=points),
+            reply_markup=reply_markup
+        )
+    
+    return POINTS_MENU
 
-# Points balance handler
 async def show_points_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Show points balance."""
     query = update.callback_query
-    await query.answer()
+    user = query.from_user if query else update.effective_user
     
-    user = query.from_user
+    # Get user's language code
+    lang_code = get_user_language(user.id)
+    
+    # Get user's points
     try:
         db_user = User.objects.get(telegram_id=user.id)
-        language_code = db_user.language_code
-        
-        balance_message = get_message('points_balance', language_code).format(points=db_user.points)
-        
-        keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(balance_message, reply_markup=reply_markup)
-        return MAIN_MENU
-        
+        points = db_user.points
     except User.DoesNotExist:
-        logger.error(f"User not found for telegram_id: {user.id}")
-        await query.edit_message_text("Error loading points balance. Please try /start again.")
-        return ConversationHandler.END
+        points = 0
+    
+    # Create keyboard
+    keyboard = [
+        [
+            InlineKeyboardButton(get_message('btn_back_points', lang_code), callback_data='points')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.answer()
+    await query.edit_message_text(
+        text=get_message('points_balance', lang_code).format(points=points),
+        reply_markup=reply_markup
+    )
+    
+    return POINTS_MENU
 
-# Points history handler
 async def show_points_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show points transaction history."""
+    """Show points history."""
     query = update.callback_query
-    await query.answer()
+    user = query.from_user if query else update.effective_user
     
-    user = query.from_user
+    # Get user's language code
+    lang_code = get_user_language(user.id)
+    
+    # Get user's points history
     try:
         db_user = User.objects.get(telegram_id=user.id)
-        language_code = db_user.language_code
+        transactions = db_user.get_points_history()[:10]  # Get last 10 transactions
         
-        transactions = db_user.get_points_history()[:10]  # Last 10 transactions
-        if not transactions:
-            history_message = get_message('points_history_empty', language_code)
+        if transactions:
+            history_text = ""
+            for transaction in transactions:
+                emoji = "➕" if transaction.type == "earn" else "➖" if transaction.type == "spend" else "⚙️"
+                history_text += f"{emoji} {transaction.points} points - {transaction.description}\n"
+                history_text += f"📅 {transaction.created_at.strftime('%Y-%m-%d %H:%M')}\n\n"
         else:
-            history_message = get_message('points_history', language_code) + "\n\n"
-            for tx in transactions:
-                emoji = "➕" if tx.type == 'earn' else "➖" if tx.type == 'spend' else "⚡️"
-                history_message += f"{emoji} *{tx.type.title()}*: {abs(tx.points)} points\n"
-                history_message += f"   _{tx.description}_\n"
-                history_message += f"   {tx.created_at.strftime('%Y-%m-%d %H:%M')}\n\n"
-        
-        keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(history_message, reply_markup=reply_markup, parse_mode='Markdown')
-        return MAIN_MENU
-        
+            history_text = get_message('points_history_empty', lang_code)
     except User.DoesNotExist:
-        logger.error(f"User not found for telegram_id: {user.id}")
-        await query.edit_message_text("Error loading points history. Please try /start again.")
-        return ConversationHandler.END
+        history_text = get_message('points_history_empty', lang_code)
+    
+    # Create keyboard
+    keyboard = [
+        [
+            InlineKeyboardButton(get_message('btn_back_points', lang_code), callback_data='points')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.answer()
+    await query.edit_message_text(
+        text=get_message('points_history', lang_code).format(transactions=history_text),
+        reply_markup=reply_markup
+    )
+    
+    return POINTS_MENU
 
-# Points redemption handler
 async def show_points_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show available redemption options."""
+    """Show points redemption options."""
     query = update.callback_query
-    await query.answer()
+    user = query.from_user if query else update.effective_user
     
-    user = query.from_user
+    # Get user's language code
+    lang_code = get_user_language(user.id)
+    
+    # Get active redemption rules
     try:
-        db_user = User.objects.get(telegram_id=user.id)
-        language_code = db_user.language_code
-        
         rules = PointsRedemptionRule.objects.filter(is_active=True)
-        if not rules:
-            redemption_message = get_message('points_redemption_empty', language_code)
-            keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
-        else:
-            redemption_message = get_message('points_redemption', language_code).format(points=db_user.points)
-            keyboard = []
+        
+        if rules:
+            rewards_text = ""
             for rule in rules:
-                keyboard.append([
-                    InlineKeyboardButton(
-                        f"{rule.name} ({rule.points_cost} points)",
-                        callback_data=f"redeem_{rule.id}"
-                    )
-                ])
-            keyboard.append([InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(redemption_message, reply_markup=reply_markup)
-        return MAIN_MENU
-        
-    except User.DoesNotExist:
-        logger.error(f"User not found for telegram_id: {user.id}")
-        await query.edit_message_text("Error loading redemption options. Please try /start again.")
-        return ConversationHandler.END
-
-# Handle redemption
-async def handle_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle rule redemption."""
-    query = update.callback_query
-    await query.answer()
+                rewards_text += f"🎁 {rule.name}\n"
+                rewards_text += f"💎 {rule.points_required} points\n"
+                rewards_text += f"📝 {rule.description}\n\n"
+        else:
+            rewards_text = get_message('points_redemption_empty', lang_code)
+    except Exception as e:
+        logger.error(f"Error getting redemption rules: {str(e)}")
+        rewards_text = get_message('points_redemption_empty', lang_code)
     
-    user = query.from_user
+    # Create keyboard
+    keyboard = [
+        [
+            InlineKeyboardButton(get_message('btn_back_points', lang_code), callback_data='points')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.answer()
+    await query.edit_message_text(
+        text=get_message('points_redemption', lang_code).format(rewards=rewards_text),
+        reply_markup=reply_markup
+    )
+    
+    return POINTS_REDEMPTION
+
+async def handle_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle points redemption."""
+    query = update.callback_query
+    user = query.from_user if query else update.effective_user
+    
+    # Get user's language code
+    lang_code = get_user_language(user.id)
+    
+    # Get rule ID from callback data
+    rule_id = query.data.split('_')[1]
+    
     try:
+        # Get user and rule
         db_user = User.objects.get(telegram_id=user.id)
-        language_code = db_user.language_code
-        rule_id = int(query.data.split('_')[1])
+        rule = PointsRedemptionRule.objects.get(id=rule_id, is_active=True)
         
-        try:
-            rule = PointsRedemptionRule.objects.get(id=rule_id, is_active=True)
+        # Check if user has enough points
+        if db_user.points < rule.points_required:
+            error_message = get_message('points_redemption_failed', lang_code).format(
+                error_message="Insufficient points"
+            )
+            await query.answer()
+            await query.edit_message_text(
+                text=error_message,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton(get_message('btn_back_points', lang_code), callback_data='points')
+                ]])
+            )
+            return POINTS_REDEMPTION
+        
+        # Check if user has an active subscription
+        active_subscription = Subscription.objects.filter(
+            user=db_user,
+            is_active=True,
+            expiry_date__gt=timezone.now()
+        ).first()
+        
+        if not active_subscription:
+            error_message = get_message('points_redemption_failed', lang_code).format(
+                error_message="No active subscription found"
+            )
+            await query.answer()
+            await query.edit_message_text(
+                text=error_message,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton(get_message('btn_back_points', lang_code), callback_data='points')
+                ]])
+            )
+            return POINTS_REDEMPTION
+        
+        # Apply the reward
+        with transaction.atomic():
+            # Deduct points
+            db_user.points -= rule.points_required
+            db_user.save()
             
-            # Check if user has enough points
-            if db_user.points < rule.points_cost:
-                await query.answer(get_message('points_insufficient', language_code))
-                return
-            
-            # Get active subscription if needed
-            applied_to = None
-            if rule.reward_type in ['data', 'days']:
-                applied_to = Subscription.objects.filter(
-                    user=db_user,
-                    status='active'
-                ).first()
-                
-                if not applied_to:
-                    await query.answer(get_message('points_no_subscription', language_code))
-                    return
-            
-            # Create redemption
-            redemption = PointsRedemption.objects.create(
+            # Create points transaction
+            PointsTransaction.objects.create(
                 user=db_user,
-                rule=rule,
-                points_spent=rule.points_cost,
-                reward_value=rule.reward_value,
-                applied_to=applied_to
+                type="spend",
+                points=rule.points_required,
+                description=f"Redeemed for {rule.name}"
             )
             
-            # Apply reward
-            if redemption.apply_reward():
-                await query.answer(get_message('points_redeem_success', language_code))
-                
-                # Send success message
-                reward_text = get_message('points_reward_success', language_code).format(
-                    points=rule.points_cost,
-                    reward=rule.name
+            # Apply the reward based on rule type
+            if rule.reward_type == "discount":
+                # Create discount code
+                discount_code = secrets.token_urlsafe(8)
+                Discount.objects.create(
+                    code=discount_code,
+                    percentage=rule.reward_value,
+                    expiry_date=timezone.now() + timezone.timedelta(days=7)
                 )
-                
-                if rule.reward_type == 'discount':
-                    reward_text += get_message('points_discount_code', language_code).format(
-                        code=f"POINTS_{redemption.id}"
-                    )
-                
-                keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await query.edit_message_text(reward_text, reply_markup=reply_markup, parse_mode='Markdown')
+                reward_text = f"Discount code: {discount_code}"
+            elif rule.reward_type == "days":
+                # Extend subscription
+                active_subscription.expiry_date += timezone.timedelta(days=rule.reward_value)
+                active_subscription.save()
+                reward_text = f"{rule.reward_value} days extension"
             else:
-                await query.answer(get_message('points_redeem_failed', language_code))
-                
-        except PointsRedemptionRule.DoesNotExist:
-            await query.answer(get_message('points_invalid_rule', language_code))
-            
-    except User.DoesNotExist:
-        logger.error(f"User not found for telegram_id: {user.id}")
-        await query.edit_message_text("Error processing redemption. Please try /start again.")
+                reward_text = rule.name
+        
+        # Show success message
+        await query.answer()
+        await query.edit_message_text(
+            text=get_message('points_redemption_success', lang_code).format(
+                points=rule.points_required,
+                reward=reward_text,
+                new_balance=db_user.points
+            ),
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(get_message('btn_back_points', lang_code), callback_data='points')
+            ]])
+        )
+        
+    except (User.DoesNotExist, PointsRedemptionRule.DoesNotExist) as e:
+        logger.error(f"Error handling redemption: {str(e)}")
+        error_message = get_message('points_redemption_failed', lang_code).format(
+            error_message="Invalid redemption option"
+        )
+        await query.answer()
+        await query.edit_message_text(
+            text=error_message,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(get_message('btn_back_points', lang_code), callback_data='points')
+            ]])
+        )
     
-    return MAIN_MENU
+    return POINTS_REDEMPTION
 
-# Points earn info handler
 async def show_points_earn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Show how to earn points."""
     query = update.callback_query
-    await query.answer()
+    user = query.from_user if query else update.effective_user
     
-    user = query.from_user
-    try:
-        db_user = User.objects.get(telegram_id=user.id)
-        language_code = db_user.language_code
-        
-        earn_message = get_message('points_earn_info', language_code)
-        
-        keyboard = [[InlineKeyboardButton(get_message('btn_back', language_code), callback_data="points_menu")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(earn_message, reply_markup=reply_markup)
-        return MAIN_MENU
-        
-    except User.DoesNotExist:
-        logger.error(f"User not found for telegram_id: {user.id}")
-        await query.edit_message_text("Error loading points info. Please try /start again.")
-        return ConversationHandler.END
+    # Get user's language code
+    lang_code = get_user_language(user.id)
+    
+    # Create keyboard
+    keyboard = [
+        [
+            InlineKeyboardButton(get_message('btn_back_points', lang_code), callback_data='points')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.answer()
+    await query.edit_message_text(
+        text=get_message('points_earn', lang_code),
+        reply_markup=reply_markup
+    )
+    
+    return POINTS_MENU
 
 # Setup function
 def setup_bot():
