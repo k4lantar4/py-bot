@@ -1,9 +1,11 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 from django.db import transaction
-from django.db.models import Avg, Count, F
+from django.db.models import Avg, Count, F, Prefetch
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.core.cache import cache
+from django.db.models import Q
 
 from ..models.recommendation import (
     UserUsagePattern, PlanRecommendation, RecommendationFeedback
@@ -11,29 +13,36 @@ from ..models.recommendation import (
 from ..models.subscription import Plan, Subscription
 from ..utils.telegram import send_user_notification
 
+CACHE_TTL = 3600  # 1 hour cache
+
 class RecommendationManager:
     """Service class for managing plan recommendations"""
 
     @classmethod
-    def analyze_usage_pattern(cls, user) -> UserUsagePattern:
-        """Analyze user's usage pattern"""
+    def analyze_usage_pattern(cls, user) -> Optional[UserUsagePattern]:
+        """Analyze user's usage pattern with caching"""
+        cache_key = f'usage_pattern_{user.id}'
+        pattern = cache.get(cache_key)
+        if pattern:
+            return pattern
+
         # Get user's subscriptions and traffic data
-        subscriptions = Subscription.objects.filter(user=user)
+        subscriptions = Subscription.objects.filter(
+            user=user,
+            created_at__gte=timezone.now() - timedelta(days=30)
+        ).select_related('server')
+
         if not subscriptions.exists():
             return None
 
-        # Calculate metrics
-        now = timezone.now()
-        month_ago = now - timedelta(days=30)
-        
-        traffic_data = subscriptions.filter(
-            created_at__gte=month_ago
-        ).aggregate(
+        # Calculate metrics using efficient aggregation
+        metrics = subscriptions.aggregate(
             avg_daily=Avg('daily_traffic'),
-            total_days=Count('id', distinct=True)
+            total_days=Count('id', distinct=True),
+            avg_stability=Avg('connection_stability')
         )
 
-        # Get peak hours usage
+        # Get peak hours usage efficiently
         peak_hours = {
             str(hour): subscriptions.filter(
                 last_connected_at__hour=hour
@@ -41,35 +50,37 @@ class RecommendationManager:
             for hour in range(24)
         }
 
-        # Get preferred locations
+        # Get preferred locations efficiently
         locations = list(subscriptions.values(
             'server__country'
         ).annotate(
             count=Count('id')
         ).order_by('-count')[:3])
 
-        # Calculate connection stability
-        stability = subscriptions.aggregate(
-            avg_stability=Avg('connection_stability')
-        )['avg_stability'] or 100
-
         # Update or create usage pattern
         pattern, _ = UserUsagePattern.objects.update_or_create(
             user=user,
             defaults={
-                'avg_daily_traffic': traffic_data['avg_daily'] or 0,
+                'avg_daily_traffic': metrics['avg_daily'] or 0,
                 'peak_hours_usage': peak_hours,
                 'preferred_locations': [loc['server__country'] for loc in locations],
-                'connection_stability': stability,
-                'usage_frequency': traffic_data['total_days'] or 0
+                'connection_stability': metrics['avg_stability'] or 100,
+                'usage_frequency': metrics['total_days'] or 0
             }
         )
 
+        # Cache the result
+        cache.set(cache_key, pattern, CACHE_TTL)
         return pattern
 
     @classmethod
     def generate_recommendations(cls, user) -> List[PlanRecommendation]:
-        """Generate plan recommendations for a user"""
+        """Generate plan recommendations for a user with caching"""
+        cache_key = f'recommendations_{user.id}'
+        recommendations = cache.get(cache_key)
+        if recommendations:
+            return recommendations
+
         pattern = cls.analyze_usage_pattern(user)
         if not pattern:
             return []
@@ -77,27 +88,34 @@ class RecommendationManager:
         current_plan = Subscription.objects.filter(
             user=user,
             status='ACTIVE'
-        ).first()
+        ).select_related('plan').first()
 
-        # Get all available plans
-        available_plans = Plan.objects.filter(is_active=True)
+        # Get all available plans efficiently
+        available_plans = Plan.objects.filter(
+            is_active=True
+        ).exclude(
+            id=current_plan.plan.id if current_plan else None
+        ).select_related()
+
         recommendations = []
+        with transaction.atomic():
+            # Bulk create recommendations
+            new_recommendations = []
+            for plan in available_plans:
+                score, reasons = cls._calculate_plan_fit(pattern, plan)
+                if score >= 0.6:  # Only recommend if confidence is high enough
+                    new_recommendations.append(PlanRecommendation(
+                        user=user,
+                        recommended_plan=plan,
+                        current_plan=current_plan.plan if current_plan else None,
+                        confidence_score=score,
+                        reasons=reasons,
+                        expires_at=timezone.now() + timedelta(days=7)
+                    ))
 
-        for plan in available_plans:
-            if current_plan and plan.id == current_plan.plan.id:
-                continue
-
-            score, reasons = cls._calculate_plan_fit(pattern, plan)
-            if score >= 0.6:  # Only recommend if confidence is high enough
-                recommendation = PlanRecommendation.objects.create(
-                    user=user,
-                    recommended_plan=plan,
-                    current_plan=current_plan.plan if current_plan else None,
-                    confidence_score=score,
-                    reasons=reasons,
-                    expires_at=timezone.now() + timedelta(days=7)
-                )
-                recommendations.append(recommendation)
+            if new_recommendations:
+                PlanRecommendation.objects.bulk_create(new_recommendations)
+                recommendations = new_recommendations
 
         # Sort by confidence score
         recommendations.sort(key=lambda x: x.confidence_score, reverse=True)
@@ -106,10 +124,12 @@ class RecommendationManager:
         if recommendations:
             cls._notify_user_recommendations(user, recommendations[0])
 
+        # Cache the result
+        cache.set(cache_key, recommendations, CACHE_TTL)
         return recommendations
 
     @classmethod
-    def _calculate_plan_fit(cls, pattern: UserUsagePattern, plan: Plan) -> tuple:
+    def _calculate_plan_fit(cls, pattern: UserUsagePattern, plan: Plan) -> Tuple[float, List[str]]:
         """Calculate how well a plan fits user's usage pattern"""
         reasons = []
         score_components = []
@@ -162,18 +182,37 @@ class RecommendationManager:
                 'feedback_text': feedback_text or ''
             }
         )
+
+        # Clear cache for this user's recommendations
+        cache.delete(f'recommendations_{recommendation.user.id}')
         return feedback
 
     @classmethod
     def get_user_recommendations(cls, user,
                                active_only: bool = True) -> List[PlanRecommendation]:
-        """Get recommendations for a user"""
+        """Get recommendations for a user efficiently"""
+        cache_key = f'user_recommendations_{user.id}_{active_only}'
+        recommendations = cache.get(cache_key)
+        if recommendations:
+            return recommendations
+
         query = PlanRecommendation.objects.filter(user=user)
         if active_only:
             query = query.filter(
-                expires_at__gt=timezone.now()
+                Q(expires_at__gt=timezone.now()) | Q(expires_at__isnull=True)
             )
-        return query.order_by('-confidence_score')
+
+        # Optimize query with select_related and prefetch_related
+        recommendations = list(query.select_related(
+            'recommended_plan',
+            'current_plan'
+        ).prefetch_related(
+            'feedback'
+        ).order_by('-confidence_score'))
+
+        # Cache the result
+        cache.set(cache_key, recommendations, CACHE_TTL)
+        return recommendations
 
     @classmethod
     def _notify_user_recommendations(cls, user, recommendation: PlanRecommendation) -> None:
