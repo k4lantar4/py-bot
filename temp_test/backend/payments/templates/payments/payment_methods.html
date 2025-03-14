@@ -1,0 +1,451 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Payment Methods{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Payment Methods</h4>
+                </div>
+                <div class="card-body">
+                    <h5 class="mb-4">Choose a payment method to add funds to your wallet</h5>
+                    
+                    <div class="row">
+                        {% if zarinpal_enabled %}
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <img src="{% static 'images/zarinpal-logo.png' %}" alt="Zarinpal" class="img-fluid mb-3" style="max-height: 60px;">
+                                    <h5 class="card-title">Zarinpal</h5>
+                                    <p class="card-text">Pay securely using Zarinpal payment gateway</p>
+                                    <button class="btn btn-primary" data-toggle="modal" data-target="#zarinpalModal">
+                                        Pay with Zarinpal
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if card_payment_enabled %}
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <img src="{% static 'images/card-payment.png' %}" alt="Card Payment" class="img-fluid mb-3" style="max-height: 60px;">
+                                    <h5 class="card-title">Card to Card</h5>
+                                    <p class="card-text">Transfer directly to our bank account</p>
+                                    <button class="btn btn-primary" data-toggle="modal" data-target="#cardPaymentModal">
+                                        Pay with Card
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if not zarinpal_enabled and not card_payment_enabled %}
+                        <div class="col-12 text-center">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle mr-2"></i>
+                                No payment methods are currently available. Please contact the administrator.
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Zarinpal Payment Modal -->
+{% if zarinpal_enabled %}
+<div class="modal fade" id="zarinpalModal" tabindex="-1" role="dialog" aria-labelledby="zarinpalModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="zarinpalModalLabel">Pay with Zarinpal</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="zarinpalForm">
+                    <div class="form-group">
+                        <label for="zarinpalAmount">Amount (Toman)</label>
+                        <input type="number" class="form-control" id="zarinpalAmount" placeholder="Enter amount" min="10000" required>
+                        <small class="form-text text-muted">Minimum amount: 10,000 Toman</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="zarinpalDescription">Description (Optional)</label>
+                        <input type="text" class="form-control" id="zarinpalDescription" placeholder="Enter description">
+                    </div>
+                </form>
+                <div id="zarinpalError" class="alert alert-danger mt-3" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="zarinpalSubmit">
+                    <span id="zarinpalSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    Proceed to Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Card Payment Modal -->
+{% if card_payment_enabled %}
+<div class="modal fade" id="cardPaymentModal" tabindex="-1" role="dialog" aria-labelledby="cardPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="cardPaymentModalLabel">Card to Card Payment</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <p><strong>Payment Instructions:</strong></p>
+                    <ol>
+                        <li>Enter the amount you want to deposit</li>
+                        <li>Enter your card information</li>
+                        <li>After submitting, you'll receive our bank account details</li>
+                        <li>Transfer the exact amount to our account</li>
+                        <li>Enter the tracking code to verify your payment</li>
+                    </ol>
+                </div>
+                
+                <form id="cardPaymentForm">
+                    <div class="form-group">
+                        <label for="cardAmount">Amount (Toman)</label>
+                        <input type="number" class="form-control" id="cardAmount" placeholder="Enter amount" min="10000" required>
+                        <small class="form-text text-muted">Minimum amount: 10,000 Toman</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="cardNumber">Your Card Number</label>
+                        <input type="text" class="form-control" id="cardNumber" placeholder="Enter your card number" required>
+                        <small class="form-text text-muted">Enter without dashes or spaces</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="cardHolder">Card Holder Name</label>
+                        <input type="text" class="form-control" id="cardHolder" placeholder="Enter card holder name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cardDescription">Description (Optional)</label>
+                        <input type="text" class="form-control" id="cardDescription" placeholder="Enter description">
+                    </div>
+                </form>
+                <div id="cardPaymentError" class="alert alert-danger mt-3" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="cardPaymentSubmit">
+                    <span id="cardPaymentSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    Submit Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Card Payment Verification Modal -->
+<div class="modal fade" id="cardVerificationModal" tabindex="-1" role="dialog" aria-labelledby="cardVerificationModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="cardVerificationModalLabel">Complete Your Payment</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-success">
+                    <p><strong>Payment Created Successfully!</strong></p>
+                    <p>Please transfer <span id="transferAmount" class="font-weight-bold"></span> Toman to the following account:</p>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Bank Account Details</h5>
+                        <p class="card-text"><strong>Card Number:</strong> <span id="destinationCard"></span></p>
+                        <p class="card-text"><strong>Account Holder:</strong> <span id="destinationName"></span></p>
+                        <p class="card-text"><strong>Bank:</strong> <span id="destinationBank"></span></p>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <p><strong>Important:</strong></p>
+                    <ul>
+                        <li>Transfer the exact amount shown above</li>
+                        <li>After completing the transfer, enter the tracking code below</li>
+                        <li>Your payment will be verified by our team</li>
+                    </ul>
+                </div>
+                
+                <form id="verificationForm">
+                    <input type="hidden" id="paymentId">
+                    <div class="form-group">
+                        <label for="verificationCode">Transfer Tracking Code</label>
+                        <input type="text" class="form-control" id="verificationCode" placeholder="Enter tracking code" required>
+                        <small class="form-text text-muted">This is the code you received after completing the transfer</small>
+                    </div>
+                </form>
+                <div id="verificationError" class="alert alert-danger mt-3" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="verificationSubmit">
+                    <span id="verificationSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    Verify Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Zarinpal Payment
+        const zarinpalForm = document.getElementById('zarinpalForm');
+        const zarinpalSubmit = document.getElementById('zarinpalSubmit');
+        const zarinpalSpinner = document.getElementById('zarinpalSpinner');
+        const zarinpalError = document.getElementById('zarinpalError');
+        
+        if (zarinpalSubmit) {
+            zarinpalSubmit.addEventListener('click', function() {
+                // Validate form
+                const amount = document.getElementById('zarinpalAmount').value;
+                const description = document.getElementById('zarinpalDescription').value || 'Wallet deposit';
+                
+                if (!amount || parseInt(amount) < 10000) {
+                    zarinpalError.textContent = 'Minimum amount is 10,000 Toman';
+                    zarinpalError.style.display = 'block';
+                    return;
+                }
+                
+                // Show spinner
+                zarinpalSpinner.classList.remove('d-none');
+                zarinpalSubmit.disabled = true;
+                zarinpalError.style.display = 'none';
+                
+                // Create transaction
+                fetch('/payments/create/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        description: description,
+                        payment_method: 'zarinpal',
+                        type: 'deposit'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    zarinpalSpinner.classList.add('d-none');
+                    zarinpalSubmit.disabled = false;
+                    
+                    if (data.success) {
+                        // Redirect to Zarinpal payment page
+                        window.location.href = data.redirect_url;
+                    } else {
+                        // Show error
+                        zarinpalError.textContent = data.error || 'An error occurred';
+                        zarinpalError.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    zarinpalSpinner.classList.add('d-none');
+                    zarinpalSubmit.disabled = false;
+                    zarinpalError.textContent = 'Network error occurred';
+                    zarinpalError.style.display = 'block';
+                    console.error('Error:', error);
+                });
+            });
+        }
+        
+        // Card Payment
+        const cardPaymentForm = document.getElementById('cardPaymentForm');
+        const cardPaymentSubmit = document.getElementById('cardPaymentSubmit');
+        const cardPaymentSpinner = document.getElementById('cardPaymentSpinner');
+        const cardPaymentError = document.getElementById('cardPaymentError');
+        
+        if (cardPaymentSubmit) {
+            cardPaymentSubmit.addEventListener('click', function() {
+                // Validate form
+                const amount = document.getElementById('cardAmount').value;
+                const cardNumber = document.getElementById('cardNumber').value;
+                const cardHolder = document.getElementById('cardHolder').value;
+                const description = document.getElementById('cardDescription').value || 'Wallet deposit';
+                
+                if (!amount || parseInt(amount) < 10000) {
+                    cardPaymentError.textContent = 'Minimum amount is 10,000 Toman';
+                    cardPaymentError.style.display = 'block';
+                    return;
+                }
+                
+                if (!cardNumber || cardNumber.length < 16) {
+                    cardPaymentError.textContent = 'Please enter a valid card number';
+                    cardPaymentError.style.display = 'block';
+                    return;
+                }
+                
+                if (!cardHolder) {
+                    cardPaymentError.textContent = 'Please enter the card holder name';
+                    cardPaymentError.style.display = 'block';
+                    return;
+                }
+                
+                // Get current date and time in ISO format
+                const transferTime = new Date().toISOString();
+                
+                // Show spinner
+                cardPaymentSpinner.classList.remove('d-none');
+                cardPaymentSubmit.disabled = true;
+                cardPaymentError.style.display = 'none';
+                
+                // Create transaction
+                fetch('/payments/create/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        description: description,
+                        payment_method: 'card',
+                        type: 'deposit',
+                        card_number: cardNumber,
+                        reference_number: 'pending', // Will be provided by user after transfer
+                        transfer_time: transferTime
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    cardPaymentSpinner.classList.add('d-none');
+                    cardPaymentSubmit.disabled = false;
+                    
+                    if (data.success) {
+                        // Hide card payment modal
+                        $('#cardPaymentModal').modal('hide');
+                        
+                        // Update verification modal
+                        document.getElementById('transferAmount').textContent = amount;
+                        document.getElementById('destinationCard').textContent = '{{ card_payment_card_number }}';
+                        document.getElementById('destinationName').textContent = '{{ card_payment_card_holder }}';
+                        document.getElementById('destinationBank').textContent = '{{ card_payment_bank_name }}';
+                        
+                        // Set payment ID for verification
+                        document.getElementById('paymentId').value = data.transaction_id;
+                        
+                        // Show verification modal
+                        $('#cardVerificationModal').modal('show');
+                    } else {
+                        // Show error
+                        cardPaymentError.textContent = data.error || 'An error occurred';
+                        cardPaymentError.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    cardPaymentSpinner.classList.add('d-none');
+                    cardPaymentSubmit.disabled = false;
+                    cardPaymentError.textContent = 'Network error occurred';
+                    cardPaymentError.style.display = 'block';
+                    console.error('Error:', error);
+                });
+            });
+        }
+        
+        // Verification Form
+        const verificationForm = document.getElementById('verificationForm');
+        const verificationSubmit = document.getElementById('verificationSubmit');
+        const verificationSpinner = document.getElementById('verificationSpinner');
+        const verificationError = document.getElementById('verificationError');
+        
+        if (verificationSubmit) {
+            verificationSubmit.addEventListener('click', function() {
+                // Validate form
+                const verificationCode = document.getElementById('verificationCode').value;
+                
+                if (!verificationCode) {
+                    verificationError.textContent = 'Please enter the tracking code';
+                    verificationError.style.display = 'block';
+                    return;
+                }
+                
+                // Show spinner
+                verificationSpinner.classList.remove('d-none');
+                verificationSubmit.disabled = true;
+                verificationError.style.display = 'none';
+                
+                // Verify payment
+                fetch('/payments/card/verify/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        verification_code: verificationCode
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    verificationSpinner.classList.add('d-none');
+                    verificationSubmit.disabled = false;
+                    
+                    if (data.success) {
+                        // Hide verification modal
+                        $('#cardVerificationModal').modal('hide');
+                        
+                        // Show success message
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Payment Submitted',
+                            text: 'Your payment information has been submitted and is pending verification by our team.',
+                            confirmButtonText: 'View Status'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                window.location.href = '/payments/transaction/' + data.transaction_id + '/';
+                            }
+                        });
+                    } else {
+                        // Show error
+                        verificationError.textContent = data.error || 'Verification failed';
+                        verificationError.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    verificationSpinner.classList.add('d-none');
+                    verificationSubmit.disabled = false;
+                    verificationError.textContent = 'Network error occurred';
+                    verificationError.style.display = 'block';
+                    console.error('Error:', error);
+                });
+            });
+        }
+        
+        // Helper function to get CSRF token
+        function getCSRFToken() {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('csrftoken='))
+                ?.split('=')[1];
+            
+            return cookieValue || '';
+        }
+    });
+</script>
+{% endblock %} 

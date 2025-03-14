@@ -319,4 +319,128 @@ mrjbot/
 - Backup protection
 - Server validation
 - Feature control
-- Analytics 
+- Analytics
+
+## New Features 🚀
+
+### AI Content Generation System
+- OpenAI integration for automated content
+- Scheduled post generation for Telegram channels
+- Content types:
+  - Promotional posts
+  - VPN usage tips
+  - Tech news
+  - Service updates
+  - Special offers
+- Content approval workflow
+- Multi-language support (Persian/English)
+- Performance tracking
+
+### Advanced Backup System
+- Automated 30-minute backup intervals
+- API-based backup collection
+- Telegram group notifications
+- Backup contents:
+  - Database dumps
+  - Configuration files
+  - User data
+  - System logs
+- Backup rotation policy
+- Emergency restore functionality
+
+### Location Management
+- Dynamic location switching
+- Server locations:
+  - Netherlands
+  - France
+  - Germany
+  - United States
+  - Singapore
+- Smart naming convention (e.g., MoonVpn-France-1000-1)
+- Location-based performance metrics
+- Auto-failover system
+- Load balancing
+
+### Enhanced Role System
+- Custom role creation
+- Role types:
+  - Receipt Admin
+  - Support Agent
+  - Content Manager
+  - Location Manager
+  - Points Admin
+- Granular permission system
+- Role activity logging
+- Role-based analytics
+
+### Points & Rewards System
+- Point earning methods:
+  - Purchases
+  - Referrals
+  - Account longevity
+  - Special events
+- Redemption options:
+  - Service discounts
+  - VIP status
+  - Extended validity
+  - Premium features
+- Point expiry system
+- Leaderboard integration
+
+### Live Chat Integration
+- Real-time support in Telegram bot
+- Features:
+  - Queue management
+  - Agent assignment
+  - Chat history
+  - Quick responses
+  - File sharing
+  - Rating system
+- Analytics dashboard
+- Support team management
+
+### Smart Plan Recommendations
+- Usage pattern analysis
+- Personalized suggestions
+- Factors considered:
+  - Data usage
+  - Connection frequency
+  - Peak usage times
+  - Location preferences
+- A/B testing system
+- Conversion tracking
+
+### Additional Enhancements
+- Receipt OCR system
+- Cryptocurrency payment integration:
+  - USDT (TRC20)
+  - Bitcoin
+  - Other altcoins
+- Multi-server API synchronization
+- Enhanced monitoring system
+- Automated reporting
+
+### Telegram Group Integration
+- Dedicated groups for:
+  - User activity logs
+  - Financial reports
+  - Server status updates
+  - Feature toggles
+  - Support coordination
+- Automated notifications
+- Interactive commands
+- Analytics reporting
+
+### CLI Enhancements
+New `mrjbot` commands:
+```bash
+mrjbot enable-backups     # Enable automated backups
+mrjbot disable-backups    # Disable automated backups
+mrjbot enable-chat        # Enable live chat
+mrjbot disable-chat       # Disable live chat
+mrjbot check-points       # Check user points
+mrjbot redeem-points      # Redeem points
+mrjbot set-role          # Set custom role
+mrjbot toggle-ai         # Toggle AI features
+mrjbot switch-location   # Change server location
+``` 

@@ -42,6 +42,30 @@ app.conf.beat_schedule = {
         'task': 'main.tasks.analyze_usage_patterns',
         'schedule': crontab(hour='*/6'),  # Run every 6 hours
     },
+    # Backup task - every 30 minutes
+    'backup-system': {
+        'task': 'mrjbot.tasks.backup.backup_system',
+        'schedule': 30 * 60,  # 30 minutes
+    },
+    # AI content generation - every 6 hours
+    'generate-ai-content': {
+        'task': 'mrjbot.services.ai_content.AIContentGenerator.schedule_content_generation',
+        'schedule': 6 * 60 * 60,  # 6 hours
+    },
+    # Clean old backups - daily at midnight
+    'cleanup-old-backups': {
+        'task': 'mrjbot.tasks.backup.BackupManager._cleanup_old_backups',
+        'schedule': crontab(hour=0, minute=0),
+    },
+    # New location management tasks
+    'monitor-server-locations': {
+        'task': 'mrjbot.services.location.LocationManager.monitor_servers',
+        'schedule': 300.0,  # Run every 5 minutes
+    },
+    'balance-server-load': {
+        'task': 'mrjbot.services.location.LocationManager.balance_load',
+        'schedule': 600.0,  # Run every 10 minutes
+    },
 }
 
 @app.task(bind=True, ignore_result=True)

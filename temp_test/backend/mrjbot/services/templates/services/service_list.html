@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Services" %}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">{% trans "Services" %}</h1>
+        {% if user.is_staff %}
+        <a href="{% url 'services:service_create' %}" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded">
+            {% trans "Add Service" %}
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for service in services %}
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            {% if service.icon %}
+            <img src="{{ service.icon.url }}" alt="{{ service.name }}" class="w-full h-48 object-cover">
+            {% endif %}
+            <div class="p-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">{{ service.name }}</h2>
+                <p class="text-gray-600 mb-4">{{ service.description }}</p>
+                <div class="flex justify-between items-center">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if service.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                        {% if service.is_active %}{% trans "Active" %}{% else %}{% trans "Inactive" %}{% endif %}
+                    </span>
+                    <div class="flex space-x-2">
+                        <a href="{% url 'services:service_detail' service.pk %}" class="text-blue-500 hover:text-blue-600">
+                            {% trans "View" %}
+                        </a>
+                        {% if user.is_staff or user == service.owner %}
+                        <a href="{% url 'services:service_update' service.pk %}" class="text-yellow-500 hover:text-yellow-600">
+                            {% trans "Edit" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-full text-center py-12">
+            <p class="text-gray-500">{% trans "No services found." %}</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 

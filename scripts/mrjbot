@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+import click
+import os
+import sys
+import subprocess
+from pathlib import Path
+
+@click.group()
+def cli():
+    """MRJ Bot management CLI"""
+    pass
+
+# Backup Management
+@cli.group()
+def backup():
+    """Manage system backups"""
+    pass
+
+@backup.command()
+def enable():
+    """Enable automated backups"""
+    subprocess.run(["docker-compose", "exec", "celery", "celery", "-A", "config", "beat", "-l", "info"])
+    click.echo("✅ Automated backups enabled")
+
+@backup.command()
+def disable():
+    """Disable automated backups"""
+    subprocess.run(["docker-compose", "exec", "celery", "celery", "-A", "config", "control", "shutdown"])
+    click.echo("❌ Automated backups disabled")
+
+@backup.command()
+def create():
+    """Create a manual backup"""
+    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "backup_system"])
+    click.echo("✅ Manual backup created")
+
+@backup.command()
+def restore():
+    """Restore from latest backup"""
+    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "restore_system"])
+    click.echo("✅ System restored from backup")
+
+# AI Content Management
+@cli.group()
+def ai():
+    """Manage AI content generation"""
+    pass
+
+@ai.command()
+def enable():
+    """Enable AI content generation"""
+    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "enable_ai_content"])
+    click.echo("✅ AI content generation enabled")
+
+@ai.command()
+def disable():
+    """Disable AI content generation"""
+    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "disable_ai_content"])
+    click.echo("❌ AI content generation disabled")
+
+# Chat Management
+@cli.group()
+def chat():
+    """Manage live chat system"""
+    pass
+
+@chat.command()
+def enable():
+    """Enable live chat support"""
+    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "enable_chat"])
+    click.echo("✅ Live chat support enabled")
+
+@chat.command()
+def disable():
+    """Disable live chat support"""
+    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "disable_chat"])
+    click.echo("❌ Live chat support disabled")
+
+# Points System
+@cli.group()
+def points():
+    """Manage points system"""
+    pass
+
+@points.command()
+@click.argument('user_id')
+def check(user_id):
+    """Check points for a user"""
+    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "check_points", user_id])
+
+@points.command()
+@click.argument('user_id')
+@click.argument('amount', type=int)
+def redeem(user_id, amount):
+    """Redeem points for a user"""
+    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "redeem_points", user_id, str(amount)])
+
+# Role Management
+@cli.group()
+def role():
+    """Manage user roles and permissions"""
+    pass
+
+@role.command()
+@click.argument('name')
+@click.argument('description')
+@click.option('--permissions', '-p', multiple=True, help='List of permission codenames')
+@click.option('--priority', type=int, default=0, help='Role priority')
+@click.option('--max-users', type=int, help='Maximum number of users')
+@click.option('--allowed-actions', '-a', multiple=True, help='List of allowed actions')
+def create_role(name, description, permissions, priority, max_users, allowed_actions):
+    """Create a new role"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'role', 'create',
+        name, description
+    ]
+    if permissions:
+        cmd.extend(['--permissions'] + list(permissions))
+    if priority:
+        cmd.extend(['--priority', str(priority)])
+    if max_users:
+        cmd.extend(['--max-users', str(max_users)])
+    if allowed_actions:
+        cmd.extend(['--allowed-actions'] + list(allowed_actions))
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(click.style('✅ Role created successfully', fg='green'))
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to create role', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@role.command()
+@click.argument('username')
+@click.argument('role_name')
+@click.option('--expires', help='Expiry date (YYYY-MM-DD)')
+@click.option('--metadata', type=str, help='JSON metadata')
+def assign_role(username, role_name, expires, metadata):
+    """Assign a role to a user"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'role', 'assign',
+        username, role_name
+    ]
+    if expires:
+        cmd.extend(['--expires', expires])
+    if metadata:
+        cmd.extend(['--metadata', metadata])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(click.style('✅ Role assigned successfully', fg='green'))
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to assign role', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@role.command()
+@click.argument('username')
+@click.argument('role_name')
+def remove_role(username, role_name):
+    """Remove a role from a user"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'role', 'remove',
+        username, role_name
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(click.style('✅ Role removed successfully', fg='green'))
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to remove role', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@role.command()
+@click.option('--user', help='Filter by username')
+@click.option('--active-only', is_flag=True, help='Show only active roles')
+def list_roles(user, active_only):
+    """List roles"""
+    cmd = ['docker-compose', 'exec', '-T', 'backend', 'python', 'manage.py', 'role', 'list']
+    if user:
+        cmd.extend(['--user', user])
+    if active_only:
+        cmd.append('--active-only')
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to list roles', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@role.command()
+@click.argument('role_name')
+@click.option('--add', '-a', multiple=True, help='Permissions to add')
+@click.option('--remove', '-r', multiple=True, help='Permissions to remove')
+def modify_role(role_name, add, remove):
+    """Modify role permissions"""
+    cmd = ['docker-compose', 'exec', '-T', 'backend', 'python', 'manage.py', 'role', 'modify', role_name]
+    if add:
+        cmd.extend(['--add'] + list(add))
+    if remove:
+        cmd.extend(['--remove'] + list(remove))
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(click.style('✅ Role modified successfully', fg='green'))
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to modify role', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@role.command()
+@click.option('--category', help='Filter by category')
+def list_permissions(category):
+    """List available permissions"""
+    cmd = ['docker-compose', 'exec', '-T', 'backend', 'python', 'manage.py', 'role', 'permissions']
+    if category:
+        cmd.extend(['--category', category])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to list permissions', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+# Location Management
+@cli.group()
+def location():
+    """Manage server locations"""
+    pass
+
+@location.command()
+@click.argument('server_name')
+def switch(server_name):
+    """Switch server location"""
+    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "switch_location", server_name])
+
+# Add role command group to cli
+cli.add_command(role)
+
+if __name__ == '__main__':
+    cli() 
