@@ -15,7 +15,7 @@ fi
 echo -e "${YELLOW}🛠️ درحال رفع مشکل دسترسی‌های فایل‌ها...${NC}"
 
 # مسیر نصب MRJBot
-INSTALL_DIR="/opt/mrjbot"
+INSTALL_DIR="/root/py-bot"
 
 # ساخت temp_dir
 TEMP_DIR=$(mktemp -d)

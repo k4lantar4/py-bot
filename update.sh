@@ -8,7 +8,7 @@ RED='\033[0;31m'
 NC='\033[0m' # بدون رنگ
 
 # مسیر نصب
-INSTALL_DIR="/opt/mrjbot"
+INSTALL_DIR="/root/py-bot"
 BACKUP_DIR="$INSTALL_DIR/backups"
 
 # بررسی دسترسی روت

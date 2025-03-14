@@ -71,7 +71,7 @@ else
 fi
 
 # ایجاد دایرکتوری نصب
-INSTALL_DIR="/opt/mrjbot"
+INSTALL_DIR="/root/py-bot"
 echo -e "${BLUE}ایجاد دایرکتوری نصب در ${INSTALL_DIR}...${NC}"
 mkdir -p $INSTALL_DIR
 
