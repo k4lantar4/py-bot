@@ -43,6 +43,7 @@ class Role(models.Model):
         return all(p in self.permissions for p in group_permissions)
     
     class Meta:
+        app_label = 'main'
         ordering = ['name']
 
 class User(AbstractUser):
@@ -149,6 +150,9 @@ class User(AbstractUser):
         if not self.role:
             return []
         return self.role.permissions
+    
+    class Meta:
+        app_label = 'main'
 
 class Server(models.Model):
     """Model for V2Ray servers with sync support."""
@@ -175,6 +179,9 @@ class Server(models.Model):
     def generate_remark(self, user: User) -> str:
         """Generate unique remark for user subscription."""
         return f"MoonVpn-{self.name}-{user.id}-{uuid.uuid4().hex[:4]}"
+    
+    class Meta:
+        app_label = 'main'
 
 class SubscriptionPlan(models.Model):
     """Model for subscription plans"""
@@ -196,6 +203,9 @@ class SubscriptionPlan(models.Model):
     
     def __str__(self):
         return self.name
+    
+    class Meta:
+        app_label = 'main'
 
 
 class Subscription(models.Model):
@@ -239,6 +249,9 @@ class Subscription(models.Model):
         if self.data_limit_gb == 0:  # Unlimited
             return 0
         return min(100, (self.data_usage_gb / self.data_limit_gb) * 100)
+    
+    class Meta:
+        app_label = 'main'
 
 
 class Payment(models.Model):
@@ -271,6 +284,9 @@ class Payment(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.amount} - {self.type}"
+    
+    class Meta:
+        app_label = 'main'
 
 
 class CardPayment(models.Model):
@@ -300,6 +316,9 @@ class CardPayment(models.Model):
         if not self.verification_code:
             self.verification_code = secrets.token_hex(5)[:10]
         super().save(*args, **kwargs)
+    
+    class Meta:
+        app_label = 'main'
 
 
 class ZarinpalPayment(models.Model):
@@ -317,6 +336,9 @@ class ZarinpalPayment(models.Model):
     
     def __str__(self):
         return f"{self.payment.user.username} - {self.authority}"
+    
+    class Meta:
+        app_label = 'main'
 
 
 class Discount(models.Model):
@@ -355,6 +377,9 @@ class Discount(models.Model):
             return False
         
         return True
+    
+    class Meta:
+        app_label = 'main'
 
 
 class TelegramMessage(models.Model):
@@ -367,6 +392,9 @@ class TelegramMessage(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.language_code})"
+    
+    class Meta:
+        app_label = 'main'
 
 
 class ServerMonitor(models.Model):
@@ -460,6 +488,7 @@ class ServerMonitor(models.Model):
         return round(self.uptime_seconds / (24 * 60 * 60), 2)
     
     class Meta:
+        app_label = 'main'
         ordering = ['-timestamp']
         indexes = [
             models.Index(fields=['server', 'timestamp']),
@@ -491,6 +520,9 @@ class APIKey(models.Model):
             return False
         
         return True
+    
+    class Meta:
+        app_label = 'main'
 
 class PointsTransaction(models.Model):
     """Model for tracking points transactions."""
@@ -508,6 +540,7 @@ class PointsTransaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        app_label = 'main'
         ordering = ['-created_at']
 
     def __str__(self):
@@ -539,6 +572,9 @@ class LiveChatSession(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.subject}"
+    
+    class Meta:
+        app_label = 'main'
 
 class LiveChatMessage(models.Model):
     """Model for live chat messages"""
@@ -560,6 +596,9 @@ class LiveChatMessage(models.Model):
     
     def __str__(self):
         return f"{self.session.user.username} - {self.type} - {self.created_at}"
+    
+    class Meta:
+        app_label = 'main'
 
 class LiveChatOperator(models.Model):
     """Model for live chat operators"""
@@ -578,6 +617,9 @@ class LiveChatOperator(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.status}"
+    
+    class Meta:
+        app_label = 'main'
 
 class LiveChatRating(models.Model):
     """Model for live chat session ratings"""
@@ -590,6 +632,9 @@ class LiveChatRating(models.Model):
     
     def __str__(self):
         return f"{self.session.user.username} - {self.rating}"
+    
+    class Meta:
+        app_label = 'main'
 
 class UserUsagePattern(models.Model):
     """Model for tracking user's usage patterns."""
@@ -605,6 +650,9 @@ class UserUsagePattern(models.Model):
         self.peak_hours = usage_data.get('peak_hours', [])
         self.preferred_protocols = usage_data.get('preferred_protocols', [])
         self.save()
+    
+    class Meta:
+        app_label = 'main'
 
 class PlanSuggestion(models.Model):
     """Model for storing plan suggestions."""
@@ -616,6 +664,7 @@ class PlanSuggestion(models.Model):
     accepted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        app_label = 'main'
         ordering = ['-created_at']
 
     def accept(self):
@@ -643,6 +692,7 @@ class PointsRedemptionRule(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        app_label = 'main'
         ordering = ['-created_at']
 
     def __str__(self):
@@ -658,6 +708,7 @@ class PointsRedemption(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        app_label = 'main'
         ordering = ['-created_at']
 
     def __str__(self):

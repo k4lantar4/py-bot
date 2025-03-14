@@ -23,6 +23,7 @@ class Inbound(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        app_label = 'v2ray'
         unique_together = ['server', 'port']
         ordering = ['port']
     
@@ -43,6 +44,7 @@ class Client(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        app_label = 'v2ray'
         unique_together = ['inbound', 'email']
         ordering = ['-created_at']
     
@@ -72,6 +74,7 @@ class ServerMetrics(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     
     class Meta:
+        app_label = 'v2ray'
         ordering = ['-timestamp']
         indexes = [
             models.Index(fields=['server', 'timestamp']),
@@ -99,6 +102,7 @@ class ServerHealthCheck(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     
     class Meta:
+        app_label = 'v2ray'
         ordering = ['-timestamp']
         indexes = [
             models.Index(fields=['server', 'timestamp']),
@@ -145,6 +149,7 @@ class ServerRotationLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     
     class Meta:
+        app_label = 'v2ray'
         ordering = ['-timestamp']
         indexes = [
             models.Index(fields=['subscription', 'timestamp']),
@@ -168,6 +173,9 @@ class SyncLog(models.Model):
     details = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
+    class Meta:
+        app_label = 'v2ray'
+    
     def __str__(self):
         return f"{self.server.name} - {self.status} - {self.created_at}"
 
@@ -182,6 +190,9 @@ class ClientConfig(models.Model):
     qrcode_data = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        app_label = 'v2ray'
     
     def __str__(self):
         return f"Config for {self.client.email}"

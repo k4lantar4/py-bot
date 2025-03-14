@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: temp_test_postgres
+    container_name: mrjbot_postgres
     environment:
       POSTGRES_DB: mrjbot
       POSTGRES_USER: mrjbot
@@ -22,7 +22,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: temp_test_redis
+    container_name: mrjbot_redis
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -40,7 +40,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: temp_test_backend
+    container_name: mrjbot_backend
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -52,7 +52,8 @@ services:
       - DJANGO_SUPERUSER_USERNAME=admin
       - DJANGO_SUPERUSER_EMAIL=admin@example.com
       - DJANGO_SUPERUSER_PASSWORD=admin
-      - DJANGO_SETTINGS_MODULE=backend.config.settings
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - PYTHONPATH=/app
     volumes:
       - ./backend:/app
     ports:
@@ -65,7 +66,8 @@ services:
     networks:
       - mrjbot_network
     command: >
-      sh -c "cd backend && python manage.py migrate &&
+      sh -c "pip install -r requirements.txt &&
+             python manage.py migrate &&
              python manage.py collectstatic --noinput &&
              python manage.py runserver 0.0.0.0:8000"
 
@@ -73,7 +75,7 @@ services:
     build:
       context: ./bot
       dockerfile: Dockerfile
-    container_name: temp_test_bot
+    container_name: mrjbot_bot
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -82,6 +84,7 @@ services:
       - DB_PASSWORD=mrjbot
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - PYTHONPATH=/app
     volumes:
       - ./bot:/app
     depends_on:
@@ -93,13 +96,15 @@ services:
         condition: service_healthy
     networks:
       - mrjbot_network
-    command: python main.py
+    command: >
+      sh -c "pip install -r requirements.txt &&
+             python main.py"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: temp_test_frontend
+    container_name: mrjbot_frontend
     ports:
       - "80:80"
     depends_on:
@@ -109,7 +114,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: temp_test_nginx
+    container_name: mrjbot_nginx
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl

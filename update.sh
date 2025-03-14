@@ -1,179 +1,137 @@
 #!/bin/bash
 
-# Colors
-RED='\033[0;31m'
+# رنگ‌ها برای خروجی
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # بدون رنگ
 
-# Backup directory
-BACKUP_DIR="backups"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+# مسیر نصب
+INSTALL_DIR="/opt/mrjbot"
+BACKUP_DIR="$INSTALL_DIR/backups"
 
-# Function to print colored messages
-print_message() {
-    echo -e "${2}${1}${NC}"
-}
+# بررسی دسترسی روت
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "${RED}این اسکریپت باید با دسترسی روت اجرا شود.${NC}"
+    echo -e "${YELLOW}لطفاً با دستور sudo اجرا کنید.${NC}"
+    exit 1
+fi
 
-# Function to check if Docker is running
-check_docker() {
-    if ! docker info > /dev/null 2>&1; then
-        print_message "Docker is not running. Please start Docker first." "$RED"
-        exit 1
-    fi
-}
+# بررسی وجود دایرکتوری نصب
+if [ ! -d "$INSTALL_DIR" ]; then
+    echo -e "${RED}دایرکتوری نصب $INSTALL_DIR یافت نشد.${NC}"
+    echo -e "${YELLOW}لطفاً ابتدا MRJBot را نصب کنید.${NC}"
+    exit 1
+fi
 
-# Function to check if Docker Compose is installed
-check_docker_compose() {
-    if ! command -v docker-compose &> /dev/null; then
-        print_message "Docker Compose is not installed. Please install it first." "$RED"
-        exit 1
-    fi
-}
+# تهیه پشتیبان قبل از بروزرسانی
+echo -e "${BLUE}در حال تهیه پشتیبان قبل از بروزرسانی...${NC}"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FILE="$BACKUP_DIR/pre_update_${TIMESTAMP}.tar.gz"
 
-# Function to create backup
-create_backup() {
-    print_message "Creating backup..." "$YELLOW"
-    
-    # Create backup directory if it doesn't exist
-    mkdir -p "$BACKUP_DIR"
-    
-    # Backup database
-    print_message "Backing up database..." "$YELLOW"
-    docker-compose exec -T db pg_dump -U $DB_USER $DB_NAME > "$BACKUP_DIR/db_$TIMESTAMP.sql"
-    
-    # Backup media files
-    print_message "Backing up media files..." "$YELLOW"
-    tar -czf "$BACKUP_DIR/media_$TIMESTAMP.tar.gz" media/
-    
-    # Backup .env file
-    print_message "Backing up .env file..." "$YELLOW"
-    cp .env "$BACKUP_DIR/env_$TIMESTAMP"
-    
-    print_message "Backup completed successfully!" "$GREEN"
-}
+# ایجاد دایرکتوری پشتیبان اگر وجود نداشته باشد
+mkdir -p $BACKUP_DIR
 
-# Function to restore from backup
-restore_backup() {
-    if [ -z "$1" ]; then
-        print_message "Please specify a backup timestamp to restore from." "$RED"
-        print_message "Usage: $0 restore YYYYMMDD_HHMMSS" "$YELLOW"
-        exit 1
-    fi
+# توقف سرویس‌ها
+echo -e "${BLUE}در حال توقف سرویس‌ها...${NC}"
+cd $INSTALL_DIR && docker-compose stop
+
+# تهیه پشتیبان از فایل‌های پیکربندی و دیتابیس
+echo -e "${BLUE}در حال تهیه پشتیبان از فایل‌های پیکربندی و دیتابیس...${NC}"
+tar -czf $BACKUP_FILE -C $INSTALL_DIR .env docker-compose.yml backend/config/settings.py \
+    $(docker volume ls -q | grep mrjbot)
+
+echo -e "${GREEN}پشتیبان با موفقیت در $BACKUP_FILE ذخیره شد.${NC}"
+
+# بروزرسانی کد از مخزن
+echo -e "${BLUE}در حال بروزرسانی کد از مخزن...${NC}"
+cd $INSTALL_DIR
+
+# ذخیره نسخه فعلی
+CURRENT_VERSION=$(git rev-parse HEAD)
+echo "نسخه قبلی: $CURRENT_VERSION" > $INSTALL_DIR/update_log.txt
+
+# بروزرسانی کد
+git pull
+
+# ذخیره نسخه جدید
+NEW_VERSION=$(git rev-parse HEAD)
+echo "نسخه جدید: $NEW_VERSION" >> $INSTALL_DIR/update_log.txt
+
+# بررسی تغییرات
+if [ "$CURRENT_VERSION" == "$NEW_VERSION" ]; then
+    echo -e "${YELLOW}هیچ بروزرسانی جدیدی یافت نشد.${NC}"
+    echo -e "${BLUE}در حال راه‌اندازی مجدد سرویس‌ها...${NC}"
+    cd $INSTALL_DIR && docker-compose start
+    echo -e "${GREEN}سرویس‌ها با موفقیت راه‌اندازی مجدد شدند.${NC}"
+    exit 0
+fi
+
+# بازسازی و راه‌اندازی مجدد کانتینرها
+echo -e "${BLUE}در حال بازسازی و راه‌اندازی مجدد کانتینرها...${NC}"
+cd $INSTALL_DIR
+docker-compose down
+docker-compose build
+docker-compose up -d
+
+# بررسی وضعیت سرویس‌ها
+echo -e "${BLUE}در حال بررسی وضعیت سرویس‌ها...${NC}"
+sleep 10
+SERVICES_STATUS=$(docker-compose ps)
+echo "$SERVICES_STATUS" >> $INSTALL_DIR/update_log.txt
+
+# بررسی خطاها
+if docker-compose ps | grep -q "Exit"; then
+    echo -e "${RED}برخی از سرویس‌ها با خطا مواجه شدند.${NC}"
+    echo -e "${YELLOW}در حال بازیابی پشتیبان...${NC}"
     
-    print_message "Restoring from backup $1..." "$YELLOW"
-    
-    # Check if backup files exist
-    if [ ! -f "$BACKUP_DIR/db_$1.sql" ] || [ ! -f "$BACKUP_DIR/media_$1.tar.gz" ] || [ ! -f "$BACKUP_DIR/env_$1" ]; then
-        print_message "Backup files not found!" "$RED"
-        exit 1
-    fi
-    
-    # Stop services
-    print_message "Stopping services..." "$YELLOW"
+    # توقف سرویس‌ها
     docker-compose down
     
-    # Restore database
-    print_message "Restoring database..." "$YELLOW"
-    docker-compose up -d db
-    sleep 5
-    docker-compose exec -T db psql -U $DB_USER $DB_NAME < "$BACKUP_DIR/db_$1.sql"
+    # بازیابی پشتیبان
+    tar -xzf $BACKUP_FILE -C $INSTALL_DIR
     
-    # Restore media files
-    print_message "Restoring media files..." "$YELLOW"
-    tar -xzf "$BACKUP_DIR/media_$1.tar.gz"
-    
-    # Restore .env file
-    print_message "Restoring .env file..." "$YELLOW"
-    cp "$BACKUP_DIR/env_$1" .env
-    
-    # Start services
-    print_message "Starting services..." "$YELLOW"
+    # راه‌اندازی مجدد سرویس‌ها
     docker-compose up -d
     
-    print_message "Restore completed successfully!" "$GREEN"
-}
+    echo -e "${GREEN}پشتیبان با موفقیت بازیابی شد.${NC}"
+    
+    # ارسال اعلان به گروه ادمین تلگرام
+    if [ -f "$INSTALL_DIR/.env" ]; then
+        ADMIN_CHAT_ID=$(grep TELEGRAM_ADMIN_CHAT_ID $INSTALL_DIR/.env | cut -d '=' -f2)
+        BOT_TOKEN=$(grep TELEGRAM_BOT_TOKEN $INSTALL_DIR/.env | cut -d '=' -f2)
+        
+        if [ ! -z "$ADMIN_CHAT_ID" ] && [ ! -z "$BOT_TOKEN" ]; then
+            curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+                -d chat_id="$ADMIN_CHAT_ID" \
+                -d text="❌ بروزرسانی با خطا مواجه شد. سیستم به نسخه قبلی بازگردانده شد." > /dev/null
+        fi
+    fi
+    
+    exit 1
+else
+    echo -e "${GREEN}بروزرسانی با موفقیت انجام شد.${NC}"
+    
+    # ارسال اعلان به گروه ادمین تلگرام
+    if [ -f "$INSTALL_DIR/.env" ]; then
+        ADMIN_CHAT_ID=$(grep TELEGRAM_ADMIN_CHAT_ID $INSTALL_DIR/.env | cut -d '=' -f2)
+        BOT_TOKEN=$(grep TELEGRAM_BOT_TOKEN $INSTALL_DIR/.env | cut -d '=' -f2)
+        
+        if [ ! -z "$ADMIN_CHAT_ID" ] && [ ! -z "$BOT_TOKEN" ]; then
+            # تهیه لیست تغییرات
+            CHANGES=$(git log --pretty=format:"%h - %s" $CURRENT_VERSION..$NEW_VERSION)
+            
+            # ارسال پیام به تلگرام
+            curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+                -d chat_id="$ADMIN_CHAT_ID" \
+                -d text="🔥 نسخه جدید اومد، آپدیت شد! 🔥
+                
+تغییرات:
+$CHANGES" > /dev/null
+        fi
+    fi
+fi
 
-# Function to update the application
-update_app() {
-    print_message "Updating application..." "$YELLOW"
-    
-    # Pull latest changes
-    print_message "Pulling latest changes..." "$YELLOW"
-    git pull origin main
-    
-    # Update dependencies
-    print_message "Updating dependencies..." "$YELLOW"
-    docker-compose build
-    
-    # Apply database migrations
-    print_message "Applying database migrations..." "$YELLOW"
-    docker-compose exec web python manage.py migrate
-    
-    # Collect static files
-    print_message "Collecting static files..." "$YELLOW"
-    docker-compose exec web python manage.py collectstatic --noinput
-    
-    # Restart services
-    print_message "Restarting services..." "$YELLOW"
-    docker-compose restart
-    
-    print_message "Update completed successfully!" "$GREEN"
-}
-
-# Function to clean old backups
-clean_backups() {
-    print_message "Cleaning old backups..." "$YELLOW"
-    
-    # Keep only last 7 backups
-    ls -t "$BACKUP_DIR" | tail -n +8 | while read file; do
-        rm "$BACKUP_DIR/$file"
-        print_message "Removed old backup: $file" "$YELLOW"
-    done
-    
-    print_message "Cleanup completed successfully!" "$GREEN"
-}
-
-# Function to show help
-show_help() {
-    print_message "MRJ Bot Update Script" "$GREEN"
-    print_message "Usage: $0 [command]" "$YELLOW"
-    print_message "\nCommands:" "$YELLOW"
-    print_message "  update    Update the application" "$GREEN"
-    print_message "  backup    Create a backup" "$GREEN"
-    print_message "  restore   Restore from a backup (requires timestamp)" "$GREEN"
-    print_message "  clean     Clean old backups" "$GREEN"
-    print_message "  help      Show this help message" "$GREEN"
-    print_message "\nExamples:" "$YELLOW"
-    print_message "  $0 update" "$GREEN"
-    print_message "  $0 backup" "$GREEN"
-    print_message "  $0 restore 20240313_123456" "$GREEN"
-    print_message "  $0 clean" "$GREEN"
-}
-
-# Main script
-check_docker
-check_docker_compose
-
-case "$1" in
-    "update")
-        update_app
-        ;;
-    "backup")
-        create_backup
-        ;;
-    "restore")
-        restore_backup "$2"
-        ;;
-    "clean")
-        clean_backups
-        ;;
-    "help"|"")
-        show_help
-        ;;
-    *)
-        print_message "Unknown command: $1" "$RED"
-        show_help
-        exit 1
-        ;;
-esac 
+echo -e "${GREEN}فرآیند بروزرسانی با موفقیت به پایان رسید.${NC}"
+exit 0 

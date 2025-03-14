@@ -27,6 +27,7 @@ class CardOwner(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        app_label = 'payments'
         verbose_name = _('Card Owner')
         verbose_name_plural = _('Card Owners')
         ordering = ['-created_at']
@@ -66,6 +67,9 @@ class Transaction(models.Model):
     reference_id = models.CharField(max_length=100, unique=True, default=uuid.uuid4)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        app_label = 'payments'
     
     def __str__(self):
         return f"{self.user.username} - {self.amount} - {self.type} - {self.status}"
@@ -122,6 +126,7 @@ class CardPayment(models.Model):
     last_retry_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
+        app_label = 'payments'
         verbose_name = _('Card Payment')
         verbose_name_plural = _('Card Payments')
         ordering = ['-created_at']

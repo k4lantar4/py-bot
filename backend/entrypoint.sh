@@ -1,71 +1,56 @@
-#!/bin/bash
+#!/bin/sh
 
 set -e
 
-host="${DB_HOST:-db}"
-port="${DB_PORT:-5432}"
+# Install dependencies if not already installed
+pip install --no-cache-dir -r requirements.txt
 
-# Function to check if postgres is ready
-postgres_ready() {
-    nc -z "$host" "$port"
-}
+# Make sure PYTHONPATH is set correctly
+export PYTHONPATH=${PYTHONPATH:-/app}
 
-# Function to check if redis is ready
-redis_ready() {
-    nc -z "${REDIS_HOST:-redis}" "${REDIS_PORT:-6379}"
-}
+# Try to use the standard settings, but fall back to test_settings if needed
+if [ -z "$DJANGO_SETTINGS_MODULE" ]; then
+    export DJANGO_SETTINGS_MODULE=config.settings
+    # Try to import the settings, if it fails, fall back to test_settings
+    python -c "from django.conf import settings" 2>/dev/null || export DJANGO_SETTINGS_MODULE=config.test_settings
+fi
 
-# Wait for postgres
-until postgres_ready; do
-  >&2 echo "Waiting for PostgreSQL on $host:$port..."
-  sleep 1
-done
->&2 echo "PostgreSQL is up and running on $host:$port!"
+echo "🚀 Using settings module: $DJANGO_SETTINGS_MODULE"
 
-# Wait for redis
-until redis_ready; do
-  >&2 echo "Waiting for Redis..."
-  sleep 1
-done
->&2 echo "Redis is up!"
+# Wait for PostgreSQL to be ready
+echo "⏳ Waiting for PostgreSQL..."
+python -m scripts.wait_for_postgres
 
-# Apply database migrations
-echo "Applying database migrations..."
+# Wait for Redis to be ready
+echo "⏳ Waiting for Redis..."
+python -m scripts.wait_for_redis
+
+# Run migrations
+echo "🔄 Running migrations..."
 python manage.py migrate --noinput
 
-# Create default superuser if needed
-if [ "$DJANGO_SUPERUSER_USERNAME" ] && [ "$DJANGO_SUPERUSER_EMAIL" ] && [ "$DJANGO_SUPERUSER_PASSWORD" ]; then
-    echo "Creating/Updating superuser..."
-    python manage.py shell -c "
+# Collect static files
+echo "📦 Collecting static files..."
+python manage.py collectstatic --noinput
+
+# Create superuser if necessary
+if [ "$CREATE_SUPERUSER" = "true" ]; then
+    echo "👤 Creating superuser..."
+    python -c "
+import os
 from django.contrib.auth import get_user_model;
 User = get_user_model();
-User.objects.update_or_create(
-    username='$DJANGO_SUPERUSER_USERNAME',
-    defaults={
-        'email': '$DJANGO_SUPERUSER_EMAIL',
-        'is_superuser': True,
-        'is_staff': True
-    }
-)[0].set_password('$DJANGO_SUPERUSER_PASSWORD')"
+username = os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin');
+email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@example.com');
+password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'adminpassword');
+if not User.objects.filter(username=username).exists():
+    User.objects.create_superuser(username, email, password);
+    print(f'Superuser {username} created');
+else:
+    print(f'Superuser {username} already exists');
+"
 fi
 
-# Import default messages if running bot
-if [[ "$*" == *"telegram.main"* ]]; then
-    echo "Importing default messages..."
-    python manage.py import_default_messages --overwrite
-    
-    echo "Setting up initial bot settings..."
-    python manage.py shell -c "
-from telegram.models import BotSetting;
-BotSetting.objects.get_or_create(
-    key='referral_bonus_amount',
-    defaults={
-        'value': '10000',
-        'description': 'Referral bonus amount in Toman',
-        'is_public': True
-    }
-)"
-fi
-
-# Execute the command
+# Execute the command passed to the entrypoint
+echo "🌟 Starting $@..."
 exec "$@" 

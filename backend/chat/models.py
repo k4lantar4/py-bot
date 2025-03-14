@@ -27,6 +27,7 @@ class LiveChatSession(models.Model):
     tracker = FieldTracker()
 
     class Meta:
+        app_label = 'chat'
         ordering = ['-created_at']
         verbose_name = _('Live Chat Session')
         verbose_name_plural = _('Live Chat Sessions')
@@ -51,6 +52,7 @@ class LiveChatMessage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        app_label = 'chat'
         ordering = ['created_at']
         verbose_name = _('Live Chat Message')
         verbose_name_plural = _('Live Chat Messages')
@@ -75,6 +77,7 @@ class LiveChatOperator(models.Model):
     tracker = FieldTracker()
 
     class Meta:
+        app_label = 'chat'
         verbose_name = _('Live Chat Operator')
         verbose_name_plural = _('Live Chat Operators')
 
@@ -90,6 +93,7 @@ class LiveChatRating(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        app_label = 'chat'
         verbose_name = _('Live Chat Rating')
         verbose_name_plural = _('Live Chat Ratings')
 

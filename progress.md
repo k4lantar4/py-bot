@@ -798,169 +798,175 @@ All core features are now implemented! The next phase will focus on:
 - Mobile app
 - Desktop app
 
-# MRJ Bot Enhancement Progress 📊
+# MRJBot - Project Progress
 
-## Current Sprint - March 2025 🎯
+## Project Status: In Development
 
-### Points & Rewards System ✨
-- [x] Points earning system
-- [x] Points expiry logic
-- [x] Points transaction history
-- [x] Reward creation and management
-- [x] Reward redemption workflow
-- [x] Points configuration system
-- [x] Daily limits and cooldowns
-- [x] User points summary
-- [x] CLI management tools
-- [x] Telegram notifications
+Last Updated: March 13, 2024
 
-### Enhanced Role System ✨
-- [x] Custom role creation interface
-- [x] Permission management system
-- [x] Role activity logging
-- [x] Role expiry system
-- [x] Role priority levels
-- [x] User role assignments
-- [x] Role metadata support
-- [x] CLI management tools
+## Completed Tasks
 
-### Location Management System ✨
-- [x] Dynamic location switching system
-- [x] Server location configuration
-- [x] Smart naming convention implementation
-- [x] Load balancing setup
-- [x] Performance monitoring
-- [x] Server health checks
-- [x] Load balancing strategies
-- [x] Automated failover
-- [x] Location groups
-- [x] Management commands
+### Infrastructure Setup
+- [x] Created project structure
+- [x] Set up Docker and Docker Compose configuration
+- [x] Configured PostgreSQL database
+- [x] Configured Redis cache
+- [x] Set up Nginx as reverse proxy
+- [x] Created basic CI/CD pipeline
 
-### AI Content Generation System ✨
-- [x] OpenAI integration setup
-- [x] Content generation templates
-- [x] Telegram channel posting system
-- [x] Content approval workflow
-- [x] Performance tracking metrics
+### Backend Development
+- [x] Set up Django project structure
+- [x] Configured Django settings
+- [x] Created core models (Users, VPN Accounts, Plans, Servers)
+- [x] Implemented JWT authentication
+- [x] Created basic API endpoints
+- [x] Added health check endpoints
+- [x] Implemented database migrations
+- [x] Added basic error handling
 
-### Advanced Backup System 💾
-- [x] 30-minute backup scheduler
-- [x] API endpoints for backup collection
-- [x] Telegram notification system
-- [x] Backup rotation implementation
-- [x] Emergency restore testing
+### Telegram Bot
+- [x] Set up bot framework
+- [x] Implemented basic command handlers
+- [x] Created keyboard layouts
+- [x] Implemented user registration flow
+- [x] Added basic error handling
+- [x] Implemented session management
 
-### CLI Tool Development 🛠️
-- [x] Basic CLI structure
-- [x] Backup management commands
-- [x] AI content management commands
-- [x] Chat management commands
-- [x] Points system commands
-- [x] Role management commands
-- [x] Location management commands
+### Frontend Dashboard
+- [x] Set up React project structure
+- [x] Created basic UI components
+- [x] Implemented authentication flow
+- [x] Created admin dashboard layout
+- [x] Implemented API service layer
 
-### Next Steps 🚀
+### Deployment & Management
+- [x] Created installation script
+- [x] Implemented CLI tool (mrjbot)
+- [x] Added backup functionality
+- [x] Created update script
+- [x] Implemented health check script
+- [x] Added monitoring setup script
 
-#### Live Chat Integration
-- [ ] Real-time chat system
-- [ ] Queue management
-- [ ] Agent dashboard
-- [ ] Analytics implementation
+### Documentation
+- [x] Created README.md (English)
+- [x] Created README-fa.md (Persian)
+- [x] Created project_blueprint.md
+- [x] Created progress.md (this file)
 
-#### Smart Plan Recommendations
-- [ ] Usage analysis system
-- [ ] Recommendation engine
-- [ ] A/B testing framework
-- [ ] Conversion tracking
+## In Progress
 
-## Testing Status 🧪
+### Backend Development
+- [ ] Implementing payment processing system
+- [ ] Creating analytics endpoints
+- [ ] Adding support ticket system
+- [ ] Implementing points and rewards system
+- [ ] Adding server management features
+- [ ] Implementing role-based access control
 
-### Unit Tests
-- [x] AI content generation
-- [x] Backup system
-- [x] Location management
-- [x] Role system
-- [x] Points system
-- [ ] Live chat
-- [ ] Smart plans
+### Telegram Bot
+- [ ] Implementing payment flow
+- [ ] Adding VPN account management
+- [ ] Creating live chat support
+- [ ] Implementing smart plan suggestions
+- [ ] Adding points and rewards integration
 
-### Integration Tests
-- [x] API endpoints for AI content
-- [x] API endpoints for backups
-- [x] Location management API
-- [x] Role management API
-- [x] Points & rewards API
-- [ ] Telegram bot commands
-- [ ] Dashboard features
-- [ ] Payment systems
+### Frontend Dashboard
+- [ ] Creating payment management interface
+- [ ] Implementing VPN account management
+- [ ] Adding analytics and reporting
+- [ ] Creating user management interface
+- [ ] Implementing support ticket system
 
-### Performance Tests
-- [x] Backup performance
-- [x] Location switching
-- [x] Load balancing
-- [x] Role system operations
-- [x] Points transactions
-- [ ] Chat system response
-- [ ] Recommendation engine
+### Testing
+- [ ] Writing unit tests for backend
+- [ ] Writing integration tests
+- [ ] Creating end-to-end tests
+- [ ] Implementing test automation
 
-## Notes 📝
+## Upcoming Tasks
 
-### Completed Features (March 13, 2025)
-1. ✅ Location Management System
-   - Dynamic server switching
-   - Smart naming (MoonVpn-Country-Capacity-Number)
-   - Load balancing with multiple strategies
-   - Server health monitoring
-   - Automated failover
-   - Location groups
-   - CLI management tools
+### Backend Development
+- [ ] Optimize database queries
+- [ ] Implement caching strategy
+- [ ] Add advanced analytics
+- [ ] Create API documentation
+- [ ] Implement rate limiting
 
-2. ✅ AI Content Generation System
-   - Automated content creation for Telegram channels
-   - Multi-language support (Persian/English)
-   - Content approval workflow
-   - Performance tracking
+### Telegram Bot
+- [ ] Add multi-language support
+- [ ] Implement advanced error handling
+- [ ] Create admin commands
+- [ ] Add notification system
+- [ ] Implement inline query support
 
-3. ✅ Advanced Backup System
-   - 30-minute automated backups
-   - Telegram notifications
-   - Backup rotation
-   - Emergency restore functionality
+### Frontend Dashboard
+- [ ] Add responsive design
+- [ ] Implement dark mode
+- [ ] Create advanced filtering
+- [ ] Add export functionality
+- [ ] Implement real-time updates
 
-4. ✅ CLI Tool
-   - Feature management commands
-   - System administration
-   - User management
-   - Backup controls
+### Security
+- [ ] Conduct security audit
+- [ ] Implement 2FA
+- [ ] Add IP whitelisting
+- [ ] Enhance input validation
+- [ ] Implement advanced logging
 
-5. ✅ Enhanced Role System
-   - Custom role creation
-   - Permission management
-   - Role activity logging
-   - Role expiry system
-   - Role priority levels
-   - User role assignments
-   - Role metadata support
-   - CLI management tools
+### Performance
+- [ ] Optimize API performance
+- [ ] Implement database indexing
+- [ ] Add load balancing
+- [ ] Optimize frontend bundle size
+- [ ] Implement lazy loading
 
-6. ✅ Points & Rewards System
-   - Points earning and expiry
-   - Reward creation and redemption
-   - Points configuration and limits
-   - Transaction history
-   - User summaries
-   - CLI management tools
-   - Telegram notifications
+## Known Issues
 
-### In Progress
-1. 🔄 Live Chat Integration
-2. 🔄 Smart Plan Recommendations
+1. **Database Connection**: Occasional connection issues with PostgreSQL when under heavy load
+   - Priority: Medium
+   - Status: Investigating
+   - Assigned: Backend Team
 
-### Next Up
-1. 📋 Integrate live chat
-2. 📋 Deploy smart plan recommendations
+2. **Telegram Bot Timeout**: Bot occasionally times out when processing large requests
+   - Priority: High
+   - Status: In Progress
+   - Assigned: Bot Team
 
-Target completion: End of March 2025 
+3. **Frontend Performance**: Dashboard loads slowly with large datasets
+   - Priority: Medium
+   - Status: To Do
+   - Assigned: Frontend Team
+
+## Next Milestone
+
+**Version 0.2.0** - Expected: April 15, 2024
+
+Key features for next milestone:
+- Complete payment processing system
+- Implement VPN account management
+- Add basic analytics
+- Create support ticket system
+- Implement points and rewards system
+
+## Recent Updates
+
+### March 13, 2024
+- Completed installation script
+- Added monitoring setup
+- Created CLI tool
+- Updated documentation
+
+### March 10, 2024
+- Implemented health check script
+- Fixed database connection issues
+- Added basic API endpoints
+- Created backup functionality
+
+### March 5, 2024
+- Set up project structure
+- Configured Docker environment
+- Created core models
+- Implemented JWT authentication
 
 ## 🎮 Windows Testing Environment Setup - March 14, 2025
 
@@ -1112,3 +1118,23 @@ Target completion: End of March 2025
 2. 📊 Validate all components
 3. 🔄 Copy successful test results to main
 4. 📦 Prepare for GitHub deployment
+
+## Monitoring & Observability Implementation (2023-05-14)
+
+### Implemented
+- Added comprehensive metrics API endpoints for system monitoring
+  - Container metrics endpoint with Docker API integration
+  - Database metrics endpoint with PostgreSQL statistics
+  - Redis metrics endpoint with cache statistics
+  - System metrics endpoint with CPU, memory, disk, and network stats
+- Created a beautiful admin monitoring dashboard with real-time updates
+- Added detailed documentation in both English and Persian
+- Integrated system health checks with clear status indicators
+- Added Docker container status monitoring with resource usage tracking
+
+### Next Steps
+1. Set up automated alerting based on metrics thresholds
+2. Implement log aggregation for all components
+3. Create a Telegram notification system for critical alerts
+4. Add historical metrics storage for trend analysis
+5. Implement Prometheus/Grafana integration for advanced metrics

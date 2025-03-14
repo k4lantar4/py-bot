@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  postgres_test:
+    image: postgres:15-alpine
+    container_name: mrjbot_test_postgres
+    environment:
+      - POSTGRES_USER=mrjbot
+      - POSTGRES_PASSWORD=mrjbot
+      - POSTGRES_DB=mrjbot
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mrjbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mrjbot_test_network
+
+  redis_test:
+    image: redis:7-alpine
+    container_name: mrjbot_test_redis
+    command: redis-server
+    volumes:
+      - redis_test_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mrjbot_test_network
+
+  backend_test:
+    image: python:3.11-slim
+    container_name: mrjbot_test_backend
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+      redis_test:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    working_dir: /app
+    environment:
+      - PYTHONPATH=/app
+      - DB_HOST=postgres_test
+      - DB_PORT=5432
+      - DB_USER=mrjbot
+      - DB_PASSWORD=mrjbot
+      - DB_NAME=mrjbot
+      - REDIS_HOST=redis_test
+      - REDIS_PORT=6379
+      - DJANGO_SETTINGS_MODULE=config.test_settings
+      - API_URL=http://localhost:8000
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+    command: >
+      bash -c "
+        pip install --no-cache-dir psycopg2-binary redis requests
+        python test_all_components.py
+      "
+    networks:
+      - mrjbot_test_network
+
+networks:
+  mrjbot_test_network:
+    name: mrjbot_test_network
+
+volumes:
+  postgres_test_data:
+  redis_test_data: 

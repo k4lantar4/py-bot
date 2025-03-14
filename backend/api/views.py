@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, permissions, status, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth import get_user_model
@@ -11,6 +11,18 @@ from django.db.models import Sum, Count, Q
 import datetime
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from django.db import connection
+import redis
+import os
+import time
+import json
+import sys
+import django
+from rest_framework.permissions import AllowAny
+import docker
+import socket
+import psutil
+from django.contrib.admin.views.decorators import staff_member_required
 
 from main.models import Server, SubscriptionPlan, Subscription
 from v2ray.models import Inbound, Client, SyncLog, ClientConfig
@@ -895,3 +907,435 @@ class PointsRedemptionViewSet(viewsets.ModelViewSet):
         redemption.save()
         
         return Response({'status': 'cancelled'})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """
+    Health check endpoint for monitoring the backend API
+    """
+    # Get startup time
+    startup_time = getattr(health_check, 'startup_time', datetime.now())
+    if not hasattr(health_check, 'startup_time'):
+        health_check.startup_time = startup_time
+    
+    # Calculate uptime
+    uptime_seconds = (datetime.now() - health_check.startup_time).total_seconds()
+    
+    # Check database
+    db_status = 'healthy'
+    db_error = None
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+    except Exception as e:
+        db_status = 'unhealthy'
+        db_error = str(e)
+    
+    # Check Redis
+    redis_status = 'healthy'
+    redis_error = None
+    try:
+        # Get Redis connection details from environment
+        redis_host = os.environ.get("REDIS_HOST", "redis")
+        redis_port = int(os.environ.get("REDIS_PORT", "6379"))
+        redis_db = int(os.environ.get("REDIS_DB", "0"))
+        redis_password = os.environ.get("REDIS_PASSWORD", "")
+        
+        # Try to connect and ping
+        r = redis.Redis(
+            host=redis_host,
+            port=redis_port,
+            db=redis_db,
+            password=redis_password or None,
+            socket_timeout=2
+        )
+        r.ping()
+    except Exception as e:
+        redis_status = 'unhealthy'
+        redis_error = str(e)
+    
+    # System info
+    system_info = {
+        'python_version': sys.version,
+        'django_version': django.get_version(),
+        'platform': sys.platform,
+    }
+    
+    # Build response
+    response_data = {
+        'status': 'ok' if db_status == 'healthy' and redis_status == 'healthy' else 'degraded',
+        'timestamp': datetime.now().isoformat(),
+        'uptime_seconds': uptime_seconds,
+        'components': {
+            'database': {
+                'status': db_status,
+                'error': db_error
+            },
+            'redis': {
+                'status': redis_status,
+                'error': redis_error
+            }
+        },
+        'system': system_info
+    }
+    
+    status_code = 200 if response_data['status'] == 'ok' else 500
+    return Response(response_data, status=status_code)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def container_metrics(request):
+    """
+    Get metrics for all Docker containers in the MRJBot system
+    """
+    try:
+        # Try to connect to Docker socket
+        client = docker.from_env()
+        
+        # Get all containers with mrjbot in their name
+        containers = client.containers.list(all=True, filters={"name": "mrjbot"})
+        
+        # System stats
+        system_stats = {
+            "cpu_percent": psutil.cpu_percent(interval=0.5),
+            "memory_percent": psutil.virtual_memory().percent,
+            "disk_percent": psutil.disk_usage('/').percent,
+            "hostname": socket.gethostname(),
+            "uptime_seconds": int(time.time() - psutil.boot_time())
+        }
+        
+        # Format container data
+        container_data = []
+        for container in containers:
+            stats = container.stats(stream=False)
+            
+            # Calculate CPU usage percentage
+            cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+            system_cpu_delta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+            cpu_percent = 0.0
+            if system_cpu_delta > 0 and cpu_delta > 0:
+                cpu_percent = (cpu_delta / system_cpu_delta) * 100.0 * len(stats['cpu_stats']['cpu_usage']['percpu_usage'])
+                
+            # Calculate memory usage percentage
+            memory_percent = 0.0
+            if 'memory_stats' in stats and 'usage' in stats['memory_stats'] and 'limit' in stats['memory_stats']:
+                memory_percent = (stats['memory_stats']['usage'] / stats['memory_stats']['limit']) * 100.0
+                
+            # Get container start time
+            start_time = datetime.fromtimestamp(container.attrs['Created'])
+            
+            # Get container logs (last 5 lines)
+            logs = container.logs(tail=5, timestamps=True).decode('utf-8').strip().split('\n')
+            if logs == ['']:
+                logs = []
+                
+            container_data.append({
+                "id": container.id[:12],
+                "name": container.name,
+                "image": container.image.tags[0] if container.image.tags else container.image.id[:12],
+                "status": container.status,
+                "state": container.attrs['State'],
+                "created": start_time.isoformat(),
+                "uptime": str(datetime.now() - start_time).split('.')[0],
+                "ports": container.ports,
+                "cpu_percent": round(cpu_percent, 2),
+                "memory_percent": round(memory_percent, 2),
+                "recent_logs": logs
+            })
+            
+        response_data = {
+            "timestamp": datetime.now().isoformat(),
+            "system": system_stats,
+            "containers": container_data
+        }
+            
+        return Response(response_data)
+    except docker.errors.DockerException as e:
+        return Response({
+            "error": "Docker API error",
+            "detail": str(e),
+            "help": "Make sure Docker is running and the API can access the Docker socket"
+        }, status=500)
+    except Exception as e:
+        return Response({
+            "error": "Error fetching container metrics",
+            "detail": str(e)
+        }, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def database_metrics(request):
+    """
+    Get detailed metrics about the PostgreSQL database
+    """
+    try:
+        from django.db import connections, connection
+        from django.apps import apps
+        
+        # Get database connection details
+        db_host = os.environ.get("DB_HOST", "postgres")
+        db_port = os.environ.get("DB_PORT", "5432")
+        
+        # Get database stats
+        with connection.cursor() as cursor:
+            # Get PostgreSQL version
+            cursor.execute("SELECT version();")
+            version = cursor.fetchone()[0]
+            
+            # Get database size
+            cursor.execute("SELECT pg_database_size(current_database());")
+            db_size_bytes = cursor.fetchone()[0]
+            
+            # Get connection count
+            cursor.execute("""
+                SELECT count(*) FROM pg_stat_activity 
+                WHERE datname = current_database();
+            """)
+            connection_count = cursor.fetchone()[0]
+            
+            # Get table statistics
+            cursor.execute("""
+                SELECT relname, n_live_tup, n_dead_tup, last_vacuum, last_analyze
+                FROM pg_stat_user_tables
+                ORDER BY n_live_tup DESC;
+            """)
+            table_stats = []
+            for row in cursor.fetchall():
+                table_stats.append({
+                    "table_name": row[0],
+                    "row_count": row[1],
+                    "dead_rows": row[2],
+                    "last_vacuum": row[3].isoformat() if row[3] else None,
+                    "last_analyze": row[4].isoformat() if row[4] else None,
+                })
+        
+        # Get model stats
+        model_stats = []
+        for model in apps.get_models():
+            if model._meta.app_label not in ('admin', 'auth', 'contenttypes', 'sessions'):
+                try:
+                    model_stats.append({
+                        "model": f"{model._meta.app_label}.{model._meta.model_name}",
+                        "row_count": model.objects.count(),
+                        "fields": len(model._meta.fields),
+                    })
+                except:
+                    pass
+        
+        response_data = {
+            "timestamp": datetime.now().isoformat(),
+            "version": version,
+            "host": db_host,
+            "port": db_port,
+            "size_bytes": db_size_bytes,
+            "size_mb": round(db_size_bytes / (1024 * 1024), 2),
+            "connections": connection_count,
+            "tables": table_stats,
+            "models": model_stats,
+        }
+            
+        return Response(response_data)
+    except Exception as e:
+        return Response({
+            "error": "Error fetching database metrics",
+            "detail": str(e)
+        }, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def redis_metrics(request):
+    """
+    Get detailed metrics about the Redis server
+    """
+    try:
+        import redis
+        
+        # Get Redis connection details from environment
+        redis_host = os.environ.get("REDIS_HOST", "redis")
+        redis_port = int(os.environ.get("REDIS_PORT", "6379"))
+        redis_db = int(os.environ.get("REDIS_DB", "0"))
+        redis_password = os.environ.get("REDIS_PASSWORD", "")
+        
+        # Connect to Redis
+        r = redis.Redis(
+            host=redis_host,
+            port=redis_port,
+            db=redis_db,
+            password=redis_password or None,
+            socket_timeout=2
+        )
+        
+        # Get Redis info
+        info = r.info()
+        
+        # Get key count and sample keys
+        db_key = f"db{redis_db}"
+        key_count = info.get(db_key, {}).get('keys', 0)
+        
+        # Get some key samples (max 10)
+        key_samples = []
+        scan_iter = r.scan_iter(count=10)
+        for i, key in enumerate(scan_iter):
+            if i >= 10:
+                break
+            key_str = key.decode('utf-8')
+            key_type = r.type(key).decode('utf-8')
+            key_ttl = r.ttl(key)
+            
+            # Get type-specific info
+            key_detail = {"type": key_type, "ttl": key_ttl}
+            if key_type == "string":
+                try:
+                    value = r.get(key).decode('utf-8')
+                    if len(value) > 100:
+                        value = value[:100] + "..."
+                    key_detail["value"] = value
+                except:
+                    key_detail["value"] = "<binary data>"
+            elif key_type == "list":
+                key_detail["length"] = r.llen(key)
+            elif key_type == "hash":
+                key_detail["length"] = r.hlen(key)
+            elif key_type == "set":
+                key_detail["length"] = r.scard(key)
+            elif key_type == "zset":
+                key_detail["length"] = r.zcard(key)
+                
+            key_samples.append({
+                "key": key_str,
+                "details": key_detail
+            })
+            
+        response_data = {
+            "timestamp": datetime.now().isoformat(),
+            "host": redis_host,
+            "port": redis_port,
+            "version": info.get('redis_version'),
+            "uptime_seconds": info.get('uptime_in_seconds'),
+            "clients_connected": info.get('connected_clients'),
+            "memory_used_bytes": info.get('used_memory'),
+            "memory_used_mb": round(int(info.get('used_memory', 0)) / (1024 * 1024), 2),
+            "memory_peak_mb": round(int(info.get('used_memory_peak', 0)) / (1024 * 1024), 2),
+            "key_count": key_count,
+            "key_samples": key_samples,
+            "stats": {
+                "commands_processed": info.get('total_commands_processed'),
+                "keyspace_hits": info.get('keyspace_hits'),
+                "keyspace_misses": info.get('keyspace_misses'),
+                "expired_keys": info.get('expired_keys'),
+                "evicted_keys": info.get('evicted_keys'),
+            }
+        }
+            
+        return Response(response_data)
+    except Exception as e:
+        return Response({
+            "error": "Error fetching Redis metrics",
+            "detail": str(e)
+        }, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def system_metrics(request):
+    """
+    Get detailed system metrics including CPU, memory, disk, and network
+    """
+    try:
+        import psutil
+        
+        # Get CPU info
+        cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
+        cpu_times = psutil.cpu_times_percent(interval=0.5)
+        
+        # Get memory info
+        virtual_memory = psutil.virtual_memory()
+        swap_memory = psutil.swap_memory()
+        
+        # Get disk info
+        disk_usage = psutil.disk_usage('/')
+        disk_io = psutil.disk_io_counters()
+        
+        # Get network info
+        net_io = psutil.net_io_counters()
+        net_connections = len(psutil.net_connections())
+        
+        # Get process info
+        process_count = len(psutil.pids())
+        
+        # Get load average
+        load_avg = psutil.getloadavg()
+        
+        # Get boot time
+        boot_time = datetime.fromtimestamp(psutil.boot_time()).isoformat()
+        uptime_seconds = int(time.time() - psutil.boot_time())
+        
+        # Format response
+        response_data = {
+            "timestamp": datetime.now().isoformat(),
+            "hostname": socket.gethostname(),
+            "boot_time": boot_time,
+            "uptime_seconds": uptime_seconds,
+            "cpu": {
+                "percent_per_core": cpu_percent,
+                "average": sum(cpu_percent) / len(cpu_percent),
+                "cores": len(cpu_percent),
+                "times_percent": {
+                    "user": cpu_times.user,
+                    "system": cpu_times.system,
+                    "idle": cpu_times.idle,
+                }
+            },
+            "memory": {
+                "total_mb": round(virtual_memory.total / (1024 * 1024), 2),
+                "available_mb": round(virtual_memory.available / (1024 * 1024), 2),
+                "used_mb": round(virtual_memory.used / (1024 * 1024), 2),
+                "percent": virtual_memory.percent,
+                "swap_total_mb": round(swap_memory.total / (1024 * 1024), 2),
+                "swap_used_mb": round(swap_memory.used / (1024 * 1024), 2),
+                "swap_percent": swap_memory.percent,
+            },
+            "disk": {
+                "total_gb": round(disk_usage.total / (1024 * 1024 * 1024), 2),
+                "used_gb": round(disk_usage.used / (1024 * 1024 * 1024), 2),
+                "free_gb": round(disk_usage.free / (1024 * 1024 * 1024), 2),
+                "percent": disk_usage.percent,
+                "read_mb": round(disk_io.read_bytes / (1024 * 1024), 2),
+                "write_mb": round(disk_io.write_bytes / (1024 * 1024), 2),
+            },
+            "network": {
+                "bytes_sent_mb": round(net_io.bytes_sent / (1024 * 1024), 2),
+                "bytes_recv_mb": round(net_io.bytes_recv / (1024 * 1024), 2),
+                "packets_sent": net_io.packets_sent,
+                "packets_recv": net_io.packets_recv,
+                "connections": net_connections,
+            },
+            "load_average": {
+                "1min": load_avg[0],
+                "5min": load_avg[1],
+                "15min": load_avg[2],
+            },
+            "processes": {
+                "count": process_count,
+            }
+        }
+            
+        return Response(response_data)
+    except Exception as e:
+        return Response({
+            "error": "Error fetching system metrics",
+            "detail": str(e)
+        }, status=500)
+
+
+@staff_member_required
+def monitoring_dashboard(request):
+    """
+    Admin monitoring dashboard showing system metrics
+    """
+    return render(request, 'admin/monitoring_dashboard.html')

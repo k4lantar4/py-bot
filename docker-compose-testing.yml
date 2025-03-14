@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  test:
+    image: python:3.10-slim
+    container_name: mrjbot_test
+    volumes:
+      - ./test_components.py:/app/test_components.py
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir psycopg2-binary redis requests &&
+             python test_components.py"
+    networks:
+      - mrjbot_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - API_HOST=backend
+      - API_PORT=8000
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: test_postgres
+    environment:
+      POSTGRES_DB: mrjbot
+      POSTGRES_USER: mrjbot
+      POSTGRES_PASSWORD: mrjbot
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    ports:
+      - "5437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mrjbot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mrjbot_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: test_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_test_data:/data
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mrjbot_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: test_backend
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=mrjbot
+      - DB_USER=mrjbot
+      - DB_PASSWORD=mrjbot
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DJANGO_SUPERUSER_USERNAME=admin
+      - DJANGO_SUPERUSER_EMAIL=admin@example.com
+      - DJANGO_SUPERUSER_PASSWORD=admin
+      - DJANGO_SETTINGS_MODULE=config.test_settings
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mrjbot_network
+    command: >
+      sh -c "pip install -r requirements.txt django-model-utils &&
+             python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+
+volumes:
+  postgres_test_data:
+  redis_test_data:
+
+networks:
+  mrjbot_network:
+    driver: bridge 

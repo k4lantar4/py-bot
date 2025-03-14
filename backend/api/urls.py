@@ -26,4 +26,14 @@ urlpatterns = [
     path('', include(router.urls)),
     # Add the BotConfig endpoint
     path('bot/config/', views.BotConfigView.as_view(), name='bot-config'),
+    # Add health check endpoint
+    path('health/', views.health_check, name='health_check'),
+    # Add container metrics endpoint
+    path('metrics/containers/', views.container_metrics, name='container_metrics'),
+    # Add database metrics endpoint
+    path('metrics/database/', views.database_metrics, name='database_metrics'),
+    # Add Redis metrics endpoint
+    path('metrics/redis/', views.redis_metrics, name='redis_metrics'),
+    # Add system metrics endpoint
+    path('metrics/system/', views.system_metrics, name='system_metrics'),
 ] 
