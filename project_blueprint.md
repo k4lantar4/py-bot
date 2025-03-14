@@ -12,6 +12,8 @@ MRJ Bot is a comprehensive V2Ray subscription and payment management system feat
   - Automatic receipt verification (OCR)
   - Payment confirmation workflow
   - Transaction history
+  - Card owner statistics
+  - Admin/seller confirmation system
 - Zarinpal Integration
   - Automatic payment verification
   - Transaction logging
@@ -21,17 +23,25 @@ MRJ Bot is a comprehensive V2Ray subscription and payment management system feat
   - Card-wise breakdowns
   - Confirmation statistics
   - Revenue projections
+  - Card owner analytics
 
 ### Points & Rewards System 🌟
 - Point Earning
   - Purchase-based points
   - Referral bonuses
   - Activity rewards
+  - Special event multipliers
 - Point Management
   - Point expiry system
   - Redemption options
   - VIP status tiers
+  - Point history tracking
   - CLI command: `mrjbot check-points`
+- VIP Benefits
+  - Exclusive discounts
+  - Priority support
+  - Special features
+  - Custom plans
 
 ### Live Chat Support System 💬
 - Real-time chat in Telegram bot
@@ -40,6 +50,9 @@ MRJ Bot is a comprehensive V2Ray subscription and payment management system feat
 - Chat history
 - Response templates
 - Performance metrics
+- Multi-language support
+- Quick response buttons
+- Chat analytics
 
 ### Smart Plan Suggestions 🎯
 - Usage-based recommendations
@@ -47,17 +60,30 @@ MRJ Bot is a comprehensive V2Ray subscription and payment management system feat
 - Personalized offers
 - Upgrade suggestions
 - Multi-language templates
+- Usage patterns analysis
+- Custom plan creation
+- Plan comparison
+- Traffic optimization tips
 
 ### Server Management 🖥️
 - Multi-panel Integration
   - 3x-UI API sync
   - Load balancing
   - Failover support
+  - Auto-recovery
+  - Health monitoring
 - Server Monitoring
   - Health checks
   - Traffic monitoring
   - Performance metrics
   - Alert system
+  - Resource usage tracking
+  - Auto-scaling support
+- Server Analytics
+  - Usage patterns
+  - Performance trends
+  - Cost analysis
+  - Optimization suggestions
 
 ### Role Management 👥
 - User Roles
@@ -65,10 +91,18 @@ MRJ Bot is a comprehensive V2Ray subscription and payment management system feat
   - Seller
   - VIP User
   - Regular User
+  - Support Agent
 - Permission System
   - Granular access control
   - Custom role creation
   - Activity logging
+  - Role-based features
+  - Audit trails
+- Role Features
+  - Custom permissions
+  - Role inheritance
+  - Temporary roles
+  - Role expiration
 
 ## Technical Architecture 🏗️
 
@@ -114,7 +148,9 @@ bot/
 │   ├── account/         # Account management
 │   ├── support/         # Live chat
 │   ├── points/          # Points system
-│   └── admin/           # Admin controls
+│   ├── admin/           # Admin controls
+│   ├── server/          # Server management
+│   └── analytics/       # Analytics & reports
 ├── keyboards/           # Inline keyboards
 ├── messages/            # Message templates
 └── utils/              # Bot utilities
@@ -140,6 +176,8 @@ frontend/
 - Backups: `mrjbot backup`
 - Points: `mrjbot check-points`
 - License: `mrjbot set-license <code>`
+- Server: `mrjbot server <command>`
+- Analytics: `mrjbot analytics <command>`
 
 ### Docker Deployment
 - One-command setup: `docker-compose up -d`
@@ -147,6 +185,7 @@ frontend/
 - Backup system
 - Health monitoring
 - SSL management
+- Auto-scaling support
 
 ### Update System
 - Automated updates via `update.sh`
@@ -155,6 +194,7 @@ frontend/
 - Docker rebuild
 - Admin notifications
 - Rollback support: `mrjbot restore-backup`
+- Telegram group notifications
 
 ## Security & Performance 🔒
 
@@ -165,6 +205,9 @@ frontend/
 - Session encryption
 - API rate limiting
 - IP whitelisting
+- 2FA support
+- Audit logging
+- Security headers
 
 ### Performance Optimization
 - Redis caching
@@ -172,16 +215,38 @@ frontend/
 - Load balancing
 - CDN integration
 - Asset compression
+- Query optimization
+- Background tasks
+- Rate limiting
+- Resource monitoring
 
 ## Future Extensions 🔮
 
 ### Planned Features
 - OpenVPN Support
+  - Account management
+  - Traffic monitoring
+  - Multi-server support
 - Apple ID Sales
+  - Account management
+  - Stock tracking
+  - Price automation
 - PUBG UC Integration
+  - Order management
+  - Stock tracking
+  - Price automation
 - Additional Payment Methods
+  - Crypto support
+  - Bank integration
+  - Mobile wallets
 - Enhanced Analytics
+  - AI-powered insights
+  - Predictive analytics
+  - Custom reports
 - AI-powered Support
+  - Smart responses
+  - Ticket classification
+  - Sentiment analysis
 
 ## Documentation 📚
 
@@ -191,6 +256,8 @@ frontend/
 - Installation Guide
 - API Documentation
 - Admin Manual
+- User Manual
+- Developer Guide
 
 ### Development
 - Contributing Guidelines
@@ -198,6 +265,8 @@ frontend/
 - Testing Guide
 - Security Guidelines
 - Deployment Guide
+- Architecture Guide
+- Style Guide
 
 ## License & Updates 📝
 
@@ -207,10 +276,14 @@ frontend/
 - Usage tracking
 - Expiry management
 - Auto-renewal
+- Multi-server support
+- Custom features
 
 ### Update Management
 - Version control
 - Change logging
 - Migration scripts
 - Backup system
-- Rollback procedures 
+- Rollback procedures
+- Auto-updates
+- Telegram notifications 

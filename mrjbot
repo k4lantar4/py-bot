@@ -125,16 +125,17 @@ help() {
     print_color "MRJ Bot CLI" "$YELLOW"
     print_color "Usage: $0 [command] [options]" "$GREEN"
     print_color "\nCommands:" "$YELLOW"
-    print_color "  start     Start the application" "$GREEN"
-    print_color "  stop      Stop the application" "$GREEN"
-    print_color "  restart   Restart the application" "$GREEN"
-    print_color "  logs      Show logs (optional: service name)" "$GREEN"
-    print_color "  shell     Access shell (optional: service name)" "$GREEN"
-    print_color "  status    Check application status" "$GREEN"
-    print_color "  migrate   Apply database migrations" "$GREEN"
-    print_color "  static    Collect static files" "$GREEN"
-    print_color "  superuser Create superuser" "$GREEN"
-    print_color "  help      Show this help message" "$GREEN"
+    print_color "  start          Start the application" "$GREEN"
+    print_color "  stop           Stop the application" "$GREEN"
+    print_color "  restart        Restart the application" "$GREEN"
+    print_color "  logs           Show logs (optional: service name)" "$GREEN"
+    print_color "  shell          Access shell (optional: service name)" "$GREEN"
+    print_color "  status         Check application status" "$GREEN"
+    print_color "  migrate        Apply database migrations" "$GREEN"
+    print_color "  static         Collect static files" "$GREEN"
+    print_color "  superuser      Create superuser" "$GREEN"
+    print_color "  run-dummy-test Run test environment with dummy data" "$GREEN"
+    print_color "  help           Show this help message" "$GREEN"
     print_color "\nExamples:" "$YELLOW"
     print_color "  $0 start" "$GREEN"
     print_color "  $0 stop" "$GREEN"
@@ -147,6 +148,7 @@ help() {
     print_color "  $0 migrate" "$GREEN"
     print_color "  $0 static" "$GREEN"
     print_color "  $0 superuser" "$GREEN"
+    print_color "  $0 run-dummy-test" "$GREEN"
 }
 
 # Main script
@@ -183,6 +185,36 @@ case "$1" in
         ;;
     "help"|"")
         help
+        ;;
+    "run-dummy-test")
+        print_color "🧪 Starting dummy test environment..." "$YELLOW"
+        
+        # Change to temp_test directory
+        cd temp_test || {
+            print_color "❌ Failed to change to temp_test directory" "$RED"
+            exit 1
+        }
+        
+        # Run the test environment script
+        if [ "$OSTYPE" = "msys" ] || [ "$OSTYPE" = "win32" ]; then
+            # Windows
+            powershell -Command "./run_test_env.sh"
+        else
+            # Unix-like
+            ./run_test_env.sh
+        fi
+        
+        TEST_EXIT_CODE=$?
+        
+        # Change back to original directory
+        cd ..
+        
+        if [ $TEST_EXIT_CODE -eq 0 ]; then
+            print_color "✨ Dummy test completed successfully!" "$GREEN"
+        else
+            print_color "❌ Dummy test failed!" "$RED"
+            exit 1
+        fi
         ;;
     *)
         print_color "Unknown command: $1" "$RED"

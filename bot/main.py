@@ -46,6 +46,8 @@ from handlers import (
     support,
     navigation,
     profile,
+    points,
+    suggestions,
 )
 
 # Import utilities
@@ -98,6 +100,13 @@ def main() -> None:
     
     # Profile handlers
     application.add_handler(profile.get_profile_handler())
+    
+    # Points handlers
+    application.add_handler(points.points_handler)
+    application.add_handler(points.redeem_conversation)
+    
+    # Suggestions handler
+    application.add_handler(suggestions.suggestions_handler)
     
     # Navigation handlers
     application.add_handler(CallbackQueryHandler(navigation.handle_navigation))

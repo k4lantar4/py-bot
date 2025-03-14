@@ -1,163 +1,217 @@
-# 🌟 MRJ Bot - Ultimate V2Ray Management System
+# 🤖 Telegram Bot & Dashboard for V2Ray Management
 
-## 📝 Introduction
-MRJ Bot is a comprehensive V2Ray subscription and payment management system featuring a Telegram bot interface and web dashboard. Built with cutting-edge technologies (Django 5.x, React 18.x, and python-telegram-bot v20+), it seamlessly integrates with multiple 3x-UI panels for advanced V2Ray account management.
+## 🌟 Key Features
 
-## ✨ Core Features
+### 💰 Smart Payment System
+- Card-to-card payments with owner tracking
+- Zarinpal payment gateway
+- Admin/seller payment confirmation
+- Advanced financial reporting
+- Transaction history
+- Card owner analytics
 
-### 💳 Payment & Financial Management
-- Card-to-Card Payments with Owner Tracking
-  - Track card owners and transactions
-  - Automatic receipt verification (OCR)
-  - Payment confirmation workflow
-  - Transaction history
-- Zarinpal Integration
-  - Automatic payment verification
-  - Transaction logging
-  - Refund handling
-- Financial Reports
-  - Daily/weekly/monthly sales
-  - Card-wise breakdowns
-  - Confirmation statistics
-  - Revenue projections
+### ✨ Points & Rewards System
+- Points earning from purchases
+- Referral and reward system
+- VIP levels
+- Points to discount conversion
+- Points history
+- `mrjbot check-points` command
 
-### 🎁 Points & Rewards System
-- Point Earning
-  - Purchase-based points
-  - Referral bonuses
-  - Activity rewards
-- Point Management
-  - Point expiry system
-  - Redemption options
-  - VIP status tiers
-  - CLI command: `mrjbot check-points`
-
-### 💬 Live Chat Support
-- Real-time chat in Telegram bot
-- Support ticket management
-- Agent assignment
+### 💬 Live Support
+- Direct chat in Telegram
+- Ticket system
+- Operator management
 - Chat history
-- Response templates
+- Quick responses
 - Performance metrics
 
 ### 🎯 Smart Plan Suggestions
-- Usage-based recommendations
-- Traffic analysis
-- Personalized offers
-- Upgrade suggestions
-- Multi-language templates
+- Usage analysis
+- Plan recommendations
+- Traffic optimization
+- Custom plans
+- Plan comparison
 
 ### 🖥️ Server Management
-- Multi-panel Integration
-  - 3x-UI API sync
-  - Load balancing
-  - Failover support
-- Server Monitoring
-  - Health checks
-  - Traffic monitoring
-  - Performance metrics
-  - Alert system
+- Multiple 3x-UI panel integration
+- Server health monitoring
+- Automatic load balancing
+- Multi-server support
+- Performance metrics
+- Automatic alerts
 
-### 👥 Role Management
-- User Roles
-  - Admin
-  - Seller
-  - VIP User
-  - Regular User
-- Permission System
-  - Granular access control
-  - Custom role creation
-  - Activity logging
+### 👥 User Management
+- Multiple roles (Admin, Seller, VIP)
+- Advanced access control
+- User profiles
+- Activity history
+- Operator management
 
 ## 🚀 Installation & Setup
 
 ### Prerequisites
-- Ubuntu 22.04 LTS
-- Docker & Docker Compose
+- Ubuntu 22.04 server
 - Domain or public IP
-- Minimum 2GB RAM
+- Docker and Docker Compose
 
-### Quick Install
+### Quick Installation
 ```bash
-# Download and install
-git clone https://github.com/username/mrjbot
+# Get the code
+git clone https://github.com/yourusername/mrjbot.git
 cd mrjbot
-./install.sh
 
-# Run
+# Configure .env file
+cp .env.example .env
+nano .env
+
+# Start with Docker
 docker-compose up -d
+
+# Install CLI
+chmod +x mrjbot
+sudo cp mrjbot /usr/local/bin/
 ```
 
-### Management Commands
+### CLI Commands
 ```bash
-mrjbot install          # Install system
-mrjbot update          # Update system
-mrjbot backup          # Create backup
-mrjbot check-points    # Check points
-mrjbot set-license     # Set license
+# Installation
+mrjbot install
+
+# Update
+mrjbot update
+
+# Backup
+mrjbot backup
+
+# Check points
+mrjbot check-points
+
+# Set license
+mrjbot set-license <code>
+
+# Server management
+mrjbot server <command>
+
+# Analytics
+mrjbot analytics <command>
 ```
 
-## 🔒 Security & Performance
+## 🛡️ Security & Support
 
 ### Security Features
-- HTTPS everywhere
+- HTTPS
 - JWT authentication
-- Input validation
-- Session encryption
+- Data encryption
 - API rate limiting
-- IP whitelisting
+- IP filtering
+- Two-factor authentication
 
-### Performance Optimization
-- Redis caching
-- Database optimization
-- Load balancing
-- CDN integration
-- Asset compression
-
-## 🔮 Future Extensions
-- OpenVPN Support
-- Apple ID Sales
-- PUBG UC Integration
-- Additional Payment Methods
-- Enhanced Analytics
-- AI-powered Support
-
-## 📚 Documentation
-- Installation Guide
-- User Guide
-- API Documentation
-- Admin Manual
-- Development Guide
-
-## 📝 License & Updates
-
-### License System
-- License validation
-- Feature tiers
-- Usage tracking
-- Expiry management
-- Auto-renewal
-
-### Update Management
-- Version control
-- Change logging
-- Migration scripts
-- Backup system
-- Rollback procedures
-
-## 🤝 Support
-For support, you can:
-- Contact us via Telegram bot
-- Submit a ticket
-- Use live chat
-- Join our Telegram group
-
-## 💫 Key Advantages
-- Beautiful modern UI
-- Multi-language support
-- Secure payment system
-- Easy management
+### Support
 - 24/7 support
+- Live chat in Telegram
+- Ticket system
+- Persian guide
+- Video tutorials
+
+## 🔄 Updates & Maintenance
+
+### Update System
 - Automatic updates
-- Advanced reporting
-- High security
+- Config backup
+- Database backup
+- Auto recovery
+- Telegram notifications
+
+### Monitoring
+- Server health
+- Resource usage
+- Traffic
+- Errors
+- Performance
+
+## 📱 Access
+
+### Web Dashboard
+- URL: `https://your-domain.com`
+- Persian UI
+- Responsive design
+- Dark/light theme
+
+### Telegram Bot
+- Username: `@your_bot_username`
+- Persian commands
+- User-friendly menu
+- Smart responses
+
+## 🔮 Future Development
+
+### New Features
+- OpenVPN support
+- Apple ID account sales
+- PUBG UC integration
+- Crypto payments
+- AI-powered support
+
+### Improvements
+- Performance optimization
+- New UI
+- Advanced reports
+- Mobile app
+
+## 📝 Important Notes
+
+### Best Practices
+- Use dedicated server
+- Configure SSL
+- Regular backups
+- Continuous monitoring
+- Keep updated
+
+### Limitations
+- Requires powerful server
+- API limitations
+- Payment restrictions
+- Traffic limits
+
+## 🤝 Contributing
+
+### Developers
+- Contribution guide
+- Coding standards
+- Unit tests
+- API documentation
+
+### Bug Reports
+- Issue system
+- Report guidelines
+- Report template
+- Prioritization
+
+## 📄 License
+
+### License Types
+- Free version
+- Professional version
+- Enterprise version
+- Custom version
+
+### Usage Terms
+- User limitations
+- Server limitations
+- API limitations
+- Support limitations
+
+## 📞 Contact Us
+
+### Communication Channels
+- Telegram: `@your_support_username`
+- Email: `support@your-domain.com`
+- Website: `https://your-domain.com`
+- Live chat: On website
+
+### Support Hours
+- Support: 24/7
+- Sales: 9 AM to 9 PM
+- Technical: 9 AM to 6 PM
+- Management: 9 AM to 5 PM

@@ -167,8 +167,8 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = []
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-MEDIA_URL = 'media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -350,3 +350,20 @@ if DEBUG:
     INTERNAL_IPS = [
         '127.0.0.1',
     ]
+
+# OCR Settings
+TESSERACT_CMD_PATH = env('TESSERACT_CMD_PATH', default='tesseract')
+OCR_KERNEL_SIZE = (1, 1)
+OCR_THRESHOLD_BLOCK_SIZE = 11
+OCR_THRESHOLD_C = 2
+OCR_MIN_CONFIDENCE = 50  # Minimum confidence percentage for OCR results
+
+# Card Payment Settings
+CARD_PAYMENT_VERIFICATION_TIMEOUT_MINUTES = env.int('CARD_PAYMENT_VERIFICATION_TIMEOUT_MINUTES', default=30)
+CARD_PAYMENT_NUMBER = env('CARD_PAYMENT_NUMBER', default='')
+CARD_PAYMENT_HOLDER = env('CARD_PAYMENT_HOLDER', default='')
+CARD_PAYMENT_BANK = env('CARD_PAYMENT_BANK', default='')
+ADMIN_NOTIFICATION_ENABLED = env.bool('ADMIN_NOTIFICATION_ENABLED', default=True)
+
+# Media settings for receipt images
+RECEIPTS_UPLOAD_PATH = 'receipts/%Y/%m/%d/'

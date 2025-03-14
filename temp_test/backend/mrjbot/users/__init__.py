@@ -1,1 +1,0 @@
-default_app_config = 'mrjbot.users.apps.UsersConfig' 
