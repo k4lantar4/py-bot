@@ -19,6 +19,8 @@ from .views import (
     UserSettingViewSet,
 )
 
+from .views.chat import ChatViewSet, ChatAgentViewSet
+
 router = DefaultRouter()
 router.register(r'auth', AuthViewSet, basename='auth')
 router.register(r'services', ServiceViewSet, basename='service')
@@ -31,9 +33,11 @@ router.register(r'withdrawals', WithdrawalRequestViewSet, basename='withdrawal')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'settings', SettingViewSet, basename='setting')
 router.register(r'user-settings', UserSettingViewSet, basename='user-setting')
+router.register(r'chats', ChatViewSet, basename='chat')
+router.register(r'chat-agents', ChatAgentViewSet, basename='chat-agent')
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
 ] 

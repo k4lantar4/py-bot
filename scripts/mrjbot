@@ -79,21 +79,153 @@ def disable():
 # Points System
 @cli.group()
 def points():
-    """Manage points system"""
+    """Manage points and rewards"""
     pass
 
 @points.command()
-@click.argument('user_id')
-def check(user_id):
-    """Check points for a user"""
-    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "check_points", user_id])
+@click.argument('username')
+@click.argument('points', type=int)
+@click.option('--action', help='Action identifier')
+@click.option('--description', help='Description')
+@click.option('--reference', help='Reference')
+def award_points(username, points, action, description, reference):
+    """Award points to a user"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'points', 'award',
+        username, str(points)
+    ]
+    if action:
+        cmd.extend(['--action', action])
+    if description:
+        cmd.extend(['--description', description])
+    if reference:
+        cmd.extend(['--reference', reference])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(click.style('✅ Points awarded successfully', fg='green'))
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to award points', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
 
 @points.command()
-@click.argument('user_id')
-@click.argument('amount', type=int)
-def redeem(user_id, amount):
-    """Redeem points for a user"""
-    subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "redeem_points", user_id, str(amount)])
+@click.argument('username')
+@click.argument('points', type=int)
+@click.argument('reason')
+def deduct_points(username, points, reason):
+    """Deduct points from a user"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'points', 'deduct',
+        username, str(points), reason
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(click.style('✅ Points deducted successfully', fg='green'))
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to deduct points', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@points.command()
+@click.argument('name')
+@click.argument('description')
+@click.argument('points', type=int)
+@click.option('--type', type=click.Choice(['DISCOUNT', 'TRAFFIC', 'TIME', 'VIP', 'CUSTOM']),
+             default='CUSTOM', help='Reward type')
+@click.option('--quantity', type=int, help='Available quantity')
+@click.option('--start-date', help='Start date (YYYY-MM-DD)')
+@click.option('--end-date', help='End date (YYYY-MM-DD)')
+@click.option('--data', help='JSON data for reward')
+def create_reward(name, description, points, type, quantity, start_date, end_date, data):
+    """Create a new reward"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'points', 'create-reward',
+        name, description, str(points),
+        '--type', type
+    ]
+    if quantity:
+        cmd.extend(['--quantity', str(quantity)])
+    if start_date:
+        cmd.extend(['--start-date', start_date])
+    if end_date:
+        cmd.extend(['--end-date', end_date])
+    if data:
+        cmd.extend(['--data', data])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(click.style('✅ Reward created successfully', fg='green'))
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to create reward', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@points.command()
+@click.option('--active-only', is_flag=True, help='Show only active rewards')
+def list_rewards(active_only):
+    """List available rewards"""
+    cmd = ['docker-compose', 'exec', '-T', 'backend', 'python', 'manage.py', 'points', 'list-rewards']
+    if active_only:
+        cmd.append('--active-only')
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to list rewards', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@points.command()
+@click.argument('username')
+def show_points(username):
+    """Show user points summary"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'points', 'show',
+        username
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to show points', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@points.command()
+@click.argument('action')
+@click.argument('points', type=int)
+@click.argument('description')
+@click.option('--cooldown', type=int, help='Cooldown in minutes')
+@click.option('--max-daily', type=int, help='Maximum daily points')
+def configure_points(action, points, description, cooldown, max_daily):
+    """Configure points for actions"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'points', 'configure',
+        action, str(points), description
+    ]
+    if cooldown:
+        cmd.extend(['--cooldown', str(cooldown)])
+    if max_daily:
+        cmd.extend(['--max-daily', str(max_daily)])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(click.style('✅ Points configuration updated successfully', fg='green'))
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to update points configuration', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
 
 # Role Management
 @cli.group()
@@ -248,6 +380,9 @@ def switch(server_name):
 
 # Add role command group to cli
 cli.add_command(role)
+
+# Add points command group to cli
+cli.add_command(points)
 
 if __name__ == '__main__':
     cli() 

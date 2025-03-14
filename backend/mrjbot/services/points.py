@@ -21,6 +21,7 @@ class PointsManager:
         """Award points to a user for an action"""
         with transaction.atomic():
             # Get points configuration if points not specified
+            config = None
             if points is None:
                 try:
                     config = PointsConfig.objects.get(action=action, is_active=True)
@@ -164,8 +165,8 @@ class PointsManager:
             return redemption
 
     @classmethod
-    def reject_redemption(cls, redemption: RewardRedemption,
-                         rejected_by, reason: str) -> RewardRedemption:
+    def reject_redemption(cls, redemption: RewardRedemption, reason: str,
+                         rejected_by) -> RewardRedemption:
         """Reject a reward redemption and refund points"""
         with transaction.atomic():
             if redemption.status != 'PENDING':
