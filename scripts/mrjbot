@@ -378,11 +378,100 @@ def switch(server_name):
     """Switch server location"""
     subprocess.run(["docker-compose", "exec", "backend", "python", "manage.py", "switch_location", server_name])
 
+# Recommendation Management
+@cli.group()
+def recommend():
+    """Manage plan recommendations"""
+    pass
+
+@recommend.command()
+@click.argument('username')
+def generate(username):
+    """Generate recommendations for a user"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'recommendation', 'generate',
+        username
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to generate recommendations', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@recommend.command()
+@click.argument('username')
+@click.option('--all', is_flag=True, help='Show all recommendations')
+def list(username, all):
+    """List recommendations for a user"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'recommendation', 'list',
+        username
+    ]
+    if all:
+        cmd.append('--all')
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to list recommendations', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@recommend.command()
+@click.argument('recommendation_id', type=int)
+@click.option('--helpful', type=bool, help='Was recommendation helpful')
+@click.option('--feedback', type=str, help='Feedback text')
+def feedback(recommendation_id, helpful, feedback):
+    """Record feedback for a recommendation"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'recommendation', 'feedback',
+        str(recommendation_id)
+    ]
+    if helpful is not None:
+        cmd.extend(['--helpful', str(helpful)])
+    if feedback:
+        cmd.extend(['--feedback', feedback])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(click.style('✅ Feedback recorded successfully', fg='green'))
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to record feedback', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
+@recommend.command()
+@click.argument('username')
+def analyze(username):
+    """Analyze user usage pattern"""
+    cmd = [
+        'docker-compose', 'exec', '-T', 'backend',
+        'python', 'manage.py', 'recommendation', 'analyze',
+        username
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        click.echo(result.stdout)
+    else:
+        click.echo(click.style('❌ Failed to analyze usage pattern', fg='red'))
+        click.echo(result.stderr)
+        sys.exit(1)
+
 # Add role command group to cli
 cli.add_command(role)
 
 # Add points command group to cli
 cli.add_command(points)
+
+# Add recommendation command group to cli
+cli.add_command(recommend)
 
 if __name__ == '__main__':
     cli() 
