@@ -14,27 +14,32 @@ RUN apt-get update && \
     gcc \
     python3-dev \
     libpq-dev \
-    curl && \
+    curl \
+    dos2unix && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
+# Install dependencies first
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy entrypoint first and make it executable
-COPY entrypoint.sh /app/
-RUN chmod +x /app/entrypoint.sh
+# Copy entrypoint script
+COPY bot/entrypoint.sh /app/entrypoint.sh
+# Fix line endings and make executable
+RUN dos2unix /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
 
-# Copy wait_for_db.py and make sure it's executable
-COPY wait_for_db.py /app/
-RUN chmod +x /app/wait_for_db.py
+# Copy wait_for_db script
+COPY bot/wait_for_db.py /app/wait_for_db.py
+# Fix line endings and make executable
+RUN dos2unix /app/wait_for_db.py && \
+    chmod +x /app/wait_for_db.py  
 
-# Copy rest of the project
-COPY . /app/
+# Copy the rest of the application
+COPY bot/ /app/
 
-# Make sure entrypoint is executable again (in case it gets overwritten)
+# Make entrypoint executable again (in case it was overwritten)
 RUN chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]

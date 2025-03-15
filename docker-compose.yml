@@ -69,8 +69,8 @@ services:
 
   bot:
     build:
-      context: ./bot
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: bot/Dockerfile
     container_name: mrjbot_bot
     environment:
       - DB_HOST=postgres
@@ -83,7 +83,7 @@ services:
       - PYTHONPATH=/app
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
     volumes:
-      - ./bot:/app
+      - ./bot:/app/dev
     depends_on:
       backend:
         condition: service_started
